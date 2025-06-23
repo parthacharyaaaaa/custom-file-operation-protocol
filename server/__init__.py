@@ -2,7 +2,11 @@
 import os
 import yaml
 from types import MappingProxyType
-import sys
+from dotenv import load_dotenv
+
+_loaded: bool = load_dotenv(os.path.join(__package__, 'server.env'))
+if not _loaded:
+    raise RuntimeError('Failed to load env vars')
 
 response_codes: MappingProxyType[str, str] = None
 
