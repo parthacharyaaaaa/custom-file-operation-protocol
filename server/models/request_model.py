@@ -1,9 +1,8 @@
 '''Module for defining schema of incoming requests'''
 from pydantic import BaseModel, Field, model_validator, IPvAnyAddress
-from typing import Annotated, Optional, Literal, NewType
+from typing import Annotated, Optional, Literal
 from datetime import datetime
-
-BitmaskObject = NewType("Bitmask", int)
+from server.config import CategoryFlag
 
 class BaseAuthComponent(BaseModel):
     identity: Annotated[str, Field(min_length=8, max_length=64)]
@@ -41,5 +40,5 @@ class BaseHeaderComponent(BaseModel):
     sender_address: Annotated[IPvAnyAddress, Field(frozen=True)]
     sequence_number: Annotated[int, Field(frozen=True, ge=1)]
     sender_timestamp: datetime
-    category: Annotated[Literal[1, 2, 4, 8], Field(frozen=True)]    # 0b0001, 0b0010, 0b0100, and 0b1000
+    category: Annotated[CategoryFlag, Field(frozen=True)]    # 0b0001, 0b0010, 0b0100, and 0b1000
     subcategory: Annotated[int, Field(frozen=True, ge=1)]   # Also bitmask literals, but depending on parent category the values can differ
