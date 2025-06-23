@@ -33,6 +33,7 @@ Client Side:
   Malformed Request Structure: '2:malf'
   Unsupported Operation: '2:unsup'
   Rate Limit Exceeded: '2:rl'
+  Unacceptable Speed: '2:us'
 
 Server Side:
   Internal server error (umbrella term): '3:*'
