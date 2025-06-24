@@ -15,6 +15,8 @@ class ServerConfig(Enum):
     HEADER_READ_TIMEOUT: float = 1.0
     HEADER_READ_BYTESIZE: int = 32
 
+    AUTH_READ_TIMEOUT: float = 2.0
+
     FILE_COMP_MAX_BYTESIZE: int = 4096
     AUTH_COMP_MAX_BYTESIZE: int = 1024
     PERM_COMP_MAX_BYTESIZE: int = 512
