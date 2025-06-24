@@ -1,0 +1,3 @@
+from server.authz.session_master import SessionMaster
+
+async def auth_handler(session_master: SessionMaster): ...
