@@ -10,9 +10,6 @@ from server.parsers import serialize_json
 from typing import Any, Optional
 import orjson
 
-async def dump_response(response: res_models.ResponseHeader, writer: asyncio.StreamWriter) -> None:
-    writer.write(orjson.dumps(response.model_dump_json(warnings='error')))
-    await writer.drain()
 
 async def process_header(n_bytes: int, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> Optional[req_models.BaseHeaderComponent]:
     try:
@@ -25,7 +22,8 @@ async def process_header(n_bytes: int, reader: asyncio.StreamReader, writer: asy
         response: res_models.ResponseHeader = res_models.ResponseHeader.from_unverifiable_data(exc.SlowStreamRate, version=ServerConfig.VERSION.value)
     
     # Control would only come here in case of an exception
-    await dump_response(response, writer)
+    writer.write(orjson.dumps(response.model_dump_json()))
+    await writer.drain()
     return None
 
 async def process_auth(n_bytes: int, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> Optional[req_models.BaseAuthComponent]:
@@ -38,5 +36,6 @@ async def process_auth(n_bytes: int, reader: asyncio.StreamReader, writer: async
     except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
         response: res_models.ResponseHeader = res_models.ResponseHeader.from_unverifiable_data(exc.InvalidAuthSemantic, version=ServerConfig.VERSION.value)
 
-    await dump_response(response, writer)
+    writer.write(orjson.dumps(response.model_dump_json()))
+    await writer.drain()
     return None
