@@ -37,7 +37,7 @@ class ResponseHeader(BaseModel):
                    kwargs=kwargs)
     
     @classmethod
-    def from_unverifiable_header(cls, exc: type[ProtocolException], version: Optional[int] = None, seq_num: Optional[int] = None, end_conn: Optional[bool] = False, **kwargs) -> 'ResponseHeader':
+    def from_unverifiable_data(cls, exc: type[ProtocolException], version: Optional[int] = None, seq_num: Optional[int] = None, end_conn: Optional[bool] = False, **kwargs) -> 'ResponseHeader':
         return cls(version=version or ServerConfig.VERSION,
                    code=exc.code,
                    description=exc.description,
