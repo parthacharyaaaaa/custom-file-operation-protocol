@@ -24,3 +24,13 @@ class InvalidHeaderValues(ProtocolException):
     code: str = '2:ihv'
     description: str = 'Header values incorrect'
 
+@dataclass(frozen=True, slots=True)
+class InvalidAuthSemantic(ProtocolException):
+    code: str = '2:ias'
+    description: str = 'Auth semantics incorrect, please ensure that all necessary fields are present'
+
+@dataclass(frozen=True, slots=True)
+class InvalidAuthData(ProtocolException):
+    code: str = '2:iad'
+    description: str = 'Auth values incorrect'
+
