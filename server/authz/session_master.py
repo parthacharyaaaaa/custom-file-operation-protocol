@@ -5,7 +5,6 @@ class SessionMaster(metaclass=MetaSessionMaster):
     '''Class for managing user sessions'''
 
     def __init__(self):
-        self.PID
         pass
 
     def authorize_session():
