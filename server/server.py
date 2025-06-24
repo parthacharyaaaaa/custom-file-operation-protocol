@@ -9,7 +9,7 @@ from server.comms_utils.outgoing import send_heartbeat
 from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
 
 async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, session_master: SessionMaster) -> None:
-    header_component: BaseHeaderComponent = await process_header(ServerConfig.HEADER_READ_BYTESIZE, reader, writer)
+    header_component: BaseHeaderComponent = await process_header(ServerConfig.HEADER_READ_BYTESIZE.value, reader, writer)
     if not header_component:
         return
     
@@ -31,7 +31,7 @@ async def main() -> None:
     
     session_master: SessionMaster = SessionMaster()
     server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback, session_master=session_master),
-                                                        host='127.0.0.1', port=8000)
+                                                        host=ServerConfig.HOST.value, port=ServerConfig.PORT.value)
     async with server:
         await server.serve_forever()
 
