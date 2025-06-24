@@ -8,27 +8,21 @@ import server.models.request_model as req_models
 import server.models.response_models as res_models
 from server.parsers import serialize_json
 from typing import Any, Optional
-from orjson import JSONDecodeError
+import orjson
 
 async def dump_response(response: res_models.ResponseHeader, writer: asyncio.StreamWriter) -> None:
-    writer.write(response.model_dump_json(warnings='error'))
-    writer.write_eof()
+    writer.write(orjson.dumps(response.model_dump_json(warnings='error')))
     await writer.drain()
-    writer.close()
-    await writer.wait_closed()
 
 async def process_header(n_bytes: int, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> Optional[req_models.BaseHeaderComponent]:
-    exception: bool = False
     try:
-        raw_header: bytes = await asyncio.wait_for(reader.readexactly(ServerConfig.HEADER_READ_BYTESIZE), timeout=ServerConfig.HEADER_READ_TIMEOUT)
+        raw_header: bytes = await asyncio.wait_for(reader.readexactly(ServerConfig.HEADER_READ_BYTESIZE.value), timeout=ServerConfig.HEADER_READ_TIMEOUT.value)
         header: dict[str, Any] = await serialize_json(raw_header)
         return req_models.BaseHeaderComponent.model_validate(obj=header)
-    except (asyncio.IncompleteReadError, ValidationError, JSONDecodeError):
-        exception = True
-        response: res_models.ResponseHeader = res_models.ResponseHeader.from_unverifiable_data(exc.InvalidHeaderSemantic, version=ServerConfig.VERSION)
+    except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
+        response: res_models.ResponseHeader = res_models.ResponseHeader.from_unverifiable_data(exc.InvalidHeaderSemantic, version=ServerConfig.VERSION.value)
     except asyncio.TimeoutError:
-        exception = True
-        response: res_models.ResponseHeader = res_models.ResponseHeader.from_unverifiable_data(exc.SlowStreamRate, version=ServerConfig.VERSION)
+        response: res_models.ResponseHeader = res_models.ResponseHeader.from_unverifiable_data(exc.SlowStreamRate, version=ServerConfig.VERSION.value)
     
     # Control would only come here in case of an exception
     await dump_response(response, writer)
@@ -36,13 +30,13 @@ async def process_header(n_bytes: int, reader: asyncio.StreamReader, writer: asy
 
 async def process_auth(n_bytes: int, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> Optional[req_models.BaseAuthComponent]:
     try:
-        raw_auth: bytes = await asyncio.wait_for(reader.readexactly(n_bytes), timeout=ServerConfig.AUTH_READ_TIMEOUT)
+        raw_auth: bytes = await asyncio.wait_for(reader.readexactly(n_bytes), timeout=ServerConfig.AUTH_READ_TIMEOUT.value)
         auth_mapping: dict[str, Any] = await serialize_json(raw_auth)
         auth_component: req_models.BaseAuthComponent = req_models.BaseAuthComponent.model_validate_json(auth_mapping)
     except asyncio.TimeoutError:
-        response: res_models.ResponseHeader = res_models.ResponseHeader.from_unverifiable_data(exc.SlowStreamRate, version=ServerConfig.VERSION)
-    except (asyncio.IncompleteReadError, ValidationError, JSONDecodeError):
-        response: res_models.ResponseHeader = res_models.ResponseHeader.from_unverifiable_data(exc.InvalidAuthSemantic, version=ServerConfig.VERSION)
+        response: res_models.ResponseHeader = res_models.ResponseHeader.from_unverifiable_data(exc.SlowStreamRate, version=ServerConfig.VERSION.value)
+    except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
+        response: res_models.ResponseHeader = res_models.ResponseHeader.from_unverifiable_data(exc.InvalidAuthSemantic, version=ServerConfig.VERSION.value)
 
     await dump_response(response, writer)
     return None
