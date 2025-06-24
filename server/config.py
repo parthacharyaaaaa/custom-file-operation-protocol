@@ -13,7 +13,7 @@ class ServerConfig(Enum):
 
     VERSION: int = 1
     HEADER_READ_TIMEOUT: float = 1.0
-    HEADER_READ_BYTESIZE: int = 32
+    HEADER_READ_BYTESIZE: int = 200
 
     AUTH_READ_TIMEOUT: float = 2.0
 
