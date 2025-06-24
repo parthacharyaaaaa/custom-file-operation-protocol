@@ -40,5 +40,6 @@ class BaseHeaderComponent(BaseModel):
     sender_address: Annotated[IPvAnyAddress, Field(frozen=True)]
     sequence_number: Annotated[int, Field(frozen=True, ge=1)]
     sender_timestamp: datetime
+    finish: bool = False
     category: Annotated[CategoryFlag, Field(frozen=True)]    # 0b0001, 0b0010, 0b0100, and 0b1000
     subcategory: Annotated[int, Field(frozen=True, ge=1)]   # Also bitmask literals, but depending on parent category the values can differ
