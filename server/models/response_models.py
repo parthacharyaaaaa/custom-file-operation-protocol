@@ -14,7 +14,7 @@ class ResponseHeader(BaseModel):
     sequence_number: Annotated[int, Field(frozen=True, ge=0)]
     sender_timestamp: datetime
     body_size: Annotated[int, Field(frozen=True, default=0)]
-    description: Annotated[str, Field(max_length=64)]
+    description: Annotated[str, Field(max_length=256)]
     end_connection: Annotated[bool, Field(default=False)]
     kwargs: Optional[dict[Annotated[str, Field(min_length=4, max_length=16)], Annotated[str, Field(min_length=1, max_length=128)]]]
 
@@ -28,7 +28,7 @@ class ResponseHeader(BaseModel):
     def from_protocol_exception(cls, exc: type[ProtocolException], context_request: BaseHeaderComponent, end_conn: bool = False, body_size: Optional[int] = None, sequence_number: Optional[int] = None, **kwargs) -> 'ResponseHeader':
         return cls(version=context_request.version,
                    code=exc.code,
-                   sender_address=f'{ServerConfig.HOST}:{ServerConfig.PORT}',
+                   sender_address={ServerConfig.HOST},
                    sequence_number=sequence_number or context_request.sequence_number+1,
                    sender_timestamp=datetime.now(),
                    body_size=body_size or 0,
@@ -38,10 +38,11 @@ class ResponseHeader(BaseModel):
     
     @classmethod
     def from_unverifiable_data(cls, exc: type[ProtocolException], version: Optional[int] = None, seq_num: Optional[int] = None, end_conn: Optional[bool] = False, **kwargs) -> 'ResponseHeader':
+        print(exc.code, exc.description)
         return cls(version=version or ServerConfig.VERSION,
                    code=exc.code,
                    description=exc.description,
-                   sender_address=f'{ServerConfig.HOST}:{ServerConfig.PORT}',
+                   sender_address=ServerConfig.HOST.value,
                    sequence_number=seq_num or 0,
                    sender_timestamp=datetime.now(),
                    body_size=0,
