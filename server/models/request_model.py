@@ -2,7 +2,7 @@
 from pydantic import BaseModel, Field, model_validator, IPvAnyAddress
 from typing import Annotated, Optional, Literal
 from datetime import datetime
-from server.config import CategoryFlag
+from server.config import CategoryFlag, ServerConfig
 
 class BaseAuthComponent(BaseModel):
     identity: Annotated[str, Field(min_length=8, max_length=64)]
@@ -17,14 +17,16 @@ class BaseAuthComponent(BaseModel):
         return self
     
 class BaseFileComponent(BaseModel):
-    subject_file: str
-    read_range: Optional[Annotated[int, Field(ge=0, le=4096, frozen=True, default=None)]]
-    write_buffer: Optional[Annotated[str, Field(min_length=1, max_length=4096, frozen=True, default=None)]]
-    return_partial: Optional[Annotated[bool, Field(default=True)]]
+    subject_file: Annotated[str, Field(max_length=1024, pattern=r'[\w\-\,\@\#\$\%\&\*\(\)\[\]\<\>]{1,64}\.+[a-zA-z]')]
+    chunk_number: Optional[Annotated[int, Field(ge=0, frozen=True, default=None)]]
+    chunk_size: Optional[Annotated[int, Field(ge=1, le=ServerConfig.CHUNK_MAX_SIZE.value, default=ServerConfig.CHUNK_MAX_SIZE.value)]]
+    write_data: Optional[Annotated[str, Field(min_length=1, max_length=ServerConfig.CHUNK_MAX_SIZE.value, frozen=True)]]
+    return_partial: Annotated[bool, Field(default=True)]
+    cursor_keepalive: Annotated[bool, Field(default=False)]
 
     @model_validator(mode='after')
     def file_op_semantic_check(self) -> 'BaseFileComponent':
-        if not (self.read_range or self.write_buffer):
+        if not (self.chunk_size or self.write_data):
             raise Exception('Missing any operational data')
         return self
 
