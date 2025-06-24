@@ -6,14 +6,16 @@ from server.config import CategoryFlag, ServerConfig
 
 class BaseAuthComponent(BaseModel):
     identity: Annotated[str, Field(min_length=8, max_length=64)]
-    password: Optional[Annotated[str, Field(min_length=16, max_length=1024)]]
-    token: Optional[Annotated[str, Field(min_length=16, max_length=1024)]]
-    max_time: Annotated[int, Field(ge=16, le=86400)]
+    password: Optional[Annotated[str, Field(min_length=16, max_length=1024, default=None)]]
+    token: Optional[Annotated[str, Field(min_length=16, max_length=1024, default=None)]]
+    refresh_digest: Optional[Annotated[str, Field(min_length=ServerConfig.REFRESH_DIGEST_LENGTH.value, max_length=ServerConfig.REFRESH_DIGEST_LENGTH.value, frozen=True, default=None)]]
 
     @model_validator(mode='after')
     def auth_semantic_check(self) -> 'BaseAuthComponent':
         if not (self.password or self.token):
             raise ValueError('Passkey or token required for authentication')
+        if self.refresh_digest and not self.token:
+            raise ValueError('Refresh digest provided but no active token given')
         return self
     
 class BaseFileComponent(BaseModel):
