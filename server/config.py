@@ -7,8 +7,17 @@ class CategoryFlag(IntFlag):
     PERMISSION = 0b1000
 
 class ServerConfig(Enum):
+    # Address
+    HOST: str = '127.0.0.1'
+    PORT: int = 6090
+
+    VERSION: int = 1
     HEADER_READ_TIMEOUT: float = 1.0
     HEADER_READ_BYTESIZE: int = 32
+
+    FILE_COMP_MAX_BYTESIZE: int = 4096
+    AUTH_COMP_MAX_BYTESIZE: int = 1024
+    PERM_COMP_MAX_BYTESIZE: int = 512
 
     # Database
     MAX_CONNECTIONS: tuple[int, int, int] = (30, 20, 10)    # High priority -> low priority
