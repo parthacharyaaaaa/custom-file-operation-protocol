@@ -8,14 +8,25 @@ from datetime import datetime
 from server.errors import ProtocolException
 
 class ResponseHeader(BaseModel):
-    version: Annotated[int, Field(ge=0)]
-    code: str
-    sender_address: Annotated[IPvAnyAddress, Field(frozen=True)]
-    sequence_number: Annotated[int, Field(frozen=True, ge=0)]
-    sender_timestamp: datetime
+    # Protocol metadata
+    version: Annotated[str, Field(min_length=6, max_length=12, pattern=r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')]
+    
+    # Response metadata
+    code: Annotated[str, Field(min_length=3, pattern=r'[0-9]\:[a-z]{1,6}')]
+    description: Optional[Annotated[str, Field(max_length=256, default=None)]]
+
+    # Responder metadata
+    responder_hostname: Annotated[IPvAnyAddress, Field(frozen=True)]
+    responder_port: Annotated[int, Field(frozen=True, max_digits=5)]
+    responder_timestamp: Annotated[float, Field(frozen=True)]
+
+    # Response contents
     body_size: Annotated[int, Field(frozen=True, default=0)]
-    description: Annotated[str, Field(max_length=256)]
-    end_connection: Annotated[bool, Field(default=False)]
+    
+    # Connection status
+    ended_connection: Annotated[bool, Field(default=False)]
+
+    # Additonal key-value pairs
     kwargs: Optional[dict[Annotated[str, Field(min_length=4, max_length=16)], Annotated[str, Field(min_length=1, max_length=128)]]]
 
     def validate_code(self) -> bool:
@@ -25,30 +36,31 @@ class ResponseHeader(BaseModel):
         return False
     
     @classmethod
-    def from_protocol_exception(cls, exc: type[ProtocolException], context_request: BaseHeaderComponent, end_conn: bool = False, body_size: Optional[int] = None, sequence_number: Optional[int] = None, **kwargs) -> 'ResponseHeader':
+    def from_protocol_exception(cls, exc: type[ProtocolException], context_request: BaseHeaderComponent, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
         return cls(version=context_request.version,
                    code=exc.code,
-                   sender_address={ServerConfig.HOST},
-                   sequence_number=sequence_number or context_request.sequence_number+1,
-                   sender_timestamp=datetime.now(),
-                   body_size=body_size or 0,
+                   responder_address={ServerConfig.HOST},
+                   responder_timestamp=datetime.now(),
+                   body_size=0,
                    description=exc.description,
                    end_connection=end_conn,
                    kwargs=kwargs)
     
     @classmethod
-    def from_unverifiable_data(cls, exc: type[ProtocolException], version: Optional[int] = None, seq_num: Optional[int] = None, end_conn: Optional[bool] = False, **kwargs) -> 'ResponseHeader':
+    def from_unverifiable_data(cls, exc: type[ProtocolException], version: Optional[int] = None, end_conn: Optional[bool] = False, **kwargs) -> 'ResponseHeader':
         print(exc.code, exc.description)
         return cls(version=version or ServerConfig.VERSION,
                    code=exc.code,
                    description=exc.description,
-                   sender_address=ServerConfig.HOST.value,
-                   sequence_number=seq_num or 0,
-                   sender_timestamp=datetime.now(),
+                   responder_address=ServerConfig.HOST.value,
+                   responder_timestamp=datetime.now(),
                    body_size=0,
                    end_connection=end_conn,
                    kwargs=kwargs)
 
 class ResponseBody(BaseModel):
-    data: Union[bytes, str]
-    partial: bool = False
+    contents: Union[bytes, str]
+    chunk_number: Optional[Annotated[int, Field(ge=0, frozen=True, default=None)]]
+    return_partial: Optional[Annotated[bool, Field(default=True)]]\
+    
+    keepalive_accepted: Optional[bool]
