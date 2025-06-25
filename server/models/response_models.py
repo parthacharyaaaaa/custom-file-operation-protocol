@@ -10,10 +10,10 @@ from server.errors import ProtocolException
 
 class ResponseHeader(BaseModel):
     # Protocol metadata
-    version: Annotated[str, Field(min_length=6, max_length=12, pattern=r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')]
+    version: Annotated[str, Field(min_length=6, max_length=12, pattern=ServerConfig.VERSION_REGEX.value)]
     
     # Response metadata
-    code: Annotated[str, Field(min_length=3, pattern=r'[0-9]\:[a-z]{1,6}')]
+    code: Annotated[str, Field(min_length=3, pattern=ServerConfig.RESPONSE_CODE_REGEX.value)]
     description: Optional[Annotated[str, Field(max_length=256, default=None)]]
 
     # Responder metadata

@@ -60,7 +60,7 @@ class BasePermissionComponent(BaseModel):
         return self
 
 class BaseHeaderComponent(BaseModel):
-    version: Annotated[str, Field(min_length=6, max_length=12, pattern=r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')]
+    version: Annotated[str, Field(min_length=6, max_length=12, pattern=ServerConfig.VERSION_REGEX.value)]
 
     # Read ahead logic
     auth_size: Annotated[int, Field(frozen=True, default=0)]
@@ -72,7 +72,7 @@ class BaseHeaderComponent(BaseModel):
     sender_timestamp: Annotated[float, Field(frozen=True)]
 
     # Connection status
-    finish = Annotated[bool, Field(frozen=True, default=True)]
+    finish: Annotated[bool, Field(frozen=True, default=True)]
 
     # Message category
     category: Annotated[CategoryFlag, Field(frozen=True)]    # 0b0001, 0b0010, 0b0100, and 0b1000

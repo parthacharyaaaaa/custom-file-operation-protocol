@@ -19,6 +19,8 @@ class ServerConfig(Enum):
     PORT: int = 6090
 
     VERSION: str = '0.0.1'
+    VERSION_REGEX: str = r'^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'
+    RESPONSE_CODE_REGEX: str = r'^[0-9]\:[a-z]{1,6}$'
     HEADER_READ_TIMEOUT: float = 1.0
     HEADER_READ_BYTESIZE: int = 200
 
@@ -36,7 +38,7 @@ class ServerConfig(Enum):
 
     # File I/O
     FILE_CONTENTION_TIMEOUT: float = 5
-    FILENAME_REGEX: str = r'^(?!.*[\\/])(?=.{1,128}\.[a-zA-Z0-9]{2,10}$)[^\\/]+$'
+    FILENAME_REGEX: str = r'^[^\\/]{1,128}\.[a-zA-Z0-9]{2,10}$'
     FILE_CACHE_SIZE: int = 500
     FILE_CACHE_TTL: int = 180
     USER_MAX_FILES: int = 30
