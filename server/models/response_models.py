@@ -48,7 +48,7 @@ class ResponseHeader(BaseModel):
     def make_response_header(cls, version: Optional[str], code: int, description: str, hostname: Optional[str] = None, port: Optional[int] = None, responder_timestamp: Optional[float] = None, body_size: int = 0, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
         return cls(version=version or ServerConfig.VERSION.value,
                    code=code, description=description,
-                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, responder_timestamp=responder_timestamp or time.time(),
+                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, responder_timestamp=responder_timestamp or time(),
                    body_size=body_size, ended_connection=end_conn,
                    kwargs=kwargs)
     
@@ -57,7 +57,7 @@ class ResponseHeader(BaseModel):
         return cls(version=context_request.version,
                    code=exc.code,
                    description=exc.description,
-                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, responder_timestamp=responder_timestamp or time.time(),
+                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, responder_timestamp=responder_timestamp or time(),
                    body_size=0,
                    end_connection=end_conn,
                    kwargs=kwargs)
