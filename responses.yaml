@@ -6,6 +6,7 @@ Success:
   successful authentication: '1:auth'
   successful user creation: '1:new'
   successful password change: '1:pw'
+  heartbeat: '1:hb'
 
 Intermediary:
   Partial amend: '0:a'
