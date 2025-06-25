@@ -5,6 +5,7 @@ from server import response_codes
 from server.config import ServerConfig
 from server.models.request_model import BaseHeaderComponent
 from datetime import datetime
+from time import time
 from server.errors import ProtocolException
 
 class ResponseHeader(BaseModel):
@@ -36,19 +37,25 @@ class ResponseHeader(BaseModel):
         return False
     
     @classmethod
-    def from_protocol_exception(cls, exc: type[ProtocolException], context_request: BaseHeaderComponent, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
+    def make_response_header(cls, version: str, code: int, description: str, hostname: Optional[str] = None, port: Optional[int] = None, response_timestamp: Optional[float] = None, body_size: int = 0, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
+        return cls(version=version,
+                   code=code, description=description,
+                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, response_timestamp=response_timestamp or time.time(),
+                   body_size=body_size, ended_connection=end_conn,
+                   **kwargs)
+    
+    @classmethod
+    def from_protocol_exception(cls, exc: type[ProtocolException], context_request: BaseHeaderComponent, hostname: Optional[str] = None, port: Optional[int] = None, response_timestamp: Optional[float] = None, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
         return cls(version=context_request.version,
                    code=exc.code,
-                   responder_address={ServerConfig.HOST},
-                   responder_timestamp=datetime.now(),
-                   body_size=0,
                    description=exc.description,
+                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, response_timestamp=response_timestamp or time.time(),
+                   body_size=0,
                    end_connection=end_conn,
-                   kwargs=kwargs)
+                   **kwargs)
     
     @classmethod
     def from_unverifiable_data(cls, exc: type[ProtocolException], version: Optional[int] = None, end_conn: Optional[bool] = False, **kwargs) -> 'ResponseHeader':
-        print(exc.code, exc.description)
         return cls(version=version or ServerConfig.VERSION,
                    code=exc.code,
                    description=exc.description,
@@ -56,7 +63,7 @@ class ResponseHeader(BaseModel):
                    responder_timestamp=datetime.now(),
                    body_size=0,
                    end_connection=end_conn,
-                   kwargs=kwargs)
+                   **kwargs)
 
 class ResponseBody(BaseModel):
     contents: Union[bytes, str]
