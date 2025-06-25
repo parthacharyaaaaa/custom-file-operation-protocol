@@ -60,7 +60,7 @@ class BasePermissionComponent(BaseModel):
         return self
 
 class BaseHeaderComponent(BaseModel):
-    version: Annotated[str, Field(min_length=6, max_length=12, pattern=ServerConfig.VERSION_REGEX.value)]
+    version: Annotated[str, Field(min_length=5, max_length=12, pattern=ServerConfig.VERSION_REGEX.value)]
 
     # Read ahead logic
     auth_size: Annotated[int, Field(frozen=True, default=0)]
@@ -68,7 +68,7 @@ class BaseHeaderComponent(BaseModel):
 
     # Sender metadata
     sender_hostname: Annotated[IPvAnyAddress, Field(frozen=True)]
-    sender_port: Annotated[int, Field(frozen=True, max_digits=5)]
+    sender_port: Annotated[int, Field(frozen=True)]
     sender_timestamp: Annotated[float, Field(frozen=True)]
 
     # Connection status

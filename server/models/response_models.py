@@ -10,7 +10,7 @@ from server.errors import ProtocolException
 
 class ResponseHeader(BaseModel):
     # Protocol metadata
-    version: Annotated[str, Field(min_length=6, max_length=12, pattern=ServerConfig.VERSION_REGEX.value)]
+    version: Annotated[str, Field(min_length=5, max_length=12, pattern=ServerConfig.VERSION_REGEX.value)]
     
     # Response metadata
     code: Annotated[str, Field(min_length=3, pattern=ServerConfig.RESPONSE_CODE_REGEX.value)]
@@ -18,7 +18,7 @@ class ResponseHeader(BaseModel):
 
     # Responder metadata
     responder_hostname: Annotated[IPvAnyAddress, Field(frozen=True)]
-    responder_port: Annotated[int, Field(frozen=True, max_digits=5)]
+    responder_port: Annotated[int, Field(frozen=True)]
     responder_timestamp: Annotated[float, Field(frozen=True)]
 
     # Response contents
@@ -28,7 +28,15 @@ class ResponseHeader(BaseModel):
     ended_connection: Annotated[bool, Field(default=False)]
 
     # Additonal key-value pairs
-    kwargs: Optional[dict[Annotated[str, Field(min_length=4, max_length=16)], Annotated[str, Field(min_length=1, max_length=128)]]]
+    kwargs: Optional[
+        Annotated[
+            dict[
+                Annotated[str, Field(min_length=4, max_length=16)],
+                Annotated[str, Field(min_length=1, max_length=128)]
+                ],
+            Field(default=None)
+        ]
+    ] = None
 
     def validate_code(self) -> bool:
         for response_category in response_codes:
@@ -37,30 +45,29 @@ class ResponseHeader(BaseModel):
         return False
     
     @classmethod
-    def make_response_header(cls, version: str, code: int, description: str, hostname: Optional[str] = None, port: Optional[int] = None, response_timestamp: Optional[float] = None, body_size: int = 0, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
-        return cls(version=version,
+    def make_response_header(cls, version: Optional[str], code: int, description: str, hostname: Optional[str] = None, port: Optional[int] = None, responder_timestamp: Optional[float] = None, body_size: int = 0, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
+        return cls(version=version or ServerConfig.VERSION.value,
                    code=code, description=description,
-                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, response_timestamp=response_timestamp or time.time(),
+                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, responder_timestamp=responder_timestamp or time.time(),
                    body_size=body_size, ended_connection=end_conn,
-                   **kwargs)
+                   kwargs=kwargs)
     
     @classmethod
-    def from_protocol_exception(cls, exc: type[ProtocolException], context_request: BaseHeaderComponent, hostname: Optional[str] = None, port: Optional[int] = None, response_timestamp: Optional[float] = None, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
+    def from_protocol_exception(cls, exc: type[ProtocolException], context_request: BaseHeaderComponent, hostname: Optional[str] = None, port: Optional[int] = None, responder_timestamp: Optional[float] = None, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
         return cls(version=context_request.version,
                    code=exc.code,
                    description=exc.description,
-                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, response_timestamp=response_timestamp or time.time(),
+                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, responder_timestamp=responder_timestamp or time.time(),
                    body_size=0,
                    end_connection=end_conn,
-                   **kwargs)
+                   kwargs=kwargs)
     
     @classmethod
-    def from_unverifiable_data(cls, exc: type[ProtocolException], version: Optional[int] = None, end_conn: Optional[bool] = False, **kwargs) -> 'ResponseHeader':
-        return cls(version=version or ServerConfig.VERSION,
+    def from_unverifiable_data(cls, exc: type[ProtocolException], version: Optional[int] = None,hostname: Optional[str] = None, port: Optional[int] = None, responder_timestamp: Optional[float] = None, end_conn: Optional[bool] = False, **kwargs) -> 'ResponseHeader':
+        return cls(version=version or ServerConfig.VERSION.value,
                    code=exc.code,
                    description=exc.description,
-                   responder_address=ServerConfig.HOST.value,
-                   responder_timestamp=datetime.now(),
+                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, responder_timestamp=responder_timestamp or time(),
                    body_size=0,
                    end_connection=end_conn,
                    **kwargs)
