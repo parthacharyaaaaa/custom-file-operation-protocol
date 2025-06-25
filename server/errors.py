@@ -1,5 +1,6 @@
 from abc import ABC
 from datetime import datetime
+from server.config import CategoryFlag
 
 class ProtocolException(ABC, BaseException):
     '''Abstract base exception class for all protocol specific exceptions. Contains all the bare minimum data required to construct and send a response to an erroneous request'''
@@ -30,4 +31,8 @@ class InvalidAuthSemantic(ProtocolException):
 class InvalidAuthData(ProtocolException):
     code: str = '2:iad'
     description: str = 'Auth values incorrect'
+
+class UnsupportedOperation(ProtocolException):
+    code: str = '2:iad'
+    description: str = f'Unsupported Operation requested. Must be: {", ".join(CategoryFlag._member_names_)}'
 
