@@ -20,7 +20,7 @@ class ServerConfig(Enum):
 
     VERSION: str = '0.0.1'
     VERSION_REGEX: str = r'^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'
-    RESPONSE_CODE_REGEX: str = r'^[0-9]\:[a-z]{1,6}$'
+    RESPONSE_CODE_REGEX: str = r'^3\:\*|[0-9]\:[a-z]{1,6}$'
     HEADER_READ_TIMEOUT: float = 1.0
     HEADER_READ_BYTESIZE: int = 200
 
