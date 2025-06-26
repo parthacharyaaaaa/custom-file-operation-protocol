@@ -36,3 +36,6 @@ class UnsupportedOperation(ProtocolException):
     code: str = '2:iad'
     description: str = f'Unsupported Operation requested. Must be: {", ".join(CategoryFlag._member_names_)}'
 
+class InternalServerError(ProtocolException):
+    code: str = '3:*'
+    description: str = 'Internal Server Error'
