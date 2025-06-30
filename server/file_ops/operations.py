@@ -139,3 +139,15 @@ async def append_file(fpath: str, data: Union[bytes, str], deleted_cache: TTLCac
             await append_writer.close()
     
     return len(data)
+
+async def create_file(owner: str, filename: str, root: os.PathLike, extension: str = '.txt') -> Optional[str]:
+    parent_dir: os.PathLike = os.path.join(root, owner.lower())
+    os.makedirs(parent_dir, exist_ok=True)
+
+    fpath: os.PathLike = os.path.join(parent_dir, f'{filename}{extension}')
+    try:
+        async with aiofiles.open(fpath, mode='x'): pass
+    except FileExistsError:
+        return None
+    
+    return fpath
