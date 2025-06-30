@@ -113,7 +113,7 @@ class ConnectionPoolManager:
         for _ in range(low_priority_conns):
             self._lp_connection_pool.put(await LeasedConnection.connect(conninfo, self, lease_duration, autocommit=True))
         
-    async def request_connection(self, level: Literal[1,2,3], max_lease_duration: Optional[float] = None) -> pg.AsyncConnection:
+    async def request_connection(self, level: Literal[1,2,3], max_lease_duration: Optional[float] = None) -> ConnectionProxy:
         '''Request a connection from one of the priority pools. If none available, waits.
         Args:
             level (int): Priority of the operation
@@ -143,10 +143,11 @@ class ConnectionPoolManager:
 
         return proxy
     
-    async def reclaim_connection(self, conn: LeasedConnection) -> None:
-        if conn.manager != self:
+    async def reclaim_connection(self, proxy: ConnectionProxy) -> None:
+        if proxy._conn.manager != self:
             raise ValueError(f'Connection not reclaimable as it does not belong to this instance of {self.__class__.__name__}')
         
-        conn._in_use = False
-        conn._usage_token = None
-        conn._lease_duration = self.lease_duration
+        proxy._conn._in_use = False
+        proxy._conn._usage_token = None
+        proxy._conn._lease_duration = self.lease_duration
+    
