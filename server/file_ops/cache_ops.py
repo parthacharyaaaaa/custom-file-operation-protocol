@@ -15,7 +15,9 @@ def get_reader(read_cache: TTLCache[str, dict[str, AsyncBufferedReader]], fpath:
     except KeyError:
         return None
     
-def purge_file_entries(filename: str, deleted_cache: TTLCache[str, Literal[True]], *cache_list: TTLCache[str, dict[str, Union[AsyncBufferedIOBase, AsyncBufferedReader]]]) -> None:
+async def purge_file_entries(filename: str, deleted_cache: TTLCache[str, Literal[True]], *cache_list: TTLCache[str, dict[str, Union[AsyncBufferedIOBase, AsyncBufferedReader]]]) -> None:
     deleted_cache.update({filename:True})
     for cache in cache_list:
-        cache.pop(filename, None)
+        buffered_mapping = cache.pop(filename, {})
+        for _, buffered_obj in buffered_mapping.items():
+            await buffered_obj.close()
