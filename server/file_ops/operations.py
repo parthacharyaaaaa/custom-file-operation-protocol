@@ -1,5 +1,5 @@
 import asyncio
-from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries
+from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries, rename_file_entries
 import aiofiles
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from typing import Optional, Union, Literal
@@ -144,7 +144,7 @@ async def create_file(owner: str, filename: str, root: os.PathLike, extension: s
     parent_dir: os.PathLike = os.path.join(root, owner.lower())
     os.makedirs(parent_dir, exist_ok=True)
 
-    fpath: os.PathLike = os.path.join(parent_dir, f'{filename}{extension}')
+    fpath: os.PathLike = os.path.join(parent_dir, f'{filename}.{extension}')
     try:
         async with aiofiles.open(fpath, mode='x'): pass
     except FileExistsError:
@@ -162,3 +162,15 @@ async def delete_file(fpath: os.PathLike, deleted_cache: TTLCache[str, Literal[T
     except (FileNotFoundError, PermissionError, OSError):
         return False
 
+async def rename_file(fpath: os.PathLike, name: str, extension: str, deleted_cache: TTLCache[str, Literal[True]], read_cache: TTLCache[str, dict[str, AsyncBufferedReader]], write_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]], append_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> bool:
+    if fpath in deleted_cache or not os.path.isfile(fpath):
+        return False
+    
+    try:
+        new_fpath: os.PathLike = os.path.join(os.path.dirname(fpath), f'{name}.{extension}')
+        os.rename(fpath, new_fpath)
+        rename_file_entries(fpath, new_fpath, read_cache, write_cache, append_cache)
+        
+        return True
+    except (PermissionError, OSError):
+        return False
