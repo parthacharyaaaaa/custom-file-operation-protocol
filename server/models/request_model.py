@@ -1,5 +1,5 @@
 '''Module for defining schema of incoming requests'''
-from pydantic import BaseModel, Field, model_validator, IPvAnyAddress
+from pydantic import BaseModel, Field, model_validator, IPvAnyAddress, ValidationError
 from typing import Annotated, Optional, Literal, Union
 from datetime import datetime
 from server.config import CategoryFlag, PermissionFlag, ServerConfig
@@ -25,6 +25,7 @@ class BaseFileComponent(BaseModel):
     subject_file: Annotated[str, Field(max_length=1024, pattern=ServerConfig.FILENAME_REGEX.value)]
 
     # Sequencing logic
+    cursor_position: Annotated[int, Field(ge=0, frozen=True)]
     chunk_number: Optional[Annotated[int, Field(ge=0, frozen=True, default=None)]]
     chunk_size: Optional[Annotated[int, Field(ge=1, le=ServerConfig.CHUNK_MAX_SIZE.value, default=ServerConfig.CHUNK_MAX_SIZE.value)]]  # For read ops
     write_data: Optional[Annotated[str, Field(min_length=1, max_length=ServerConfig.CHUNK_MAX_SIZE.value, frozen=True)]]    # For write ops
@@ -36,7 +37,10 @@ class BaseFileComponent(BaseModel):
     @model_validator(mode='after')
     def file_op_semantic_check(self) -> 'BaseFileComponent':
         if not (self.chunk_size or self.write_data):
-            raise Exception('Missing any operational data')
+            raise ValidationError('Missing any operational data')
+        
+        if not (self.cursor_position > self.chunk_number):
+            raise ValueError('Invalid sequencing logic for reading chunks')
         return self
 
 class BasePermissionComponent(BaseModel):
