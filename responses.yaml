@@ -26,6 +26,7 @@ Client Side:
   Incorrect Auth data: '2:iad'
   Expired Auth Token: '2:exp'
   Duplicate Login: '2:dup'
+  User authentication error: '2:auth'
   Session Terminated prematurely: '2:stp'
   Invalid Body Semantic: '2:ibs'
   Invalid Body Value: '2:ibv'

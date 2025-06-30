@@ -39,3 +39,7 @@ class UnsupportedOperation(ProtocolException):
 class InternalServerError(ProtocolException):
     code: str = '3:*'
     description: str = 'Internal Server Error'
+
+class UserAuthenticationError(ProtocolException):
+    code: str = '2:exu'
+    description: str = 'User authentication error'
