@@ -1,5 +1,5 @@
 import asyncio
-from server.file_ops.cache_ops import remove_reader, get_reader
+from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries
 import aiofiles
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from typing import Optional, Union, Literal
@@ -152,12 +152,13 @@ async def create_file(owner: str, filename: str, root: os.PathLike, extension: s
     
     return fpath
 
-def delete_file(fpath: os.PathLike, deleted_cache: TTLCache[str, Literal[True]]) -> bool:
+async def delete_file(fpath: os.PathLike, deleted_cache: TTLCache[str, Literal[True]], read_cache: TTLCache[str, dict[str, AsyncBufferedReader]], write_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]], append_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> bool:
     if fpath in deleted_cache or not os.path.isfile(fpath):
         raise False
-    
     try:
         os.remove(fpath)
+        await purge_file_entries(fpath, deleted_cache, read_cache, append_cache, write_cache)
         return True
     except (FileNotFoundError, PermissionError, OSError):
         return False
+
