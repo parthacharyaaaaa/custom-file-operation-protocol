@@ -1,4 +1,5 @@
 from enum import Enum, IntFlag
+import os
 
 class CategoryFlag(IntFlag):
     HEARTBEAT = 0b0001
@@ -17,6 +18,7 @@ class ServerConfig(Enum):
     # Address
     HOST: str = '127.0.0.1'
     PORT: int = 6090
+    ROOT: os.PathLike = os.path.dirname(__file__)
 
     VERSION: str = '0.0.1'
     VERSION_REGEX: str = r'^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'
@@ -35,6 +37,7 @@ class ServerConfig(Enum):
     CONNECTION_OVERFLOW_ALLOWANCE: int = 10     # Applies to all connections
     CONNECTION_TIMEOUT: float = 10
     CONNECTION_REFRESH_TIMER: float = 500
+    CONNECTION_LEASE_DURATION: float = 60
 
     # File I/O
     FILE_CONTENTION_TIMEOUT: float = 5
