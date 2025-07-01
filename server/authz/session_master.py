@@ -1,4 +1,5 @@
 import os
+import asyncio
 import re
 from hashlib import pbkdf2_hmac
 from typing import Optional, Union
@@ -66,8 +67,35 @@ class SessionMaster(metaclass=MetaSessionMaster):
         if make_dir:
             os.makedirs(os.path.join(ServerConfig.ROOT.value, username))
 
-    async def delete_user(self, username: str, password: str) -> None:
-        ...
+    async def delete_user(self, username: str, password: str, *caches) -> None:
+        if not (username:=SessionMaster.check_username_validity(username)):
+            raise UserAuthenticationError('Invalid username')
+
+        proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)   # Action concerning account statuses have highest priority
+        try:
+            async with proxy.cursor() as cursor:
+                await cursor.execute('''SELECT pw_hash, pw_salt
+                                     FROM users
+                                     WHERE users.username = %s
+                                     FOR UPDATE NOWAIT READ;''',
+                                     (username,))
+                pw_data: tuple[memoryview, memoryview] = await cursor.fetchone()
+                if not pw_data:
+                    raise UserAuthenticationError(f'No username with {username} exists')
+                
+                if not SessionMaster.verify_password_hash(password, *pw_data):
+                    raise UserAuthenticationError(f'Invalid password for user {username}')
+                
+                # All checks passed
+                await cursor.execute('''DELETE FROM users
+                                     WHERE username = %s;''',
+                                     (username,))
+        finally:
+            await self.connection_master.reclaim_connection(proxy)
+
+        # User deleted, perform relatively less important task of trimming the cache preemptive to usual expiry of this user's buffered readers/writers
+        if caches:
+            asyncio.create_task(self.terminate_user_cache(identifier=str, *caches))
 
     async def terminate_user_cache(self, identifier: str, *caches: TTLCache[str, dict[str, Union[AsyncBufferedReader, AsyncBufferedIOBase]]]) -> None:
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=3)
