@@ -1,7 +1,9 @@
 import os
 import re
 from hashlib import pbkdf2_hmac
-from typing import Optional
+from typing import Optional, Union
+from cachetools import TTLCache
+from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
 from server.authz.singleton import MetaSessionMaster
 from server.bootup import connection_master
 from server.connectionpool import ConnectionProxy
@@ -63,6 +65,37 @@ class SessionMaster(metaclass=MetaSessionMaster):
 
         if make_dir:
             os.makedirs(os.path.join(ServerConfig.ROOT.value, username))
+
+    async def delete_user(self, username: str, password: str) -> None:
+        ...
+
+    async def terminate_user_cache(self, identifier: str, *caches: TTLCache[str, dict[str, Union[AsyncBufferedReader, AsyncBufferedIOBase]]]) -> None:
+        proxy: ConnectionProxy = await self.connection_master.request_connection(level=3)
+        try:
+            async with proxy.cursor() as cursor:
+                # Fetch all possible files where the user may have cached a file buffer. TODO: Segregate based on user roles (read, write+append) as well to separate cache scanning logic and save time
+                await cursor.execute('''SELECT file_owner, filename
+                                     FROM file_permissions
+                                     WHERE grantee = %s
+                                     UNION
+                                     SELECT owner, filename
+                                     FROM files
+                                     WHERE public IS true;''',
+                                     (identifier,))
+                
+                res: list[tuple[str, str]] = await cursor.fetchall()
+                cache_identifers: list[str] = [os.path.join(*file_data) for file_data in res]   # Generate actual cache keys as string 'file_owner/filename'
+        finally: 
+            await self.connection_master.reclaim_connection(proxy)  # Allow master to reclaim leased connection
+        
+        for cache in caches:
+            # Fetch all mappings for possible files
+            buffered_obj_mappings: list[dict[str, Union[AsyncBufferedIOBase, AsyncBufferedReader]]] = [cache.get(cache_identifier) for cache_identifier in cache_identifers]
+            for buffered_obj_mapping in buffered_obj_mappings:
+                # Close cached buffer if found
+                buffered_obj: Union[AsyncBufferedIOBase, AsyncBufferedReader] = buffered_obj_mapping.pop(identifier, None)
+                if buffered_obj:
+                    await buffered_obj.close()
 
     def terminate_session():
         pass
