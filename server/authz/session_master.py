@@ -1,25 +1,50 @@
 import os
 import asyncio
 import re
+from secrets import token_bytes
 from hashlib import pbkdf2_hmac
 from typing import Optional, Union
 from cachetools import TTLCache
 from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
 from server.authz.singleton import MetaSessionMaster
 from server.bootup import connection_master
-from server.connectionpool import ConnectionProxy
+from server.connectionpool import ConnectionProxy, ConnectionPoolManager
 from server.config import ServerConfig
 from server.errors import UserAuthenticationError
+
+class SessionAuthenticationPair:
+    __slots__ = '_token, _refresh_digest'
+    _token: bytes
+    _refresh_digest: bytes
+
+    @property
+    def token(self) -> bytes:
+        return self._token
+    @property
+    def refresh_digest(self) -> bytes:
+        return self._refresh_digest
+
+    def __init__(self, token: bytes, refresh_digest: bytes):
+        self._token = token
+        self._refresh_digest = refresh_digest
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}({self.token}, {self.refresh_digest}) at location {id(self)}>'
+    
+    def update_digest(self, new_digest: bytes) -> None:
+        self._refresh_digest = new_digest
 
 class SessionMaster(metaclass=MetaSessionMaster):
     HASHING_ALGORITHM: str = 'sha256'
     PBKDF_ITERATIONS: int = 100_000
     SALT_LENGTH: int = 16
     USERNAME_REGEX: str = ServerConfig.USERNAME_REGEX.value
+    TOKEN_LENGTH: int = 32
+    REFRESH_DIGEST_LENGTH: int = 128
 
     '''Class for managing user sessions'''
     def __init__(self):
-        self.connection_master = connection_master
+        self.connection_master: ConnectionPoolManager = connection_master
+        self.session: dict[str, str] = {}
 
     @staticmethod
     def generate_password_hash(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
@@ -38,12 +63,45 @@ class SessionMaster(metaclass=MetaSessionMaster):
     def verify_password_hash(password: str, password_hash: bytes, salt: bytes) -> bool:
         return pbkdf2_hmac(SessionMaster.HASHING_ALGORITHM, password, salt, iterations=SessionMaster.PBKDF_ITERATIONS) == password_hash
 
-    def authorize_session():
-        pass
+    # Token and refresh digest generation logic kept as static methods in case we ever need to add any more logic to it
+    @staticmethod
+    def generate_session_token() -> bytes:
+        return token_bytes(SessionMaster.TOKEN_LENGTH)
+    
+    @staticmethod
+    def generate_session_refresh_digest() -> bytes:
+        return token_bytes(SessionMaster.REFRESH_DIGEST_LENGTH)
 
     def authenticate_session():
         pass
 
+    async def authorize_session(self, username: str, password: str) -> SessionAuthenticationPair:
+        if not (username:=SessionMaster.check_username_validity(username)):
+            raise UserAuthenticationError('Invalid username')
+        
+        proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
+        try:
+            async with proxy.cursor() as cursor:
+                await cursor.execute('''SELECT pw_hash, pw_salt
+                                     FROM users
+                                     WHERE username = %s;''',
+                                     (username,))
+                pw_data: tuple[memoryview, memoryview] = await cursor.fetchone()
+        finally:
+            self.connection_master.reclaim_connection(proxy)
+
+        if not pw_data:
+            raise UserAuthenticationError(f'No username with {username} exists')
+        if not SessionMaster.verify_password_hash(password, *pw_data):
+            raise UserAuthenticationError(f'Invalid password for user {username}')
+                
+        # Set new session
+        auth_pair: SessionAuthenticationPair = SessionAuthenticationPair(SessionMaster.generate_session_token(), SessionMaster.generate_session_refresh_digest())
+        #NOTE+TODO: Important design decision here: Should a new login for an exisitng session be rejected, or the session be overwritten and the old user be logged out?
+        self.session[username] = auth_pair
+
+        return auth_pair
+        
     async def create_user(self, username: str, password: str, make_dir: bool = False) -> None:
         if not (username:=SessionMaster.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
