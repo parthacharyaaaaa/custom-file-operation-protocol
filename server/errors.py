@@ -43,3 +43,7 @@ class InternalServerError(ProtocolException):
 class UserAuthenticationError(ProtocolException):
     code: str = '2:exu'
     description: str = 'User authentication error'
+
+class DatabaseFailure(ProtocolException):
+    code: str = '3:db'
+    description: str = 'Database failure'
