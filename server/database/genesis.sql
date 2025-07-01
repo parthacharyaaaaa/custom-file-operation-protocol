@@ -47,6 +47,22 @@ CREATE TABLE IF NOT EXISTS FILE_PERMISSIONS(
     CONSTRAINT check_granter_consistency CHECK (granted_by <> grantee)
 );
 
+CREATE TABLE IF NOT EXISTS BAN_LOGS(
+    username VARCHAR(128) REFERENCES USERS(username) NOT NULL,
+    ban_reason VARCHAR(32) NOT NULL,
+    ban_description VARCHAR(256),
+    ban_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lifted_at TIMESTAMP,
+
+    PRIMARY KEY (username, ban_time),
+    CONSTRAINT check_ban_time_validity CHECK (ban_time <= CURRENT_TIMESTAMP),
+    CONSTRAINT check_unban_time_validity CHECK (lifted_at <= CURRENT_TIMESTAMP),
+    CONSTRAINT check_ban_singleton CHECK (username)
+);
+
+CREATE INDEX ix_ban_logs_lifted_at ON BAN_LOGS(lifted_at);
+CREATE INDEX ix_ban_logs_ban_time ON BAN_LOGS(ban_time);
+
 -- DML
 
 -- Populate ROLES and PERMISSIONS
