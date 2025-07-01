@@ -2,6 +2,7 @@ import os
 import asyncio
 import re
 from secrets import token_bytes
+from hmac import compare_digest
 from hashlib import pbkdf2_hmac
 from typing import Optional, Union
 from cachetools import TTLCache
@@ -53,15 +54,21 @@ class SessionMaster(metaclass=MetaSessionMaster):
         return pbkdf2_hmac(SessionMaster.HASHING_ALGORITHM, password, salt, iterations=SessionMaster.PBKDF_ITERATIONS), salt
     
     @staticmethod
+    def verify_password_hash(password: str, password_hash: bytes, salt: bytes) -> bool:
+        try:
+            return compare_digest(
+                pbkdf2_hmac(SessionMaster.HASHING_ALGORITHM, password, salt, iterations=SessionMaster.PBKDF_ITERATIONS),
+                password_hash)
+        except: 
+            #TODO: Add logging
+            return False
+    
+    @staticmethod
     def check_username_validity(username: str) -> str:
         username = username.strip()
         if not re.match(SessionMaster.USERNAME_REGEX, username):
             return None
         return username
-
-    @staticmethod
-    def verify_password_hash(password: str, password_hash: bytes, salt: bytes) -> bool:
-        return pbkdf2_hmac(SessionMaster.HASHING_ALGORITHM, password, salt, iterations=SessionMaster.PBKDF_ITERATIONS) == password_hash
 
     # Token and refresh digest generation logic kept as static methods in case we ever need to add any more logic to it
     @staticmethod
