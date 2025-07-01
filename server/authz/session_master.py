@@ -79,14 +79,17 @@ class SessionMaster(metaclass=MetaSessionMaster):
     def generate_session_refresh_digest() -> bytes:
         return token_bytes(SessionMaster.REFRESH_DIGEST_LENGTH)
 
-    def authenticate_session(self, username: str, token: bytes) -> None:
+    def authenticate_session(self, username: str, token: bytes, raise_on_exc: bool = False) -> SessionAuthenticationPair:
+        auth_pair: SessionAuthenticationPair = self.session.get(username)
+        if not auth_pair:
+            return
         try:
-            auth_pair: SessionAuthenticationPair = self.session.get(username)
-            if auth_pair and compare_digest(auth_pair.token, token): return
+            if compare_digest(auth_pair.token, token):
+                return auth_pair
         except Exception: 
             #TODO: Add logging for errors raised by hmac.compare_digest
-            ...
-        raise UserAuthenticationError('Invalid authentication token. Please login again')
+            if raise_on_exc:
+                raise UserAuthenticationError('Invalid authentication token. Please login again')
 
     async def authorize_session(self, username: str, password: str) -> SessionAuthenticationPair:
         if not (username:=SessionMaster.check_username_validity(username)):
