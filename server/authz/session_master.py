@@ -13,6 +13,7 @@ from server.connectionpool import ConnectionProxy, ConnectionPoolManager
 from server.config import ServerConfig
 from server.errors import UserAuthenticationError
 
+# TODO: Update SessionAuthenticationPair to include data like epoch to prevent frequent session refresh attempts
 class SessionAuthenticationPair:
     __slots__ = '_token, _refresh_digest'
     _token: bytes
@@ -212,8 +213,30 @@ class SessionMaster(metaclass=MetaSessionMaster):
             #TODO: Add logging for hmac.compare_digest() exceptions
             raise UserAuthenticationError('Failed to log out (Possibly corrupted token)')
 
-    def refresh_session():
-        pass
+    def refresh_session(self, username: str, token: bytes, digest: bytes) -> Optional[bytes]:
+        auth_pair: SessionAuthenticationPair = self.authenticate_session(username, token)
+        if not auth_pair:
+            raise UserAuthenticationError('No such session exists')
+        
+        # session exists and token matches, proceed to check refresh digest
+        try:
+            if not compare_digest(auth_pair.refresh_digest, digest):
+                raise UserAuthenticationError('Invalid refresh digest')
+            
+            new_digest: bytes = SessionMaster.generate_session_refresh_digest()
+            # Optimistic check
+            self.session.pop(username)
+            set_pair: SessionAuthenticationPair = self.session.setdefault(username, SessionAuthenticationPair(token, new_digest))
+            if not compare_digest(set_pair.refresh_digest, new_digest):
+                raise UserAuthenticationError('Failed to reauthenticate session due to repeated request')
+        except Exception as e:
+            self.session.pop(username, None)    # Kill session on exceptions as well
+            if isinstance(e, UserAuthenticationError):
+                raise e
+            # Generic handler for exceptions rising from hmac.compare_digest()
+            raise UserAuthenticationError('Invalid session refresh digest. Please login again')
+        
+        return new_digest
 
     def ban():
         pass
