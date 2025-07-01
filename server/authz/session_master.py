@@ -45,7 +45,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
     '''Class for managing user sessions'''
     def __init__(self):
         self.connection_master: ConnectionPoolManager = connection_master
-        self.session: dict[str, str] = {}
+        self.session: dict[str, SessionAuthenticationPair] = {}
 
     @staticmethod
     def generate_password_hash(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
@@ -79,8 +79,14 @@ class SessionMaster(metaclass=MetaSessionMaster):
     def generate_session_refresh_digest() -> bytes:
         return token_bytes(SessionMaster.REFRESH_DIGEST_LENGTH)
 
-    def authenticate_session():
-        pass
+    def authenticate_session(self, username: str, token: bytes) -> None:
+        try:
+            auth_pair: SessionAuthenticationPair = self.session.get(username)
+            if auth_pair and compare_digest(auth_pair.token, token): return
+        except Exception: 
+            #TODO: Add logging for errors raised by hmac.compare_digest
+            ...
+        raise UserAuthenticationError('Invalid authentication token. Please login again')
 
     async def authorize_session(self, username: str, password: str) -> SessionAuthenticationPair:
         if not (username:=SessionMaster.check_username_validity(username)):
