@@ -1,6 +1,7 @@
 import os
 import asyncio
 import re
+import psycopg.errors as pg_errors
 from secrets import token_bytes
 from hmac import compare_digest
 from hashlib import pbkdf2_hmac
@@ -11,7 +12,7 @@ from server.authz.singleton import MetaSessionMaster
 from server.bootup import connection_master
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
 from server.config import ServerConfig
-from server.errors import UserAuthenticationError
+from server.errors import UserAuthenticationError, DatabaseFailure
 
 # TODO: Update SessionAuthenticationPair to include data like epoch to prevent frequent session refresh attempts
 class SessionAuthenticationPair:
@@ -238,5 +239,48 @@ class SessionMaster(metaclass=MetaSessionMaster):
         
         return new_digest
 
-    def ban():
-        pass
+    async def check_banned(self, username: str, proxy: Optional[ConnectionProxy] = None, reclaim_on_exc: bool = True) -> bool:
+        new_proxy: bool = proxy is None
+        if not proxy:
+            proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
+        try:
+            async with proxy.cursor() as cursor:
+                await cursor.execute('''SELECT username
+                                     FROM ban_logs
+                                     WHERE username = %s AND lifted_at is false
+                                     LIMIT 1;''',
+                                     (username,))
+                return bool(await cursor.fetchone())
+        except Exception as e:
+            if reclaim_on_exc:
+                self.connection_master.reclaim_connection(proxy)
+            return True
+        finally:
+            if new_proxy:
+                await self.connection_master.reclaim_connection(proxy)
+
+    async def ban(self, username: str, ban_reason: str, ban_description: Optional[str] = None, *caches: TTLCache[str, dict[str, Union[AsyncBufferedIOBase, AsyncBufferedReader]]]) -> None:
+        if not (username:=SessionMaster.check_username_validity(username)):
+            raise UserAuthenticationError('Invalid username')
+        
+        proxy: ConnectionProxy = self.connection_master.request_connection(level=1)
+        try:
+            if await self.check_banned(username, proxy):
+                #TODO: Add logging for duplicate ban attempts
+                return
+            
+            async with proxy.cursor() as cursor:
+                cursor.execute('''INSERT INTO ban_logs
+                               VALUES (%s, %s, %s);''',
+                               (username, ban_reason.strip(), ban_description.strip() if ban_description else None))
+                proxy.commit()
+        except pg_errors.Error:
+            #TODO: Add logging here as well
+            raise DatabaseFailure(f'Failed to ban user {username}')
+        finally:
+            await self.connection_master.reclaim_connection(proxy)
+
+        # Once user is banned, terminate their session and any possible cache entries too
+        self.session.pop(username, None)
+        if caches:
+            await self.terminate_user_cache(identifier=username, *caches)
