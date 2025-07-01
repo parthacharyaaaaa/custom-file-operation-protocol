@@ -196,8 +196,18 @@ class SessionMaster(metaclass=MetaSessionMaster):
                 if buffered_obj:
                     await buffered_obj.close()
 
-    def terminate_session():
-        pass
+    def terminate_session(self, username: str, token: bytes) -> None:
+        auth_data: SessionAuthenticationPair = self.session.get(username)
+        if not auth_data:
+            raise UserAuthenticationError(f'No session for user {username} found')
+        try:
+            if compare_digest(auth_data.token, token):
+                self.session.pop(username, None)
+                return
+            raise UserAuthenticationError('Invalid token')
+        except Exception as e:
+            #TODO: Add logging for hmac.compare_digest() exceptions
+            raise UserAuthenticationError('Failed to log out (Possibly corrupted token)')
 
     def refresh_session():
         pass
