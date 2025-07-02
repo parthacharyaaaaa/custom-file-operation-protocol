@@ -80,6 +80,8 @@ class SessionMaster(metaclass=MetaSessionMaster):
         self.connection_master: ConnectionPoolManager = connection_master
         self.session: dict[str, SessionMetadata] = {}
 
+        asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
+
     @staticmethod
     def generate_password_hash(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
         if not salt:
@@ -207,7 +209,9 @@ class SessionMaster(metaclass=MetaSessionMaster):
         finally:
             await self.connection_master.reclaim_connection(proxy)
 
-        # User deleted, perform relatively less important task of trimming the cache preemptive to usual expiry of this user's buffered readers/writers
+        # User deleted, delete session
+        self.session.pop(username, None)
+        # Perform relatively less important task of trimming the cache preemptive to usual expiry of this user's buffered readers/writers
         if caches:
             asyncio.create_task(self.terminate_user_cache(identifier=str, *caches))
 
@@ -267,7 +271,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
             
             new_digest: bytes = SessionMaster.generate_session_refresh_digest()
             # Optimistic check
-            self.session.pop(username)
+            self.session.pop(username, None)
             set_pair: SessionMetadata = self.session.setdefault(username, SessionMetadata(token, new_digest))
             if not compare_digest(set_pair.refresh_digest, new_digest):
                 raise UserAuthenticationError('Failed to reauthenticate session due to repeated request')
@@ -331,7 +335,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
         # Once user is banned, terminate their session and any possible cache entries too
         self.session.pop(username, None)
         if caches:
-            await self.terminate_user_cache(identifier=username, *caches)
+            asyncio.create_task(self.terminate_user_cache(identifier=str, *caches))
 
     async def unban(self, username: str) -> None:
         if not (username:=SessionMaster.check_username_validity()):
@@ -350,3 +354,15 @@ class SessionMaster(metaclass=MetaSessionMaster):
             await proxy.commit()
         finally:
             await self.connection_master.reclaim_connection(proxy)
+
+    async def expire_sessions(self) -> None:
+        sleep_duration: float = SessionMaster.SESSION_LIFESPAN // 3
+        while True:
+            reference_threshold: float = time.time()
+            hitlist: list[str] = []
+            for username, auth_data in self.session.items():
+                if auth_data.get_validity() < reference_threshold:
+                    hitlist.append(username)  
+            for user in hitlist:
+                self.session.pop(user, None)
+            await asyncio.sleep(sleep_duration)
