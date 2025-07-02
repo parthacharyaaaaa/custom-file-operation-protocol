@@ -338,7 +338,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
             asyncio.create_task(self.terminate_user_cache(identifier=str, *caches))
 
     async def unban(self, username: str) -> None:
-        if not (username:=SessionMaster.check_username_validity()):
+        if not (username:=SessionMaster.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
         
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
