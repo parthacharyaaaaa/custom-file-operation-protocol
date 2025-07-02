@@ -2,6 +2,7 @@ import os
 import asyncio
 import re
 import psycopg.errors as pg_errors
+import time
 from datetime import datetime
 from secrets import token_bytes
 from hmac import compare_digest
@@ -15,11 +16,19 @@ from server.connectionpool import ConnectionProxy, ConnectionPoolManager
 from server.config import ServerConfig
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned
 
-# TODO: Update SessionAuthenticationPair to include data like epoch to prevent frequent session refresh attempts
-class SessionAuthenticationPair:
-    __slots__ = '_token, _refresh_digest'
+# TODO: Update SessionMetadata to include data like epoch to prevent frequent session refresh attempts
+class SessionMetadata:
+    __slots__ = '_token', '_refresh_digest', '_last_refresh', '_iteration', '_lifespan'
+    # Cryptograhic metadata
     _token: bytes
     _refresh_digest: bytes
+
+    # Chronologic metadata
+    _last_refresh: float
+    _lifespan: float
+
+    # Additional
+    _iteration: int
 
     @property
     def token(self) -> bytes:
@@ -27,17 +36,37 @@ class SessionAuthenticationPair:
     @property
     def refresh_digest(self) -> bytes:
         return self._refresh_digest
+    @property
+    def last_refresh(self) -> float:
+        return self._last_refresh
+    @property
+    def iteration(self) -> int:
+        return self._iteration
+    @property
+    def lifespan(self) -> float:
+        return self._lifespan
 
-    def __init__(self, token: bytes, refresh_digest: bytes):
+    def __init__(self, token: bytes, refresh_digest: bytes, lifespan: float):
         self._token = token
         self._refresh_digest = refresh_digest
+        self._last_refresh = time.time()
+        self._lifespan = lifespan
+        self._iteration = 1
+    
     def __repr__(self) -> str:
-        return f'<{self.__class__.__name__}({self.token}, {self.refresh_digest}) at location {id(self)}>'
+        return f'<{self.__class__.__name__}({self.token}, {self.refresh_digest}, {self.lifespan}) at location {id(self)}>'
     
     def update_digest(self, new_digest: bytes) -> None:
         self._refresh_digest = new_digest
+        self._last_refresh = time.time()
+        self.valid_until = self._last_refresh + self.lifespan
+        self._iteration+=1
+
+    def get_validity(self) -> float:
+        return self.last_refresh + self.lifespan
 
 class SessionMaster(metaclass=MetaSessionMaster):
+    '''Class for managing user sessions'''
     HASHING_ALGORITHM: str = 'sha256'
     PBKDF_ITERATIONS: int = 100_000
     SALT_LENGTH: int = 16
@@ -45,10 +74,10 @@ class SessionMaster(metaclass=MetaSessionMaster):
     TOKEN_LENGTH: int = 32
     REFRESH_DIGEST_LENGTH: int = 128
 
-    '''Class for managing user sessions'''
     def __init__(self):
         self.connection_master: ConnectionPoolManager = connection_master
-        self.session: dict[str, SessionAuthenticationPair] = {}
+        self.session: dict[str, SessionMetadata] = {}
+        self.session_lifespan: float = ServerConfig.SESSION_LIFESPAN.value
 
     @staticmethod
     def generate_password_hash(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
@@ -82,19 +111,22 @@ class SessionMaster(metaclass=MetaSessionMaster):
     def generate_session_refresh_digest() -> bytes:
         return token_bytes(SessionMaster.REFRESH_DIGEST_LENGTH)
 
-    def authenticate_session(self, username: str, token: bytes, raise_on_exc: bool = False) -> SessionAuthenticationPair:
-        auth_pair: SessionAuthenticationPair = self.session.get(username)
-        if not auth_pair:
+    def authenticate_session(self, username: str, token: bytes, raise_on_exc: bool = False) -> SessionMetadata:
+        auth_data: SessionMetadata = self.session.get(username)
+        if not auth_data:
             return
+        if (auth_data.get_validity() >= time.time()):   # Expired session
+            self.session.pop(username, None)
+            raise UserAuthenticationError('Session expired, please authorize again')
         try:
-            if compare_digest(auth_pair.token, token):
-                return auth_pair
+            if compare_digest(auth_data.token, token):
+                return auth_data
         except Exception: 
             #TODO: Add logging for errors raised by hmac.compare_digest
             if raise_on_exc:
                 raise UserAuthenticationError('Invalid authentication token. Please login again')
 
-    async def authorize_session(self, username: str, password: str) -> SessionAuthenticationPair:
+    async def authorize_session(self, username: str, password: str) -> SessionMetadata:
         if not (username:=SessionMaster.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
         
@@ -119,11 +151,11 @@ class SessionMaster(metaclass=MetaSessionMaster):
             raise UserAuthenticationError(f'Invalid password for user {username}')
                 
         # Set new session
-        auth_pair: SessionAuthenticationPair = SessionAuthenticationPair(SessionMaster.generate_session_token(), SessionMaster.generate_session_refresh_digest())
+        auth_data: SessionMetadata = SessionMetadata(SessionMaster.generate_session_token(), SessionMaster.generate_session_refresh_digest())
         #NOTE+TODO: Important design decision here: Should a new login for an exisitng session be rejected, or the session be overwritten and the old user be logged out?
-        self.session[username] = auth_pair
+        self.session[username] = auth_data
 
-        return auth_pair
+        return auth_data
         
     async def create_user(self, username: str, password: str, make_dir: bool = False) -> None:
         if not (username:=SessionMaster.check_username_validity(username)):
@@ -207,7 +239,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
                     await buffered_obj.close()
 
     def terminate_session(self, username: str, token: bytes) -> None:
-        auth_data: SessionAuthenticationPair = self.session.get(username)
+        auth_data: SessionMetadata = self.session.get(username)
         if not auth_data:
             raise UserAuthenticationError(f'No session for user {username} found')
         try:
@@ -220,19 +252,19 @@ class SessionMaster(metaclass=MetaSessionMaster):
             raise UserAuthenticationError('Failed to log out (Possibly corrupted token)')
 
     def refresh_session(self, username: str, token: bytes, digest: bytes) -> Optional[bytes]:
-        auth_pair: SessionAuthenticationPair = self.authenticate_session(username, token)
-        if not auth_pair:
+        auth_data: SessionMetadata = self.authenticate_session(username, token)
+        if not auth_data:
             raise UserAuthenticationError('No such session exists')
         
         # session exists and token matches, proceed to check refresh digest
         try:
-            if not compare_digest(auth_pair.refresh_digest, digest):
+            if not compare_digest(auth_data.refresh_digest, digest):
                 raise UserAuthenticationError('Invalid refresh digest')
             
             new_digest: bytes = SessionMaster.generate_session_refresh_digest()
             # Optimistic check
             self.session.pop(username)
-            set_pair: SessionAuthenticationPair = self.session.setdefault(username, SessionAuthenticationPair(token, new_digest))
+            set_pair: SessionMetadata = self.session.setdefault(username, SessionMetadata(token, new_digest))
             if not compare_digest(set_pair.refresh_digest, new_digest):
                 raise UserAuthenticationError('Failed to reauthenticate session due to repeated request')
         except Exception as e:
