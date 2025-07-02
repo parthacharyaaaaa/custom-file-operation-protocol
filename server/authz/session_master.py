@@ -240,18 +240,25 @@ class SessionMaster(metaclass=MetaSessionMaster):
         
         return new_digest
 
-    async def check_banned(self, username: str, proxy: Optional[ConnectionProxy] = None, reclaim_on_exc: bool = True) -> bool:
+    async def check_banned(self, username: str, proxy: Optional[ConnectionProxy] = None, reclaim_on_exc: bool = True, lock_row: bool = False) -> bool:
         new_proxy: bool = proxy is None
         if not proxy:
             proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
+        query: str = '''SELECT username
+                        FROM ban_logs
+                        WHERE username = %s AND lifted_at IS FALSE
+                        LIMIT 1'''
+        if lock_row:
+            query += '\nFOR UPDATE NOWAIT'
+        query += ';'
+        
         try:
             async with proxy.cursor() as cursor:
-                await cursor.execute('''SELECT username
-                                     FROM ban_logs
-                                     WHERE username = %s AND lifted_at is false
-                                     LIMIT 1;''',
-                                     (username,))
+                await cursor.execute(query, (username,))
                 return bool(await cursor.fetchone())
+        #TODO: Add exception logging
+        except pg_errors.LockNotAvailable:
+            return True
         except Exception as e:
             if reclaim_on_exc:
                 self.connection_master.reclaim_connection(proxy)
