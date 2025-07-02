@@ -2,6 +2,7 @@ import os
 import asyncio
 import re
 import psycopg.errors as pg_errors
+from datetime import datetime
 from secrets import token_bytes
 from hmac import compare_digest
 from hashlib import pbkdf2_hmac
@@ -284,3 +285,21 @@ class SessionMaster(metaclass=MetaSessionMaster):
         self.session.pop(username, None)
         if caches:
             await self.terminate_user_cache(identifier=username, *caches)
+
+    async def unban(self, username: str) -> None:
+        if not (username:=SessionMaster.check_username_validity()):
+            raise UserAuthenticationError('Invalid username')
+        
+        proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
+        try:
+            if not await self.check_banned(username, proxy):
+                #TODO: Add logging for duplicate/invalid unban attempts
+                return
+            async with proxy.cursor() as cursor:
+                await cursor.execute('''UPDATE ban_logs
+                                     SET lifted_at = %s
+                                     WHERE username = %s AND lifted_at is null;''',
+                                     (datetime.now(), username,))
+            await proxy.commit()
+        finally:
+            await self.connection_master.reclaim_connection(proxy)
