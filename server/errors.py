@@ -1,5 +1,6 @@
-from abc import ABC
+from abc import ABC, ab
 from datetime import datetime
+from typing import Optional
 from server.config import CategoryFlag
 
 class ProtocolException(ABC, BaseException):
@@ -43,6 +44,14 @@ class InternalServerError(ProtocolException):
 class UserAuthenticationError(ProtocolException):
     code: str = '2:exu'
     description: str = 'User authentication error'
+
+class Banned(ProtocolException):
+    code: str = '2:ban'
+    description: str = 'User {username} is banned'
+
+    def __init__(self, username: str, description: Optional[str] = None):
+        super().__init__(description or Banned.description)
+        self.description.format(username=username)
 
 class DatabaseFailure(ProtocolException):
     code: str = '3:db'
