@@ -118,7 +118,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
         auth_data: SessionMetadata = self.session.get(username)
         if not auth_data:
             return
-        if (auth_data.get_validity() >= time.time()):   # Expired session
+        if (auth_data.get_validity() < time.time()):   # Expired session
             self.session.pop(username, None)
             raise UserAuthenticationError('Session expired, please authorize again')
         try:
