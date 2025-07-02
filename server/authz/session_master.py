@@ -13,7 +13,7 @@ from server.authz.singleton import MetaSessionMaster
 from server.bootup import connection_master
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
 from server.config import ServerConfig
-from server.errors import UserAuthenticationError, DatabaseFailure
+from server.errors import UserAuthenticationError, DatabaseFailure, Banned
 
 # TODO: Update SessionAuthenticationPair to include data like epoch to prevent frequent session refresh attempts
 class SessionAuthenticationPair:
@@ -100,6 +100,10 @@ class SessionMaster(metaclass=MetaSessionMaster):
         
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
         try:
+            # Check if user is banned
+            if await self.check_banned(username, proxy):
+                raise Banned(username)
+            
             async with proxy.cursor() as cursor:
                 await cursor.execute('''SELECT pw_hash, pw_salt
                                      FROM users
