@@ -73,11 +73,12 @@ class SessionMaster(metaclass=MetaSessionMaster):
     USERNAME_REGEX: str = ServerConfig.USERNAME_REGEX.value
     TOKEN_LENGTH: int = 32
     REFRESH_DIGEST_LENGTH: int = 128
+    SESSION_LIFESPAN: float = ServerConfig.SESSION_LIFESPAN.value
+    SESSION_REFRESH_NBF: float = ServerConfig.SESSION_LIFESPAN.value * 0.5
 
     def __init__(self):
         self.connection_master: ConnectionPoolManager = connection_master
         self.session: dict[str, SessionMetadata] = {}
-        self.session_lifespan: float = ServerConfig.SESSION_LIFESPAN.value
 
     @staticmethod
     def generate_password_hash(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
@@ -256,7 +257,10 @@ class SessionMaster(metaclass=MetaSessionMaster):
         if not auth_data:
             raise UserAuthenticationError('No such session exists')
         
-        # session exists and token matches, proceed to check refresh digest
+        if time.time() < auth_data.last_refresh + SessionMaster.SESSION_REFRESH_NBF:    # Premature refresh attempt
+            raise UserAuthenticationError('Session not old enough to refresh yet')
+        
+        # session exists, token matches, and refresh attempt is mature. Proceed to check refresh digest
         try:
             if not compare_digest(auth_data.refresh_digest, digest):
                 raise UserAuthenticationError('Invalid refresh digest')
