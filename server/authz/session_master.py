@@ -299,7 +299,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
         
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
         try:
-            if not await self.check_banned(username, proxy):
+            if not await self.check_banned(username, proxy, lock_row=True):
                 #TODO: Add logging for duplicate/invalid unban attempts
                 return
             async with proxy.cursor() as cursor:
