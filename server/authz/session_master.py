@@ -16,7 +16,6 @@ from server.connectionpool import ConnectionProxy, ConnectionPoolManager
 from server.config import ServerConfig
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned
 
-# TODO: Update SessionMetadata to include data like epoch to prevent frequent session refresh attempts
 class SessionMetadata:
     __slots__ = '_token', '_refresh_digest', '_last_refresh', '_iteration', '_lifespan'
     # Cryptograhic metadata
@@ -315,17 +314,17 @@ class SessionMaster(metaclass=MetaSessionMaster):
         if not (username:=SessionMaster.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
         
-        proxy: ConnectionProxy = self.connection_master.request_connection(level=1)
+        proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
         try:
             if await self.check_banned(username, proxy):
                 #TODO: Add logging for duplicate ban attempts
                 return
             
             async with proxy.cursor() as cursor:
-                cursor.execute('''INSERT INTO ban_logs
+                await cursor.execute('''INSERT INTO ban_logs
                                VALUES (%s, %s, %s);''',
                                (username, ban_reason.strip(), ban_description.strip() if ban_description else None))
-                proxy.commit()
+                await proxy.commit()
         except pg_errors.Error:
             #TODO: Add logging here as well
             raise DatabaseFailure(f'Failed to ban user {username}')
