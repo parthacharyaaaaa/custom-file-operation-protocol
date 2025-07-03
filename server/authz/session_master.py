@@ -2,17 +2,19 @@ import os
 import asyncio
 import re
 import psycopg.errors as pg_errors
+import psycopg.sql as sql
 import time
 from datetime import datetime
 from secrets import token_bytes
 from hmac import compare_digest
 from hashlib import pbkdf2_hmac
-from typing import Optional, Union
+from typing import Optional, Union, Any
 from cachetools import TTLCache
 from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
 from server.authz.singleton import MetaSessionMaster
 from server.bootup import connection_master
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
+from server.database.models import ActivityLog
 from server.config import ServerConfig
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned
 
@@ -74,13 +76,33 @@ class SessionMaster(metaclass=MetaSessionMaster):
     REFRESH_DIGEST_LENGTH: int = 128
     SESSION_LIFESPAN: float = ServerConfig.SESSION_LIFESPAN.value
     SESSION_REFRESH_NBF: float = ServerConfig.SESSION_LIFESPAN.value * 0.5
+    LOG_DUMP_INTERVAL: float = 180
+    LOG_ALIAS: str = 'session_master'
 
+    # Prepare query at runtime whenever this class is read
+    LOG_INSERTION_SQL: sql.SQL = (sql.SQL('''INSEERT INTO {tablename} ({columns_template})
+                                         VALUES ({placeholder_template});''')
+                                         .format(tablename=sql.Identifier('activity_logs'),
+                                                 columns_template=sql.SQL(', ').join(sql.Identifier(list(ActivityLog.model_fields.keys()))),
+                                                 placeholder_template=sql.SQL(', ').join(['%s' for _ in range(len(ActivityLog.model_fields))])))
     def __init__(self):
         self.connection_master: ConnectionPoolManager = connection_master
         self.session: dict[str, SessionMetadata] = {}
         self.previous_digests_mapping: TTLCache[str, list[bytes, bytes]] = TTLCache(0, SessionMaster.SESSION_LIFESPAN)
+        self.activity_logs: list[dict[str, Any]] = []
 
         asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
+        asyncio.create_task(self.log_activity(), name='Session Logging Task')
+
+    @classmethod
+    def construct_logging_map(cls, **kwargs) -> dict[str, Any]:
+        try:
+            activity_log: ActivityLog = ActivityLog(**(kwargs | {'logged_by' : cls.LOG_ALIAS})) # Inject/override logged_by field with alias
+            return activity_log.model_dump()
+        except Exception as e:
+            # Log exception in a safe manner as an internal error
+            activity_log: ActivityLog = ActivityLog(severity=3, logged_by=cls.LOG_ALIAS, log_type='internal', log_details=e.__class__.__name__)
+            return activity_log.model_dump()
 
     @staticmethod
     def generate_password_hash(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
@@ -386,3 +408,19 @@ class SessionMaster(metaclass=MetaSessionMaster):
                 self.session.pop(user, None)
                 self.previous_digests_mapping.pop(user, None)
             await asyncio.sleep(sleep_duration)
+
+    async def log_activity(self) -> None:
+        # Atomically copy and clear activity logs
+        pending_logs: list[dict[str, Any]] = self.activity_logs[:]
+        self.activity_logs.clear()
+
+        while True:
+            proxy: ConnectionProxy = await self.connection_master.request_connection(level=2)
+            try:
+                async with proxy.cursor() as cursor:
+                    # SQL would have the correctly ordered column names as log entries, since both come from ActivityLog.model_fields.keys()
+                    await cursor.executemany(SessionMaster.LOG_INSERTION_SQL, params_seq=[list(pending_log.values()) for pending_log in pending_logs])
+                await proxy.commit()
+            finally:
+                await self.connection_master.reclaim_connection(proxy)
+            await asyncio.sleep(SessionMaster.LOG_DUMP_INTERVAL)
