@@ -1,12 +1,22 @@
 '''Helper module for loading all required instances whenever the server starts'''
 import asyncio
+from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
+from cachetools import TTLCache
 from server.authz.user_master import UserManager
 from server.connectionpool import ConnectionPoolManager
 from server.config import ServerConfig
 
+# Singleton objects
 connection_master: ConnectionPoolManager = None
 user_master: UserManager = None
+
+# Global locks
 file_locks: dict[str, asyncio.Lock] = None
+
+# Caches
+read_cache: TTLCache[str, dict[str, AsyncBufferedReader]] = None
+write_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]] = None
+append_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]] = None
 
 def init_connection_master(conninfo: str, config: type[ServerConfig]) -> ConnectionPoolManager:
     global connection_master
@@ -25,3 +35,9 @@ def init_file_lock() -> set:
     file_locks = {}
 
     return file_locks
+
+def init_caches() -> set:
+    global read_cache, write_cache, append_cache
+    read_cache = TTLCache(maxsize=ServerConfig.FILE_CACHE_SIZE.value, ttl=ServerConfig.FILE_CACHE_TTL.value)
+    write_cache = TTLCache(maxsize=ServerConfig.FILE_CACHE_SIZE.value, ttl=ServerConfig.FILE_CACHE_TTL.value)
+    append_cache = TTLCache(maxsize=ServerConfig.FILE_CACHE_SIZE.value, ttl=ServerConfig.FILE_CACHE_TTL.value)
