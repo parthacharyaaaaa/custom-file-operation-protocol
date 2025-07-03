@@ -83,7 +83,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
     LOG_INSERTION_SQL: sql.SQL = (sql.SQL('''INSEERT INTO {tablename} ({columns_template})
                                          VALUES ({placeholder_template});''')
                                          .format(tablename=sql.Identifier('activity_logs'),
-                                                 columns_template=sql.SQL(', ').join(sql.Identifier(list(ActivityLog.model_fields.keys()))),
+                                                 columns_template=sql.SQL(', ').join([sql.Identifier(key) for key in list(ActivityLog.model_fields.keys())]),
                                                  placeholder_template=sql.SQL(', ').join(['%s' for _ in range(len(ActivityLog.model_fields))])))
     def __init__(self):
         self.connection_master: ConnectionPoolManager = connection_master
