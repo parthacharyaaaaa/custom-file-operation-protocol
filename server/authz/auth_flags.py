@@ -1,0 +1,9 @@
+from enum import IntFlag
+
+class AuthFlags(IntFlag):
+    REGISTER = 0b00000001
+    LOGIN = 0b00000010
+    REFRESH = 0b00000100
+    CHANGE_PASSWORD = 0b00001000
+    DELETE = 0b00010000
+    LOGOUT = 0b00100000
