@@ -3,7 +3,7 @@
 CREATE TYPE permission_type AS ENUM ('write', 'read', 'delete', 'manage_super', 'manage_rw');
 CREATE TYPE role_type as ENUM ('owner', 'manager', 'reader', 'editor');
 CREATE TYPE log_type AS ENUM ('user', 'database', 'session', 'request', 'network', 'internal', 'permission', 'audit', 'unknown');
-CREATE TYPE logger_type AS ENUM ('session_master', 'connection_master', 'file_handler', 'socket_handler', 'bootup_handler', 'permission_handler', 'stream_parser', 'admin', 'cronjob');
+CREATE TYPE logger_type AS ENUM ('user_master', 'connection_master', 'file_handler', 'socket_handler', 'bootup_handler', 'permission_handler', 'stream_parser', 'admin', 'cronjob');
 
 --- Tables
 CREATE TABLE IF NOT EXISTS USERS(
