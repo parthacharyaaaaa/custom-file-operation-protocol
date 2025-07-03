@@ -2,6 +2,7 @@ import os
 import asyncio
 import re
 import psycopg.errors as pg_errors
+from psycopg.rows import Row
 import psycopg.sql as sql
 import time
 from datetime import datetime
@@ -16,7 +17,7 @@ from server.bootup import connection_master
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog
 from server.config import ServerConfig
-from server.errors import UserAuthenticationError, DatabaseFailure, Banned
+from server.errors import UserAuthenticationError, DatabaseFailure, Banned, InvalidAuthData, OperationContested
 
 class SessionMetadata:
     __slots__ = '_token', '_refresh_digest', '_last_refresh', '_iteration', '_lifespan'
@@ -236,6 +237,32 @@ class SessionMaster(metaclass=MetaSessionMaster):
         # Perform relatively less important task of trimming the cache preemptive to usual expiry of this user's buffered readers/writers
         if caches:
             asyncio.create_task(self.terminate_user_cache(identifier=str, *caches))
+
+    async def change_password(self, username: str, new_password: str) -> None:
+        proxy: ConnectionProxy = await connection_master.request_connection(level=3)
+        try:
+            async with proxy.cursor() as cursor:
+                await cursor.execute('''SELECT pw_hash, pw_salt
+                                        FROM users
+                                        WHERE username = %s
+                                        FOR UPDATE NOWAIT;''',
+                                        (username,))
+                pw_data: Row[bytes, bytes] = await cursor.fetchone()    # record will always exist if authentication was passed
+
+                if SessionMaster.verify_password_hash(new_password, *pw_data):  # Same password as before
+                    raise InvalidAuthData('Password cannot be same as previous password')
+                pw_hash, pw_salt = SessionMaster.generate_password_hash(new_password)
+                await cursor.execute('''UPDATE users
+                                        SET pw_hash = %s, pw_salt = %s
+                                        WHERE username = %s''',
+                                        (pw_hash, pw_salt, username,))
+                await proxy.commit()
+        except pg_errors.Error as e:
+            if isinstance(e, pg_errors.LockNotAvailable):
+                raise OperationContested
+            raise DatabaseFailure('Failed to perform password updation. Please try again')
+        finally:
+            await self.connection_master.reclaim_connection(proxy)
 
     async def terminate_user_cache(self, identifier: str, *caches: TTLCache[str, dict[str, Union[AsyncBufferedReader, AsyncBufferedIOBase]]]) -> None:
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=3)
