@@ -116,8 +116,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
             return compare_digest(
                 pbkdf2_hmac(SessionMaster.HASHING_ALGORITHM, password, salt, iterations=SessionMaster.PBKDF_ITERATIONS),
                 password_hash)
-        except: 
-            #TODO: Add logging
+        except:
             return False
     
     @staticmethod
@@ -136,7 +135,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
     def generate_session_refresh_digest() -> bytes:
         return token_bytes(SessionMaster.REFRESH_DIGEST_LENGTH)
 
-    def authenticate_session(self, username: str, token: bytes, raise_on_exc: bool = False) -> SessionMetadata:
+    def authenticate_session(self, username: str, token: bytes, raise_on_exc: bool = False) -> Optional[SessionMetadata]:
         auth_data: SessionMetadata = self.session.get(username)
         if not auth_data:
             return
@@ -146,8 +145,8 @@ class SessionMaster(metaclass=MetaSessionMaster):
         try:
             if compare_digest(auth_data.token, token):
                 return auth_data
-        except Exception: 
-            #TODO: Add logging for errors raised by hmac.compare_digest
+        except Exception as e:
+            self.enqueue_activity(user_concerned=username, severity=3, log_details=f'Failed in digest comparison: {e.__class__.__name__}', log_type='user')
             if raise_on_exc:
                 raise UserAuthenticationError('Invalid authentication token. Please login again')
 
@@ -173,6 +172,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
         if not pw_data:
             raise UserAuthenticationError(f'No username with {username} exists')
         if not SessionMaster.verify_password_hash(password, *pw_data):
+            self.enqueue_activity(user_concerned=username, severity=4, log_details=f'Incorrect password: {UserAuthenticationError.__name__}', log_type='user')
             raise UserAuthenticationError(f'Invalid password for user {username}')
                 
         # Set new session
@@ -276,7 +276,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
                 return
             raise UserAuthenticationError('Invalid token')
         except Exception as e:
-            #TODO: Add logging for hmac.compare_digest() exceptions
+            self.enqueue_activity(user_concerned=username, severity=3, log_details=f'Failed in digest comparison: {e.__class__.__name__}', log_type='user')
             raise UserAuthenticationError('Failed to log out (Possibly corrupted token)')
 
     def refresh_session(self, username: str, token: bytes, digest: bytes) -> Optional[bytes]:
@@ -316,7 +316,11 @@ class SessionMaster(metaclass=MetaSessionMaster):
             self.previous_digests[username] = previous_digests
 
         except Exception as e:
-            self.session.pop(username, None)    # Kill session on exceptions as well
+            self.session.pop(username, None)
+            self.previous_digests_mapping.pop(username, None)
+            self.enqueue_activity(user_concerned=username, severity=3,
+                                  log_details=f'Failed to refresh session: {e.__class__.__name__}',
+                                  log_type='user' if isinstance(e, UserAuthenticationError) else 'session')
             if isinstance(e, UserAuthenticationError):
                 raise e
             # Generic handler for exceptions rising from hmac.compare_digest()
@@ -340,10 +344,10 @@ class SessionMaster(metaclass=MetaSessionMaster):
             async with proxy.cursor() as cursor:
                 await cursor.execute(query, (username,))
                 return bool(await cursor.fetchone())
-        #TODO: Add exception logging
         except pg_errors.LockNotAvailable:
             return True
         except Exception as e:
+            self.enqueue_activity(user_concerned=username, severity=2, log_details=f'Failed in check ban status: {e.__class__.__name__}', log_type='database')
             if reclaim_on_exc:
                 self.connection_master.reclaim_connection(proxy)
             return True
@@ -358,7 +362,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
         try:
             if await self.check_banned(username, proxy):
-                #TODO: Add logging for duplicate ban attempts
+                self.enqueue_activity(user_concerned=username, severity=3, log_details=f'Duplicate ban attempt: {DatabaseFailure.__name__}', log_type='user')
                 return
             
             async with proxy.cursor() as cursor:
@@ -366,8 +370,8 @@ class SessionMaster(metaclass=MetaSessionMaster):
                                VALUES (%s, %s, %s);''',
                                (username, ban_reason.strip(), ban_description.strip() if ban_description else None))
                 await proxy.commit()
-        except pg_errors.Error:
-            #TODO: Add logging here as well
+        except pg_errors.Error as e:
+            self.enqueue_activity(user_concerned=username, severity=5, log_details=f'Failed ban attempt: {e.__name__}', log_type='database')
             raise DatabaseFailure(f'Failed to ban user {username}')
         finally:
             await self.connection_master.reclaim_connection(proxy)
@@ -385,7 +389,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
         try:
             if not await self.check_banned(username, proxy, lock_row=True):
-                #TODO: Add logging for duplicate/invalid unban attempts
+                self.enqueue_activity(user_concerned=username, log_type='user', log_details='Duplicate unban attempt', severity=1)
                 return
             async with proxy.cursor() as cursor:
                 await cursor.execute('''UPDATE ban_logs
@@ -408,6 +412,9 @@ class SessionMaster(metaclass=MetaSessionMaster):
                 self.session.pop(user, None)
                 self.previous_digests_mapping.pop(user, None)
             await asyncio.sleep(sleep_duration)
+
+    def enqueue_activity(self, **kwargs) -> None:
+        self.activity_logs.append(SessionMaster.construct_logging_map(**kwargs))
 
     async def log_activity(self) -> None:
         # Atomically copy and clear activity logs
