@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS ACTIVITY_LOGS(
     log_data log_type NOT NULL DEFAULT 'unknown',
     log_details VARCHAR(512),
     user_concerned VARCHAR(128) REFERENCES USERS(username),
-    host_concerned inet NOT NULL,
+    host_concerned inet,
 
     CONSTRAINT check_activity_log_time_consistency CHECK(occurance_time <= CURRENT_TIMESTAMP),
     CONSTRAINT check_activity_log_severity CHECK(severity BETWEEN 1 AND 5)
