@@ -26,16 +26,7 @@ async def process_header(n_bytes: int, reader: asyncio.StreamReader, writer: asy
     await writer.drain()
     return None
 
-async def process_auth(n_bytes: int, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> Optional[req_models.BaseAuthComponent]:
-    try:
-        raw_auth: bytes = await asyncio.wait_for(reader.readexactly(n_bytes), timeout=ServerConfig.AUTH_READ_TIMEOUT.value)
-        auth_mapping: dict[str, Any] = await serialize_json(raw_auth)
-        auth_component: req_models.BaseAuthComponent = req_models.BaseAuthComponent.model_validate_json(auth_mapping)
-    except asyncio.TimeoutError:
-        response: res_models.ResponseHeader = res_models.ResponseHeader.from_unverifiable_data(exc.SlowStreamRate, version=ServerConfig.VERSION.value)
-    except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
-        response: res_models.ResponseHeader = res_models.ResponseHeader.from_unverifiable_data(exc.InvalidAuthSemantic, version=ServerConfig.VERSION.value)
-
-    writer.write(orjson.dumps(response.model_dump_json()))
-    await writer.drain()
-    return None
+async def process_auth(n_bytes: int, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> req_models.BaseAuthComponent:
+    raw_auth: bytes = await asyncio.wait_for(reader.readexactly(n_bytes), timeout=ServerConfig.AUTH_READ_TIMEOUT.value)
+    auth_mapping: dict[str, Any] = await serialize_json(raw_auth)
+    return req_models.BaseAuthComponent.model_validate_json(auth_mapping)
