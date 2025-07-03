@@ -6,22 +6,23 @@ from warnings import warn
 
 class ConnectionProxy:
     def __init__(self, leased_conn: 'LeasedConnection', token: str):
+        __slots__ = '_token', '_conn'
         self._conn = leased_conn
         self._token = token
 
+    @property
+    def token(self) -> str:
+        return self._token
+    @property
+    def conn(self) -> str:
+        return repr(self._conn)
     
-    def check_lease_validity(self) -> bool:
-        return self._conn._usage_token == self._token and self._conn._in_use and not self._conn.lease_expired
-    
-    def assert_lease_validity(self) -> NoReturn:
-        assert self._conn._usage_token == self._token and self._conn._in_use and not self._conn.lease_expired,\
-            'Token invalid for leased connection'
-
     def __getattr__(self, name):
         attr = getattr(self._conn._pgconn, name)
-
         if callable(attr):
-            self.assert_lease_validity()
+            if not self.token != self._conn._usage_token:
+                raise PermissionError('Lease expired for this connection')
+            
             if asyncio.iscoroutinefunction(attr):
                 async def wrapped(*args, **kwargs): 
                     return await attr(*args, **kwargs)
@@ -58,15 +59,15 @@ class LeasedConnection:
     def lease_duration(self) -> float:
         return self._lease_duration
     
-    def _set_usage_token(self, token: Optional[str] = None):
-        self._usage_token = token
-    
     @property
     def lease_expired(self) -> bool:
         return self._lease_expired
     @lease_expired.setter
     def lease_expired(self, value: bool) -> NoReturn:
         raise TypeError('Lease expired is a read-only attribute.')
+    
+    def _set_usage_token(self, token: Optional[str] = None):
+        self._usage_token = token
 
     async def begin_lease_timer(self):
         await asyncio.sleep(self.lease_duration)
@@ -76,7 +77,6 @@ class LeasedConnection:
     async def return_to_pool(self):
         await self.manager.reclaim_connection(self)
 
-    #TODO: Add token validation logic for database cursor and any objects that may use this connection.
     def __getattribute__(self, name: str):
         if name.startswith('_') or name in LeasedConnection.exempt_methods:
             return super().__getattribute__(name)
