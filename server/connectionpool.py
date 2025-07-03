@@ -83,7 +83,7 @@ class LeasedConnection:
         
         attr = object.__getattribute__(self, name)
         if callable(attr):
-            if self.lease_expired:
+            if object.__getattribute__(self, 'lease_expired'):
                 raise TimeoutError('This connection is expired')
         return attr
 
