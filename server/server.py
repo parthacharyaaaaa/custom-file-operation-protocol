@@ -10,7 +10,7 @@ from server.models.response_models import ResponseHeader
 from server.comms_utils.incoming import process_header
 from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
 from server.errors import UnsupportedOperation, InternalServerError, SlowStreamRate
-from server.bootup import init_connection_master, init_session_master, init_file_lock
+from server.bootup import init_connection_master, init_user_master, init_file_lock
 import orjson
 
 async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -47,7 +47,7 @@ async def main() -> None:
         raise RuntimeError('No response codes found, server cannot start...')
     
     # Initialize all extensions that the server depends on
-    init_session_master(ServerConfig)
+    init_user_master(ServerConfig)
     init_connection_master(
         make_conninfo(user=os.environ['PG_USERNAME'], password=os.environ['PG_PASSWORD'],
                       host=os.environ['PG_HOST'], port=os.environ['PG_PORT'], dbname=os.environ['PG_DBNAME']))

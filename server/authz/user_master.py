@@ -12,7 +12,7 @@ from hashlib import pbkdf2_hmac
 from typing import Optional, Union, Any
 from cachetools import TTLCache
 from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
-from server.authz.singleton import MetaSessionMaster
+from server.authz.singleton import MetaUserManager
 from server.bootup import connection_master
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog
@@ -67,8 +67,8 @@ class SessionMetadata:
     def get_validity(self) -> float:
         return self.last_refresh + self.lifespan
 
-class SessionMaster(metaclass=MetaSessionMaster):
-    '''Class for managing user sessions'''
+class UserManager(metaclass=MetaUserManager):
+    '''Class for managing user sessions and user-related operations'''
     HASHING_ALGORITHM: str = 'sha256'
     PBKDF_ITERATIONS: int = 100_000
     SALT_LENGTH: int = 16
@@ -78,7 +78,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
     SESSION_LIFESPAN: float = ServerConfig.SESSION_LIFESPAN.value
     SESSION_REFRESH_NBF: float = ServerConfig.SESSION_LIFESPAN.value * 0.5
     LOG_DUMP_INTERVAL: float = 180
-    LOG_ALIAS: str = 'session_master'
+    LOG_ALIAS: str = 'user_master'
 
     # Prepare query at runtime whenever this class is read
     LOG_INSERTION_SQL: sql.SQL = (sql.SQL('''INSEERT INTO {tablename} ({columns_template})
@@ -89,7 +89,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
     def __init__(self):
         self.connection_master: ConnectionPoolManager = connection_master
         self.session: dict[str, SessionMetadata] = {}
-        self.previous_digests_mapping: TTLCache[str, list[bytes, bytes]] = TTLCache(0, SessionMaster.SESSION_LIFESPAN)
+        self.previous_digests_mapping: TTLCache[str, list[bytes, bytes]] = TTLCache(0, UserManager.SESSION_LIFESPAN)
         self.activity_logs: list[dict[str, Any]] = []
 
         asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
@@ -108,14 +108,14 @@ class SessionMaster(metaclass=MetaSessionMaster):
     @staticmethod
     def generate_password_hash(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
         if not salt:
-            salt: bytes = os.urandom(SessionMaster.SALT_LENGTH)
-        return pbkdf2_hmac(SessionMaster.HASHING_ALGORITHM, password, salt, iterations=SessionMaster.PBKDF_ITERATIONS), salt
+            salt: bytes = os.urandom(UserManager.SALT_LENGTH)
+        return pbkdf2_hmac(UserManager.HASHING_ALGORITHM, password, salt, iterations=UserManager.PBKDF_ITERATIONS), salt
     
     @staticmethod
     def verify_password_hash(password: str, password_hash: bytes, salt: bytes) -> bool:
         try:
             return compare_digest(
-                pbkdf2_hmac(SessionMaster.HASHING_ALGORITHM, password, salt, iterations=SessionMaster.PBKDF_ITERATIONS),
+                pbkdf2_hmac(UserManager.HASHING_ALGORITHM, password, salt, iterations=UserManager.PBKDF_ITERATIONS),
                 password_hash)
         except:
             return False
@@ -123,18 +123,18 @@ class SessionMaster(metaclass=MetaSessionMaster):
     @staticmethod
     def check_username_validity(username: str) -> str:
         username = username.strip()
-        if not re.match(SessionMaster.USERNAME_REGEX, username):
+        if not re.match(UserManager.USERNAME_REGEX, username):
             return None
         return username
 
     # Token and refresh digest generation logic kept as static methods in case we ever need to add any more logic to it
     @staticmethod
     def generate_session_token() -> bytes:
-        return token_bytes(SessionMaster.TOKEN_LENGTH)
+        return token_bytes(UserManager.TOKEN_LENGTH)
     
     @staticmethod
     def generate_session_refresh_digest() -> bytes:
-        return token_bytes(SessionMaster.REFRESH_DIGEST_LENGTH)
+        return token_bytes(UserManager.REFRESH_DIGEST_LENGTH)
 
     def authenticate_session(self, username: str, token: bytes, raise_on_exc: bool = False) -> Optional[SessionMetadata]:
         auth_data: SessionMetadata = self.session.get(username)
@@ -152,7 +152,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
                 raise UserAuthenticationError('Invalid authentication token. Please login again')
 
     async def authorize_session(self, username: str, password: str) -> SessionMetadata:
-        if not (username:=SessionMaster.check_username_validity(username)):
+        if not (username:=UserManager.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
         
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
@@ -172,19 +172,19 @@ class SessionMaster(metaclass=MetaSessionMaster):
 
         if not pw_data:
             raise UserAuthenticationError(f'No username with {username} exists')
-        if not SessionMaster.verify_password_hash(password, *pw_data):
+        if not UserManager.verify_password_hash(password, *pw_data):
             self.enqueue_activity(user_concerned=username, severity=4, log_details=f'Incorrect password: {UserAuthenticationError.__name__}', log_type='user')
             raise UserAuthenticationError(f'Invalid password for user {username}')
                 
         # Set new session
-        auth_data: SessionMetadata = SessionMetadata(SessionMaster.generate_session_token(), SessionMaster.generate_session_refresh_digest())
+        auth_data: SessionMetadata = SessionMetadata(UserManager.generate_session_token(), UserManager.generate_session_refresh_digest())
         #NOTE+TODO: Important design decision here: Should a new login for an exisitng session be rejected, or the session be overwritten and the old user be logged out?
         self.session[username] = auth_data
 
         return auth_data
         
     async def create_user(self, username: str, password: str, make_dir: bool = False) -> None:
-        if not (username:=SessionMaster.check_username_validity(username)):
+        if not (username:=UserManager.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
         
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)   # Account creation is high-priority
@@ -195,7 +195,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
                 if res:
                     raise UserAuthenticationError(f'Local user {res[0]} already exists')
                 
-                pw_hash, pw_salt = SessionMaster.generate_password_hash(password)
+                pw_hash, pw_salt = UserManager.generate_password_hash(password)
         
                 await cursor.execute('''INSERT INTO users (username, password_hash, password_salt) VALUES (%s, %s, %s)''',
                                      (username, pw_hash, pw_salt,))
@@ -207,7 +207,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
             os.makedirs(os.path.join(ServerConfig.ROOT.value, username))
 
     async def delete_user(self, username: str, password: str, *caches) -> None:
-        if not (username:=SessionMaster.check_username_validity(username)):
+        if not (username:=UserManager.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
 
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)   # Action concerning account statuses have highest priority
@@ -222,7 +222,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
                 if not pw_data:
                     raise UserAuthenticationError(f'No username with {username} exists')
                 
-                if not SessionMaster.verify_password_hash(password, *pw_data):
+                if not UserManager.verify_password_hash(password, *pw_data):
                     raise UserAuthenticationError(f'Invalid password for user {username}')
                 
                 # All checks passed
@@ -249,9 +249,9 @@ class SessionMaster(metaclass=MetaSessionMaster):
                                         (username,))
                 pw_data: Row[bytes, bytes] = await cursor.fetchone()    # record will always exist if authentication was passed
 
-                if SessionMaster.verify_password_hash(new_password, *pw_data):  # Same password as before
+                if UserManager.verify_password_hash(new_password, *pw_data):  # Same password as before
                     raise InvalidAuthData('Password cannot be same as previous password')
-                pw_hash, pw_salt = SessionMaster.generate_password_hash(new_password)
+                pw_hash, pw_salt = UserManager.generate_password_hash(new_password)
                 await cursor.execute('''UPDATE users
                                         SET pw_hash = %s, pw_salt = %s
                                         WHERE username = %s''',
@@ -311,7 +311,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
         if not auth_data:
             raise UserAuthenticationError('No such session exists')
         
-        if time.time() < auth_data.last_refresh + SessionMaster.SESSION_REFRESH_NBF:    # Premature refresh attempt
+        if time.time() < auth_data.last_refresh + UserManager.SESSION_REFRESH_NBF:    # Premature refresh attempt
             raise UserAuthenticationError('Session not old enough to refresh yet')
         
         # session exists, token matches, and refresh attempt is mature. Proceed to check refresh digest
@@ -327,7 +327,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
             if not compare_digest(auth_data.refresh_digest, digest):
                 raise UserAuthenticationError('Invalid refresh digest')
             
-            new_digest: bytes = SessionMaster.generate_session_refresh_digest()
+            new_digest: bytes = UserManager.generate_session_refresh_digest()
             # Optimistic check
             self.session.pop(username, None)
             set_pair: SessionMetadata = self.session.setdefault(username, SessionMetadata(token, new_digest))
@@ -383,7 +383,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
                 await self.connection_master.reclaim_connection(proxy)
 
     async def ban(self, username: str, ban_reason: str, ban_description: Optional[str] = None, *caches: TTLCache[str, dict[str, Union[AsyncBufferedIOBase, AsyncBufferedReader]]]) -> None:
-        if not (username:=SessionMaster.check_username_validity(username)):
+        if not (username:=UserManager.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
         
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
@@ -410,7 +410,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
             asyncio.create_task(self.terminate_user_cache(identifier=str, *caches))
 
     async def unban(self, username: str) -> None:
-        if not (username:=SessionMaster.check_username_validity(username)):
+        if not (username:=UserManager.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
         
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
@@ -428,7 +428,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
             await self.connection_master.reclaim_connection(proxy)
 
     async def expire_sessions(self) -> None:
-        sleep_duration: float = SessionMaster.SESSION_LIFESPAN // 3
+        sleep_duration: float = UserManager.SESSION_LIFESPAN // 3
         while True:
             reference_threshold: float = time.time()
             hitlist: list[str] = []
@@ -441,7 +441,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
             await asyncio.sleep(sleep_duration)
 
     def enqueue_activity(self, **kwargs) -> None:
-        self.activity_logs.append(SessionMaster.construct_logging_map(**kwargs))
+        self.activity_logs.append(UserManager.construct_logging_map(**kwargs))
 
     async def log_activity(self) -> None:
         # Atomically copy and clear activity logs
@@ -453,8 +453,8 @@ class SessionMaster(metaclass=MetaSessionMaster):
             try:
                 async with proxy.cursor() as cursor:
                     # SQL would have the correctly ordered column names as log entries, since both come from ActivityLog.model_fields.keys()
-                    await cursor.executemany(SessionMaster.LOG_INSERTION_SQL, params_seq=[list(pending_log.values()) for pending_log in pending_logs])
+                    await cursor.executemany(UserManager.LOG_INSERTION_SQL, params_seq=[list(pending_log.values()) for pending_log in pending_logs])
                 await proxy.commit()
             finally:
                 await self.connection_master.reclaim_connection(proxy)
-            await asyncio.sleep(SessionMaster.LOG_DUMP_INTERVAL)
+            await asyncio.sleep(UserManager.LOG_DUMP_INTERVAL)

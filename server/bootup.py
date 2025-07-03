@@ -1,11 +1,11 @@
 '''Helper module for loading all required instances whenever the server starts'''
 import asyncio
-from server.authz.session_master import SessionMaster
+from server.authz.user_master import UserManager
 from server.connectionpool import ConnectionPoolManager
 from server.config import ServerConfig
 
 connection_master: ConnectionPoolManager = None
-session_master: SessionMaster = None
+user_master: UserManager = None
 file_locks: dict[str, asyncio.Lock] = None
 
 def init_connection_master(conninfo: str, config: type[ServerConfig]) -> ConnectionPoolManager:
@@ -14,11 +14,11 @@ def init_connection_master(conninfo: str, config: type[ServerConfig]) -> Connect
 
     return connection_master
 
-def init_session_master(config: type[ServerConfig]) -> SessionMaster:
-    global session_master
-    session_master = SessionMaster()
+def init_user_master(config: type[ServerConfig]) -> UserManager:
+    global user_master
+    user_master = UserManager()
 
-    return session_master
+    return user_master
 
 def init_file_lock() -> set:
     global file_locks
