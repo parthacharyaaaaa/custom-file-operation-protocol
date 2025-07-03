@@ -2,6 +2,8 @@
 --- Basic enum types
 CREATE TYPE permission_type AS ENUM ('write', 'read', 'delete', 'manage_super', 'manage_rw');
 CREATE TYPE role_type as ENUM ('owner', 'manager', 'reader', 'editor');
+CREATE TYPE log_type AS ENUM ('user', 'database', 'session', 'request', 'network', 'internal', 'permission', 'audit', 'unknown');
+CREATE TYPE logger_type AS ENUM ('session_master', 'connection_master', 'file_handler', 'socket_handler', 'bootup_handler', 'permission_handler', 'stream_parser', 'admin', 'cronjob');
 
 --- Tables
 CREATE TABLE IF NOT EXISTS USERS(
@@ -56,12 +58,30 @@ CREATE TABLE IF NOT EXISTS BAN_LOGS(
 
     PRIMARY KEY (username, ban_time),
     CONSTRAINT check_ban_time_validity CHECK (ban_time <= CURRENT_TIMESTAMP),
-    CONSTRAINT check_unban_time_validity CHECK (lifted_at <= CURRENT_TIMESTAMP),
-    CONSTRAINT check_ban_singleton CHECK (username)
+    CONSTRAINT check_unban_time_validity CHECK (lifted_at <= CURRENT_TIMESTAMP)
 );
 
 CREATE INDEX ix_ban_logs_lifted_at ON BAN_LOGS(lifted_at);
 CREATE INDEX ix_ban_logs_ban_time ON BAN_LOGS(ban_time);
+
+CREATE TABLE IF NOT EXISTS ACTIVITY_LOGS(
+    id BIGSERIAL PRIMARY KEY,
+    occurance_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    severity SMALLINT NOT NULL DEFAULT 1,
+    logged_by logger_type NOT NULL,
+    log_data log_type NOT NULL DEFAULT 'unknown',
+    log_details VARCHAR(512),
+    user_concerned VARCHAR(128) REFERENCES USERS(username),
+    host_concerned inet NOT NULL,
+
+    CONSTRAINT check_activity_log_time_consistency CHECK(occurance_time <= CURRENT_TIMESTAMP),
+    CONSTRAINT check_activity_log_severity CHECK(severity BETWEEN 1 AND 5)
+);
+
+CREATE INDEX ix_activity_logs_type ON ACTIVITY_LOGS(log_data);
+CREATE INDEX ix_activity_logs_logger ON ACTIVITY_LOGS(logged_by);
+CREATE INDEX ix_activity_logs_host ON ACTIVITY_LOGS(host_concerned);
+CREATE INDEX ix_activity_logs_severity ON ACTIVITY_LOGS(severity);
 
 -- DML
 
