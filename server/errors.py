@@ -56,3 +56,7 @@ class Banned(ProtocolException):
 class DatabaseFailure(ProtocolException):
     code: str = '3:db'
     description: str = 'Database failure'
+
+class OperationContested(ProtocolException):
+    code: str = '3:opc'
+    description: str = 'Operation contested'

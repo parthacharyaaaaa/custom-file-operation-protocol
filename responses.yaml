@@ -39,6 +39,7 @@ Client Side:
 
 Server Side:
   Internal server error (umbrella term): '3:*'
+  Operation contested: '3:opc'
   Server timeout: '3:t'
   Server Shutdown: '3:s'
   Database failure: '3:db'
