@@ -78,6 +78,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
     def __init__(self):
         self.connection_master: ConnectionPoolManager = connection_master
         self.session: dict[str, SessionMetadata] = {}
+        self.previous_digests_mapping: TTLCache[str, list[bytes, bytes]] = TTLCache(0, SessionMaster.SESSION_LIFESPAN)
 
         asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
 
@@ -249,6 +250,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
         try:
             if compare_digest(auth_data.token, token):
                 self.session.pop(username, None)
+                self.previous_digests.pop(username, None)
                 return
             raise UserAuthenticationError('Invalid token')
         except Exception as e:
@@ -265,6 +267,14 @@ class SessionMaster(metaclass=MetaSessionMaster):
         
         # session exists, token matches, and refresh attempt is mature. Proceed to check refresh digest
         try:
+            # Check expired digests, if match then treat as replay attack
+            previous_digests: list[bytes] = self.previous_digests_mapping.get(username, [])
+            if any(compare_digest(previous_digest, digest) for previous_digest in previous_digests):
+                self.session.pop(username, None)
+                self.previous_digests_mapping.pop(username, None)
+                asyncio.create_task(self.terminate_user_cache(username))
+                raise UserAuthenticationError('Expired digest provided. Please authenticate again')
+            
             if not compare_digest(auth_data.refresh_digest, digest):
                 raise UserAuthenticationError('Invalid refresh digest')
             
@@ -274,6 +284,15 @@ class SessionMaster(metaclass=MetaSessionMaster):
             set_pair: SessionMetadata = self.session.setdefault(username, SessionMetadata(token, new_digest))
             if not compare_digest(set_pair.refresh_digest, new_digest):
                 raise UserAuthenticationError('Failed to reauthenticate session due to repeated request')
+            
+            # New token set, update previous digests for this user
+            previous_digests.append(auth_data.refresh_digest)
+            # Remove oldest digest if list size over 2
+            if len(previous_digests > 2):
+                previous_digests.pop(0)
+            
+            self.previous_digests[username] = previous_digests
+
         except Exception as e:
             self.session.pop(username, None)    # Kill session on exceptions as well
             if isinstance(e, UserAuthenticationError):
@@ -333,6 +352,7 @@ class SessionMaster(metaclass=MetaSessionMaster):
 
         # Once user is banned, terminate their session and any possible cache entries too
         self.session.pop(username, None)
+        self.previous_digests.pop(username, None)
         if caches:
             asyncio.create_task(self.terminate_user_cache(identifier=str, *caches))
 
@@ -364,4 +384,5 @@ class SessionMaster(metaclass=MetaSessionMaster):
                     hitlist.append(username)  
             for user in hitlist:
                 self.session.pop(user, None)
+                self.previous_digests_mapping.pop(user, None)
             await asyncio.sleep(sleep_duration)
