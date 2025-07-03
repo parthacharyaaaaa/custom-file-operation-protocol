@@ -10,4 +10,4 @@ class ActivityLog(BaseModel):
     log_type: Annotated[Literal['user', 'database', 'session', 'request', 'network', 'internal', 'permission', 'audit', 'unknown'], Field(default='unknown')]
     log_details: Optional[Annotated[str, Field(max_length=512)]]
     user_concerned: Optional[Annotated[str, Field(max_length=128)]]
-    host_concerned: Annotated[IPvAnyAddress, Field(frozen=True)]
+    host_concerned: Optional[Annotated[IPvAnyAddress, Field(frozen=True)]]
