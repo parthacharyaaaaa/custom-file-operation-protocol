@@ -107,6 +107,7 @@ class UserManager(metaclass=MetaUserManager):
 
     @staticmethod
     def generate_password_hash(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
+        password = password.strip()
         if not salt:
             salt: bytes = os.urandom(UserManager.SALT_LENGTH)
         return pbkdf2_hmac(UserManager.HASHING_ALGORITHM, password, salt, iterations=UserManager.PBKDF_ITERATIONS), salt
