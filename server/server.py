@@ -1,10 +1,9 @@
 import asyncio
-import orjson
 import os
 from functools import partial
+from typing import Optional
 from types import FunctionType
 from psycopg.conninfo import make_conninfo
-from server import response_codes
 from server.bootup import init_connection_master, init_user_master, init_file_lock
 from server.comms_utils.incoming import process_header
 from server.comms_utils.outgoing import send_response
@@ -12,7 +11,7 @@ from server.config import ServerConfig, CategoryFlag
 from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
 from server.errors import ProtocolException, UnsupportedOperation, InternalServerError, SlowStreamRate
 from server.models.request_model import BaseHeaderComponent
-from server.models.response_models import ResponseHeader
+from server.models.response_models import ResponseHeader, ResponseBody
 
 async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     try:
@@ -24,7 +23,7 @@ async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -
         if not handler:
             raise UnsupportedOperation(f'Operation category must be in: {", ".join(CategoryFlag._member_names_)}')
         
-        await handler(header_component)
+        response: tuple[ResponseHeader, Optional[ResponseBody]] = await handler(header_component)
     except Exception as e:
         connection_end: bool = False if not header_component else header_component.finish
         response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=e if issubclass(e, ProtocolException) else InternalServerError,
@@ -32,11 +31,7 @@ async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -
                                                                           end_conn=connection_end)
         return await send_response(writer=writer, response=response, close_conn=connection_end)
 
-async def main() -> None:
-    # Check runtime dependencies
-    if not response_codes:
-        raise RuntimeError('No response codes found, server cannot start...')
-    
+async def main() -> None:    
     # Initialize all extensions that the server depends on
     init_user_master(ServerConfig)
     init_connection_master(

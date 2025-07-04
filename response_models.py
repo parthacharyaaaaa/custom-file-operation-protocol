@@ -1,0 +1,50 @@
+from enum import Flag
+
+class SuccessFlags(Flag):
+    SUCCESSFUL_AMEND = "1:a"
+    SUCCESSFUL_READ = "1:r"
+    SUCCESSFUL_READ_DELETE = "1:rd"
+    SUCCESSFUL_AMEND_DELETE = "1:ad"
+    SUCCESSFUL_AUTHENTICATION = "1:auth"
+    SUCCESSFUL_USER_CREATION = "1:new"
+    SUCCESSFUL_PASSWORD_CHANGE = "1:pw"
+    HEARTBEAT = "1:hb"
+
+class IntermediaryFlags(Flag):
+    PARTIAL_AMEND = "0:a"
+    PARTIAL_READ = "0:r"
+    WAIT = "0:wait"
+    RETRY_NEEDED = "0:retry"
+    ACKNOWLEDGED_PENDING_COMPLETION = "0:ack"
+
+class ClientErrorFlags(Flag):
+    PERMISSION_DENIED = "2:perm"
+    FILE_NOT_FOUND = "2:nf"
+    FILE_CONTESTED = "2:cf"
+    FILE_JUST_DELETED = "2:df"
+    INVALID_HEADER_SEMANTIC = "2:ihs"
+    INVALID_HEADER_VALUES = "2:ihv"
+    INVALID_AUTH_SEMANTIC = "2:ias"
+    INCORRECT_AUTH_DATA = "2:iad"
+    EXPIRED_AUTH_TOKEN = "2:exp"
+    DUPLICATE_LOGIN = "2:dup"
+    USER_AUTHENTICATION_ERROR = "2:auth"
+    SESSION_TERMINATED_PREMATURELY = "2:stp"
+    INVALID_BODY_SEMANTIC = "2:ibs"
+    INVALID_BODY_VALUE = "2:ibv"
+    NON_JSON_SCHEMA = "2:nj"
+    BANNED = "2:ban"
+    MALFORMED_REQUEST_STRUCTURE = "2:malf"
+    UNSUPPORTED_OPERATION = "2:unsup"
+    RATE_LIMIT_EXCEEDED = "2:rl"
+    UNACCEPTABLE_SPEED = "2:us"
+
+class ServerErrorFlags(Flag):
+    INTERNAL_SERVER_ERROR = "3:*"
+    OPERATION_CONTESTED = "3:opc"
+    SERVER_TIMEOUT = "3:t"
+    SERVER_SHUTDOWN = "3:s"
+    DATABASE_FAILURE = "3:db"
+    UNKNOWN_EXCEPTION = "3:?"
+    OUT_OF_MEMORY = "3:mem"
+    OUT_OF_DISK_SPACE = "3:disk"
