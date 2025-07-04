@@ -53,6 +53,22 @@ class Banned(ProtocolException):
         super().__init__(description or Banned.description)
         self.description.format(username=username)
 
+class FileNotFound(ProtocolException):
+    code: str = '2:nf'
+    description: str = 'No file named {file} under {username} found'
+
+    def __init__(self, file: str, username: str, description: Optional[str] = None):
+        super().__init__(description or Banned.description)
+        self.description.format(file=file, username=username)
+
+class FileConflict(ProtocolException):
+    code: str = '2:cnf'
+    description: str = 'Conflicting operation for file named {file} under {username}'
+
+    def __init__(self, file: str, username: str, description: Optional[str] = None):
+        super().__init__(description or Banned.description)
+        self.description.format(file=file, username=username)
+
 class DatabaseFailure(ProtocolException):
     code: str = '3:db'
     description: str = 'Database failure'
