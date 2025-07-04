@@ -47,6 +47,13 @@ class SessionMetadata:
     @property
     def lifespan(self) -> float:
         return self._lifespan
+    @property
+    def dict_repr(self) -> dict[str, Any]:
+        return {'token' : self.token,
+                'refresh_digest' : self.refresh_digest,
+                'lifespan' : self.lifespan,
+                'valid_until' : self.valid_until,
+                'iteration' : self.iteration}
 
     def __init__(self, token: bytes, refresh_digest: bytes, lifespan: float):
         self._token = token
