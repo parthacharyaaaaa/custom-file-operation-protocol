@@ -1,8 +1,9 @@
 '''Module for defining schema of incoming requests'''
 from pydantic import BaseModel, Field, model_validator, IPvAnyAddress, ValidationError
-from typing import Annotated, Optional, Literal, Union
-from datetime import datetime
+from typing import Annotated, Optional, Literal, Union, TypeAlias
 from server.config import CategoryFlag, PermissionFlag, ServerConfig
+
+RequestComponentType: TypeAlias = Union['BaseHeaderComponent', 'BaseAuthComponent', 'BaseFileComponent', 'BasePermissionComponent']
 
 class BaseAuthComponent(BaseModel):
     identity: Annotated[str, Field(min_length=ServerConfig.USERNAME_RANGE.value[0], max_length=ServerConfig.USERNAME_RANGE.value[1], pattern=ServerConfig.USERNAME_REGEX.value)]
