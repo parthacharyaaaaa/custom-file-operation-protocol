@@ -95,16 +95,6 @@ class UserManager(metaclass=MetaUserManager):
         asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
         asyncio.create_task(self.log_activity(), name='Session Logging Task')
 
-    @classmethod
-    def construct_logging_map(cls, **kwargs) -> dict[str, Any]:
-        try:
-            activity_log: ActivityLog = ActivityLog(**(kwargs | {'logged_by' : cls.LOG_ALIAS})) # Inject/override logged_by field with alias
-            return activity_log.model_dump()
-        except Exception as e:
-            # Log exception in a safe manner as an internal error
-            activity_log: ActivityLog = ActivityLog(severity=3, logged_by=cls.LOG_ALIAS, log_type='internal', log_details=e.__class__.__name__)
-            return activity_log.model_dump()
-
     @staticmethod
     def generate_password_hash(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
         password = password.strip()
@@ -308,7 +298,7 @@ class UserManager(metaclass=MetaUserManager):
             self.enqueue_activity(user_concerned=username, severity=3, log_details=f'Failed in digest comparison: {e.__class__.__name__}', log_type='user')
             raise UserAuthenticationError('Failed to log out (Possibly corrupted token)')
 
-    def refresh_session(self, username: str, token: bytes, digest: bytes) -> Optional[bytes]:
+    def refresh_session(self, username: str, token: bytes, digest: bytes) -> tuple[bytes, int]:
         auth_data: SessionMetadata = self.authenticate_session(username, token)
         if not auth_data:
             raise UserAuthenticationError('No such session exists')
@@ -354,8 +344,10 @@ class UserManager(metaclass=MetaUserManager):
                 raise e
             # Generic handler for exceptions rising from hmac.compare_digest()
             raise UserAuthenticationError('Invalid session refresh digest. Please login again')
-        
-        return new_digest
+        auth_data.update_digest(new_digest)
+        self.session[username] = auth_data
+
+        return new_digest, auth_data.iteration
 
     async def check_banned(self, username: str, proxy: Optional[ConnectionProxy] = None, reclaim_on_exc: bool = True, lock_row: bool = False) -> bool:
         new_proxy: bool = proxy is None
