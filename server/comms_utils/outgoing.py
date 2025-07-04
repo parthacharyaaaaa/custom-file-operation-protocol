@@ -15,7 +15,7 @@ async def send_heartbeat(header: BaseHeaderComponent, writer: asyncio.StreamWrit
         await writer.wait_closed()
     return
 
-async def send_response(writer: asyncio.StreamWriter, response: Union[ResponseHeader, bytes], body: Optional[Union[ResponseBody, bytes]] = None, close_conn: bool = False) -> None:
+async def send_response(writer: asyncio.StreamWriter, response: Union[ResponseHeader, bytes], body: Optional[Union[ResponseBody, bytes]] = None) -> None:
     header_stream: bytes = response if isinstance(response, bytes) else orjson.dumps(response.model_dump())
     if isinstance(response, bytes):
         writer.write(header_stream)
@@ -24,8 +24,3 @@ async def send_response(writer: asyncio.StreamWriter, response: Union[ResponseHe
         writer.write(body_stream)
         
     await writer.drain()
-    if close_conn:
-        writer.write_eof()
-        await writer.drain()
-        writer.close()
-        await writer.wait_closed()
