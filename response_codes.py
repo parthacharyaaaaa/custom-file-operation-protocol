@@ -17,7 +17,7 @@ class SuccessFlags(Flag):
     SUCCESSFUL_USER_DELETION = "1:udel"
     HEARTBEAT = "1:hb"
     SUCCESSFUL_GRANT = "1:gnt"
-    SUCCESSFUL_GRANT = "1:rvk"
+    SUCCESSFUL_REVOKE = "1:rvk"
 
 class IntermediaryFlags(Flag):
     PARTIAL_AMEND = "0:a"
