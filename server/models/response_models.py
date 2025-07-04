@@ -17,9 +17,9 @@ class ResponseHeader(BaseModel):
     description: Optional[Annotated[str, Field(max_length=256, default=None)]]
 
     # Responder metadata
-    responder_hostname: Annotated[IPvAnyAddress, Field(frozen=True)]
-    responder_port: Annotated[int, Field(frozen=True)]
-    responder_timestamp: Annotated[float, Field(frozen=True)]
+    responder_hostname: Annotated[IPvAnyAddress, Field(frozen=True, default=ServerConfig.HOST.value)]
+    responder_port: Annotated[int, Field(frozen=True, default=ServerConfig.PORT.value)]
+    responder_timestamp: Annotated[float, Field(frozen=True, default_factory=datetime.now)]
 
     # Response contents
     body_size: Annotated[int, Field(frozen=True, default=0)]
