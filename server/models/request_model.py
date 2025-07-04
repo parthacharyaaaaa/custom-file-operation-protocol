@@ -53,6 +53,7 @@ class BaseFileComponent(BaseModel):
 class BasePermissionComponent(BaseModel):
     # Request subjects
     subject_file: Annotated[str, Field(frozen=True, pattern=ServerConfig.FILENAME_REGEX.value)]
+    subject_file_owner: Annotated[str, Field(frozen=True, pattern=ServerConfig.USERNAME_REGEX.value, le=ServerConfig.USERNAME_RANGE.value[0], ge=ServerConfig.USERNAME_RANGE.value[1])]
     subject_user: Optional[Annotated[Union[str, Literal['*']], Field(frozen=True, default=None, pattern=ServerConfig.USERNAME_REGEX.value)]] # + For grnting, - for removal
     
     # Permission data
