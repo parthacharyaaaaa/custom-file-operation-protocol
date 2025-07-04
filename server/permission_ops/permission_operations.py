@@ -3,13 +3,31 @@ import psycopg.errors as pg_exc
 from psycopg.rows import Row, dict_row
 from response_codes import SuccessFlags
 from server.bootup import connection_master
+from server.database.models import role_types
 from server.errors import OperationContested, DatabaseFailure, FileNotFound, FileConflict
 from server.models.request_model import BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent
 from server.models.response_models import ResponseHeader, ResponseBody
 from server.connectionpool import ConnectionProxy
-from typing import Any
+from typing import Any, Optional, Literal
 
 # TODO: Add logging for database-related failures
+
+async def check_file_permission(filename: str, owner: str, grantee: str, check_for: role_types, proxy: Optional[ConnectionProxy] = None, level: Optional[Literal[1,2,3]] = 1) -> bool:
+    if not proxy:
+        proxy: ConnectionProxy = await connection_master.request_connection(level=level)
+    try:
+        async with proxy.cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(''''SELECT role
+                                 FROM file_permissions
+                                 WHERE file_owner = %s AND filename = %s AND grantee = %s;''',
+                                 (owner, filename, grantee,))
+            role_mapping: dict[str, role_types] = await cursor.fetchone()
+            if not role_mapping:
+                return False
+            return role_mapping['role'] == check_for
+    finally:
+        await connection_master.reclaim_connection(proxy)
+
 
 async def publicise_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, None]:
     proxy: ConnectionProxy = connection_master.request_connection(level=1)

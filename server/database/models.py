@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Field, IPvAnyAddress
-from typing import Literal, Annotated, Optional
+from typing import Literal, Annotated, Optional, TypeAlias
 from datetime import datetime
+
+role_types: TypeAlias = Literal['owner', 'manager', 'reader', 'editor']
 
 class ActivityLog(BaseModel):
     '''Pydantic object mapping to relation ACTIVITY_LOGS'''
