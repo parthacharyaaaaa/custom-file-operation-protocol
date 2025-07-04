@@ -297,7 +297,7 @@ class UserManager(metaclass=MetaUserManager):
                 if buffered_obj:
                     await buffered_obj.close()
 
-    def terminate_session(self, username: str, token: bytes) -> None:
+    def terminate_session(self, username: str, token: bytes) -> SessionMetadata:
         auth_data: SessionMetadata = self.session.get(username)
         if not auth_data:
             raise UserAuthenticationError(f'No session for user {username} found')
@@ -305,7 +305,8 @@ class UserManager(metaclass=MetaUserManager):
             if compare_digest(auth_data.token, token):
                 self.session.pop(username, None)
                 self.previous_digests.pop(username, None)
-                return
+                return auth_data
+            
             raise UserAuthenticationError('Invalid token')
         except Exception as e:
             self.enqueue_activity(user_concerned=username, severity=3, log_details=f'Failed in digest comparison: {e.__class__.__name__}', log_type='user')
