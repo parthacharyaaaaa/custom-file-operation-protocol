@@ -49,6 +49,10 @@ class InsufficientPermissions(ProtocolException):
     code: str = '2:perm'
     description: str = 'Insufficient permissions for this action'
 
+class OperationalConflict(ProtocolException):
+    code: str = '2:ocf'
+    description: str = 'Operational conflict'
+
 class Banned(ProtocolException):
     code: str = '2:ban'
     description: str = 'User {username} is banned'

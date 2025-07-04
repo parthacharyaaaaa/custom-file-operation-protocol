@@ -47,6 +47,7 @@ class ClientErrorFlags(Flag):
     UNSUPPORTED_OPERATION = "2:unsup"
     RATE_LIMIT_EXCEEDED = "2:rl"
     UNACCEPTABLE_SPEED = "2:us"
+    OPERATIONAL_CONFLICT = "2:ocf"
 
 class ServerErrorFlags(Flag):
     INTERNAL_SERVER_ERROR = "3:*"
