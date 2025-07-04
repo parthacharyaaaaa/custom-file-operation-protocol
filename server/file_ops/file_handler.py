@@ -1,3 +1,3 @@
-from server.authz.user_master import UserManager
+from server.authz.user_manager import UserManager
 
 async def file_handler(user_master: UserManager): ...

@@ -2,7 +2,7 @@
 import asyncio
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from cachetools import TTLCache
-from server.authz.user_master import UserManager
+from server.authz.user_manager import UserManager
 from server.connectionpool import ConnectionPoolManager
 from server.config import ServerConfig
 
