@@ -1,5 +1,4 @@
 '''Utils for incoming streams from client to server'''
-
 import asyncio
 from pydantic import ValidationError
 import server.errors as exc
@@ -9,9 +8,9 @@ from server.parsers import serialize_json
 from typing import Any, Optional
 import orjson
 
-async def process_header(n_bytes: int, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> Optional[req_models.BaseHeaderComponent]:
+async def process_header(n_bytes: int, reader: asyncio.StreamReader) -> Optional[req_models.BaseHeaderComponent]:
     try:
-        raw_header: bytes = await asyncio.wait_for(reader.readexactly(ServerConfig.HEADER_READ_BYTESIZE.value), timeout=ServerConfig.HEADER_READ_TIMEOUT.value)
+        raw_header: bytes = await asyncio.wait_for(reader.readexactly(n_bytes), timeout=ServerConfig.HEADER_READ_TIMEOUT.value)
         header: dict[str, Any] = await serialize_json(raw_header)
         return req_models.BaseHeaderComponent.model_validate(obj=header)
     except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
@@ -19,7 +18,7 @@ async def process_header(n_bytes: int, reader: asyncio.StreamReader, writer: asy
     except asyncio.TimeoutError:
         raise exc.SlowStreamRate
     
-async def process_auth(n_bytes: int, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> req_models.BaseAuthComponent:
+async def process_auth(n_bytes: int, reader: asyncio.StreamReader) -> req_models.BaseAuthComponent:
     raw_auth: bytes = await asyncio.wait_for(reader.readexactly(n_bytes), timeout=ServerConfig.AUTH_READ_TIMEOUT.value)
     auth_mapping: dict[str, Any] = await serialize_json(raw_auth)
     return req_models.BaseAuthComponent.model_validate_json(auth_mapping)
