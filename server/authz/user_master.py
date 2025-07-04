@@ -235,6 +235,7 @@ class UserManager(metaclass=MetaUserManager):
 
         # User deleted, delete session
         self.session.pop(username, None)
+        self.previous_digests_mapping.pop(username, None)
         # Perform relatively less important task of trimming the cache preemptive to usual expiry of this user's buffered readers/writers
         if caches:
             asyncio.create_task(self.terminate_user_cache(identifier=str, *caches))
