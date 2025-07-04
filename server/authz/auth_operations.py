@@ -48,6 +48,9 @@ async def handle_password_change(header_component: BaseHeaderComponent, auth_com
     return header, body
 
 async def handle_session_refresh(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent) -> tuple[ResponseHeader, ResponseBody]:
+    if not auth_component.auth_logical_check('authentication'):
+        raise InvalidAuthSemantic('Session refresh requires only the following fields: identity, token, refresh_digest')
+    
     # UserManager.refresh_session() implictly authenticates session
     new_digest, iteration = await user_master.refresh_session(username=auth_component.identity, token=auth_component.token, digest=auth_component.refresh_digest)
     header: ResponseHeader = ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_SESSION_REFRESH.value)
@@ -56,6 +59,9 @@ async def handle_session_refresh(header_component: BaseHeaderComponent, auth_com
     return header, body
 
 async def handle_session_termination(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent) -> tuple[ResponseHeader, ResponseBody]:
+    if not auth_component.auth_logical_check('authentication'):
+        raise InvalidAuthSemantic('Session termination requires only the following fields: identity, token, refresh_digest')
+    
     await user_master.authenticate_session(username=auth_component.identity)
     terminated_session: SessionMetadata = await user_master.terminate_session(username=auth_component.identity, token=auth_component.token)
 
