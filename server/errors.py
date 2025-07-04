@@ -1,4 +1,4 @@
-from abc import ABC, ab
+from abc import ABC
 from datetime import datetime
 from typing import Optional
 from server.config import CategoryFlag
