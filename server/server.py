@@ -1,8 +1,8 @@
 import asyncio
 import os
+import orjson
 from functools import partial
-from typing import Optional
-from types import FunctionType
+from typing import Optional, Any, Coroutine, Callable
 from psycopg.conninfo import make_conninfo
 from server.bootup import init_connection_master, init_user_master, init_file_lock
 from server.comms_utils.incoming import process_header
@@ -19,11 +19,18 @@ async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -
         if not header_component:
             raise SlowStreamRate('Unable to parse header')
         
-        handler: FunctionType = TOP_LEVEL_REQUEST_MAPPING.get(header_component.category)
+        handler: Callable[..., Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]] = TOP_LEVEL_REQUEST_MAPPING.get(header_component.category)
         if not handler:
             raise UnsupportedOperation(f'Operation category must be in: {", ".join(CategoryFlag._member_names_)}')
         
-        response: tuple[ResponseHeader, Optional[ResponseBody]] = await handler(header_component)
+        response_header, response_body = await handler(header_component)
+        body_stream: bytes = None
+        if response_body:
+            body_stream: bytes = orjson.dumps(response_body.model_dump())
+            response_header.body_size = len(body_stream)
+        
+        return await send_response(writer=writer, response=response_header, body=body_stream, connection_end=response_header.ended_connection)
+
     except Exception as e:
         connection_end: bool = False if not header_component else header_component.finish
         response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=e if issubclass(e, ProtocolException) else InternalServerError,
