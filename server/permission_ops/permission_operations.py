@@ -13,6 +13,7 @@ from typing import Any, Optional, Literal
 # TODO: Add logging for database-related failures
 
 async def check_file_permission(filename: str, owner: str, grantee: str, check_for: role_types, proxy: Optional[ConnectionProxy] = None, level: Optional[Literal[1,2,3]] = 1) -> bool:
+    reclaim_after: bool = proxy is None
     if not proxy:
         proxy: ConnectionProxy = await connection_master.request_connection(level=level)
     try:
@@ -26,13 +27,15 @@ async def check_file_permission(filename: str, owner: str, grantee: str, check_f
                 return False
             return role_mapping['role'] == check_for
     finally:
-        await connection_master.reclaim_connection(proxy)
+        if reclaim_after:
+            await connection_master.reclaim_connection(proxy)
 
 
 async def publicise_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, None]:
     proxy: ConnectionProxy = connection_master.request_connection(level=1)
     try:
         async with proxy.cursor(row_factory=dict_row) as cursor:
+            # Only owner is allowed to publicise/hide files
             await cursor.execute('''SELECT public
                                  FROM files
                                  WHERE owner = %s AND filename = %s
@@ -64,6 +67,7 @@ async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseA
     proxy: ConnectionProxy = connection_master.request_connection(level=1)
     try:
         async with proxy.cursor(row_factory = dict_row) as cursor:
+            # Only owner is allowed to publicise/hide files
             await cursor.execute('''SELECT *
                                  FROM files
                                  WHERE owner = %s AND filename = %s
