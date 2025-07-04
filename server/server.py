@@ -1,45 +1,36 @@
 import asyncio
+import orjson
 import os
 from functools import partial
 from types import FunctionType
 from psycopg.conninfo import make_conninfo
 from server import response_codes
-from server.config import ServerConfig
+from server.bootup import init_connection_master, init_user_master, init_file_lock
+from server.comms_utils.incoming import process_header
+from server.comms_utils.outgoing import send_response
+from server.config import ServerConfig, CategoryFlag
+from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
+from server.errors import ProtocolException, UnsupportedOperation, InternalServerError, SlowStreamRate
 from server.models.request_model import BaseHeaderComponent
 from server.models.response_models import ResponseHeader
-from server.comms_utils.incoming import process_header
-from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
-from server.errors import UnsupportedOperation, InternalServerError, SlowStreamRate
-from server.bootup import init_connection_master, init_user_master, init_file_lock
-import orjson
 
 async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     try:
         header_component: BaseHeaderComponent = await process_header(ServerConfig.HEADER_READ_BYTESIZE.value, reader, writer)
         if not header_component:
-            raise SlowStreamRate
+            raise SlowStreamRate('Unable to parse header')
         
         handler: FunctionType = TOP_LEVEL_REQUEST_MAPPING.get(header_component.category)
         if not handler:
-            writer.write(orjson.dumps(
-                ResponseHeader
-                .from_protocol_exception(UnsupportedOperation, context_request=header_component, end_conn=header_component.finish)
-                .model_dump_json()))
-            await writer.drain()
-            if header_component.finish:
-                writer.write_eof()
-                await writer.drain()
-                writer.close()
-                return await writer.wait_closed()
+            raise UnsupportedOperation(f'Operation category must be in: {", ".join(CategoryFlag._member_names_)}')
         
         await handler(header_component)
-    except:
-        # Unhandled exceptions
-        writer.write(orjson.dumps(
-            ResponseHeader.from_unverifiable_data(InternalServerError)
-            .model_dump_json()
-        ))
-        return await writer.drain()
+    except Exception as e:
+        connection_end: bool = False if not header_component else header_component.finish
+        response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=e if issubclass(e, ProtocolException) else InternalServerError,
+                                                                          context_request=header_component,
+                                                                          end_conn=connection_end)
+        return await send_response(writer=writer, response=response, close_conn=connection_end)
 
 async def main() -> None:
     # Check runtime dependencies
