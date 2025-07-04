@@ -20,7 +20,7 @@ from server.config import ServerConfig
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned, InvalidAuthData, OperationContested
 
 class SessionMetadata:
-    __slots__ = '_token', '_refresh_digest', '_last_refresh', '_iteration', '_lifespan'
+    __slots__ = '_token', '_refresh_digest', '_last_refresh', '_iteration', '_lifespan', '_valid_until'
     # Cryptograhic metadata
     _token: bytes
     _refresh_digest: bytes
@@ -28,6 +28,7 @@ class SessionMetadata:
     # Chronologic metadata
     _last_refresh: float
     _lifespan: float
+    _valid_until: float
 
     # Additional
     _iteration: int
@@ -48,6 +49,10 @@ class SessionMetadata:
     def lifespan(self) -> float:
         return self._lifespan
     @property
+    def valid_until(self) -> float:
+        return self._valid_until
+    
+    @property
     def dict_repr(self) -> dict[str, Any]:
         return {'token' : self.token,
                 'refresh_digest' : self.refresh_digest,
@@ -60,6 +65,7 @@ class SessionMetadata:
         self._refresh_digest = refresh_digest
         self._last_refresh = time.time()
         self._lifespan = lifespan
+        self._valid_until = self._last_refresh + lifespan
         self._iteration = 1
     
     def __repr__(self) -> str:
