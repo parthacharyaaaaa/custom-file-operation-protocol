@@ -1,13 +1,17 @@
 from enum import Flag
 
 class SuccessFlags(Flag):
+    SUCCESSFUL_FILE_CREATION = "1:fnew"
     SUCCESSFUL_AMEND = "1:a"
     SUCCESSFUL_READ = "1:r"
-    SUCCESSFUL_READ_DELETE = "1:rd"
     SUCCESSFUL_AMEND_DELETE = "1:ad"
+    SUCCESSFUL_READ_DELETE = "1:rd"
+    SUCCESSFUL_FILE_DELETION = "1:fdel"
+    SUCCESSFUL_USER_CREATION = "1:unew"
     SUCCESSFUL_AUTHENTICATION = "1:auth"
-    SUCCESSFUL_USER_CREATION = "1:new"
     SUCCESSFUL_PASSWORD_CHANGE = "1:pw"
+    SUCCESSFUL_SESSION_REFRESH = "1:ref"
+    SUCCESSFUL_USER_DELETION = "1:udel"
     HEARTBEAT = "1:hb"
 
 class IntermediaryFlags(Flag):
