@@ -45,6 +45,10 @@ class UserAuthenticationError(ProtocolException):
     code: str = '2:exu'
     description: str = 'User authentication error'
 
+class InsufficientPermissions(ProtocolException):
+    code: str = '2:perm'
+    description: str = 'Insufficient permissions for this action'
+
 class Banned(ProtocolException):
     code: str = '2:ban'
     description: str = 'User {username} is banned'

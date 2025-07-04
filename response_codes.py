@@ -42,6 +42,7 @@ class ClientErrorFlags(Flag):
     INVALID_BODY_VALUE = "2:ibv"
     NON_JSON_SCHEMA = "2:nj"
     BANNED = "2:ban"
+    INSUFFICIENT_PERMISSIONS = "2:perm"
     MALFORMED_REQUEST_STRUCTURE = "2:malf"
     UNSUPPORTED_OPERATION = "2:unsup"
     RATE_LIMIT_EXCEEDED = "2:rl"
