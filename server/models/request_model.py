@@ -83,6 +83,7 @@ class BaseHeaderComponent(BaseModel):
 
     # Connection status
     finish: Annotated[bool, Field(frozen=True, default=True)]
+    connection_keepalive: Annotated[bool, Field(default=False)]
 
     # Message category
     category: Annotated[CategoryFlag, Field(frozen=True)]    # 0b0001, 0b0010, 0b0100, and 0b1000
