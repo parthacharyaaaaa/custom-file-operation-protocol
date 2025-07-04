@@ -1,6 +1,6 @@
 import time
 import orjson
-from server.authz.user_master import SessionMetadata
+from server.authz.user_manager import SessionMetadata
 from server.bootup import user_master, read_cache, write_cache, append_cache
 from server.errors import InvalidAuthSemantic
 from server.models.request_model import BaseHeaderComponent, BaseAuthComponent
