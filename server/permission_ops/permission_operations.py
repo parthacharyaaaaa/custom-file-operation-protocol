@@ -111,7 +111,7 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
         if not await check_file_permission(permission_component.subject_file, permission_component.subject_file_owner, permission_component.subject_user, check_for=allowed_roles, proxy=proxy):
             raise InsufficientPermissions
         
-        async with proxy.cursor() as cursor:
+        async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute('''SELECT role, granted_by
                                  FROM file_permissions
                                  WHERE file_owner = %s AND filename = %s AND grantee = %s
@@ -137,8 +137,47 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
     except pg_exc.LockNotAvailable:
         raise OperationContested
     except pg_exc.Error:
-        raise DatabaseFailure('Failed to hide file')
+        raise DatabaseFailure('Failed to grant permission')
     finally:
         await connection_master.reclaim_connection(proxy)
     
     return ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_GRANT, ended_connection=header_component.finish), None
+
+async def revoke_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, None]:
+    allowed_roles: list[role_types] = ['manager', 'owner']
+    if (permission_component.permission_flags & PermissionFlags.MANAGER.value): # If request is to revoke a user's manager role, then only the owner of this file is allowed
+        allowed_roles.remove('manager')
+    
+    proxy: ConnectionProxy = await connection_master.request_connection(level=2)
+    try:
+        if not await check_file_permission(permission_component.subject_file, permission_component.subject_file_owner, permission_component.subject_user, check_for=allowed_roles, proxy=proxy):
+            raise InsufficientPermissions
+        
+        async with proxy.cursor(row_factory=dict_row) as cursor:
+            await cursor.execute('''SELECT role, granted_by, granted_at, grantee
+                                 FROM file_permissions
+                                 WHERE file_owner = %s AND filename = %s AND grantee = %s
+                                 FOR UPDATE NOWAIT;''',
+                                 (permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user,))
+            permission_mapping: dict[str, str] = await cursor.fetchone()
+
+            if not permission_mapping:
+                raise OperationalConflict(f'User {permission_component.subject_user} does not have any permission on file {permission_component.subject_file} owned by {permission_component.subject_file_owner}')
+            
+            # Revoking a role also follows same logic as granting one. If the role was granted by the owner, then only the owner is permitted to revoke it.
+            if (permission_mapping['granted_by'] == permission_component.subject_file_owner) and (auth_component.identity != permission_component.subject_file_owner):
+                raise InsufficientPermissions
+
+            await cursor.execute('''DELETE FROM file_permissions
+                                 WHERE file_owner = %s AND filename = %s AND grantee = %s''',
+                                 (permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user,))
+        await proxy.commit()
+    except pg_exc.LockNotAvailable:
+        raise OperationContested
+    except pg_exc.Error:
+        raise DatabaseFailure('Failed to revoke permission')
+    finally:
+        await connection_master.reclaim_connection(proxy)
+    
+    return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_REVOKE, ended_connection=header_component.finish),
+            ResponseBody(contents=orjson.dumps({'revoked_role_data' : permission_mapping})))
