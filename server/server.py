@@ -16,7 +16,7 @@ from server.models.response_models import ResponseHeader, ResponseBody
 async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     while not reader.at_eof():
         try:
-            header_component: BaseHeaderComponent = await process_header(ServerConfig.HEADER_READ_BYTESIZE.value, reader, writer)
+            header_component: BaseHeaderComponent = await process_header(ServerConfig.HEADER_READ_BYTESIZE.value, reader)
             if not header_component:
                 raise SlowStreamRate('Unable to parse header')
             
