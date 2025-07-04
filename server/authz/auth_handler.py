@@ -23,7 +23,7 @@ _AUTH_SUBHANDLER_MAPPING: MappingProxyType[int, AUTH_SUBHABDLER] = MappingProxyT
     )
 )
 
-async def top_auth_handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, header_component: BaseHeaderComponent) -> Optional[BaseAuthComponent]:
+async def top_auth_handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, header_component: BaseHeaderComponent) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     if not header_component.auth_size:
         raise InvalidAuthSemantic('Missing auth component in header, and no unauthenticated operation requested')
 
