@@ -28,6 +28,7 @@ class ClientErrorFlags(Flag):
     PERMISSION_DENIED = "2:perm"
     FILE_NOT_FOUND = "2:nf"
     FILE_CONTESTED = "2:cf"
+    FILE_CONFLICT = "2:cnf"
     FILE_JUST_DELETED = "2:df"
     INVALID_HEADER_SEMANTIC = "2:ihs"
     INVALID_HEADER_VALUES = "2:ihv"
