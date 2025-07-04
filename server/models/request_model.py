@@ -13,12 +13,18 @@ class BaseAuthComponent(BaseModel):
     @model_validator(mode='after')
     def auth_semantic_check(self) -> 'BaseAuthComponent':
         if not (self.password or self.token):
-            raise ValueError('Passkey or token required for authentication')
-        if self.password and self.token:
-            raise ValueError('Both password and token provided — only one allowed')
+            raise ValueError('Password or token required for authentication')
         if self.refresh_digest and not self.token:
             raise ValueError('Refresh digest provided but no active token given')
         return self
+    
+    def auth_logical_check(self, flag: Literal['authorization', 'authentication']) -> bool:
+        if flag == 'authorization' and self.password and not (self.token or self.refresh_digest):
+            return True
+        elif flag == 'authentication' and not self.password and (self.token and self.refresh_digest):
+            return True
+        
+        return False
     
 class BaseFileComponent(BaseModel):
     # Target file
