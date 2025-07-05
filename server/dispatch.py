@@ -1,13 +1,16 @@
+import asyncio
+from server.authz.auth_handler import top_auth_handler
+from server.comms_utils.outgoing import send_heartbeat
 from server.config import CategoryFlag
-from typing import Any, Coroutine, Optional
-from types import MappingProxyType
-from server.authz.auth_handler import auth_handler
-from server.file_ops.permission_handler import permission_handler
-from server.file_ops.file_handler import file_handler
+from server.file_ops.file_handler import top_file_handler
 from server.models.response_models import ResponseHeader, ResponseBody
+from server.models.request_model import BaseHeaderComponent
+from server.permission_ops.permission_handler import top_permission_handler
+from typing import Any, Coroutine, Optional, Callable
+from types import MappingProxyType
 
-TOP_LEVEL_REQUEST_MAPPING: MappingProxyType[int, Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]] = (
-    MappingProxyType({CategoryFlag.AUTH : auth_handler,
-                      CategoryFlag.HEARTBEAT : auth_handler,
-                      CategoryFlag.FILE_OP : file_handler,
-                      CategoryFlag.PERMISSION : permission_handler}))
+TOP_LEVEL_REQUEST_MAPPING: MappingProxyType[int, Callable[[asyncio.StreamReader, BaseHeaderComponent], Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]] = (
+    MappingProxyType({CategoryFlag.AUTH : top_auth_handler,
+                      CategoryFlag.HEARTBEAT : send_heartbeat,
+                      CategoryFlag.FILE_OP : top_file_handler,
+                      CategoryFlag.PERMISSION : top_permission_handler}))
