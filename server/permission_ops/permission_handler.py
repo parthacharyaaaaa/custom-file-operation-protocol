@@ -7,6 +7,7 @@ from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, SlowStream
 from server.models.request_model import BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent
 from server.models.response_models import ResponseHeader, ResponseBody
 from server.permission_ops.permission_flags import PermissionFlags
+from server.permission_ops.permission_operations import grant_permission, revoke_permission, hide_file, publicise_file, transfer_ownership
 from typing import Optional, TypeAlias, Callable, Coroutine, Any
 from types import MappingProxyType
 from pydantic import ValidationError
@@ -18,8 +19,8 @@ PERMISSION_SUBHABDLER: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthCompon
 _PERMISSION_SUBHANDLER_MAPPING: MappingProxyType[int, PERMISSION_SUBHABDLER] = MappingProxyType(
     dict(
         zip(
-            PermissionFlags._member_names_,
-            []
+            PermissionFlags._member_names_[:-3],
+            [grant_permission, revoke_permission, hide_file, publicise_file, transfer_ownership]
         )
     )
 )
