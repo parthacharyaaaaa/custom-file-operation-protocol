@@ -47,6 +47,7 @@ class ServerConfig(Enum):
     USER_MAX_FILES: int = 30
     CACHE_PUBLICISED_FILES: bool = True
     CHUNK_MAX_SIZE: int = 4096
+    FILE_READ_TIMEOUT: float = 5.0
 
     # Auth
     MAX_AUTH_ATTEMPTS: int = 5
@@ -59,3 +60,4 @@ class ServerConfig(Enum):
 
     # Permissions
     EFFECT_DURATION_RANGE: tuple[int, int] = (0, 2_678_400)
+    PERMISSION_READ_TIMEOUT: float = 2.0
