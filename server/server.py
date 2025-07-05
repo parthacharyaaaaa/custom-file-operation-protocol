@@ -10,8 +10,8 @@ from server.comms_utils.outgoing import send_response
 from server.config import ServerConfig, CategoryFlag
 from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
 from server.errors import ProtocolException, UnsupportedOperation, InternalServerError, SlowStreamRate
-from server.models.request_model import BaseHeaderComponent
-from server.models.response_models import ResponseHeader, ResponseBody
+from models.request_model import BaseHeaderComponent
+from models.response_models import ResponseHeader, ResponseBody
 
 async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     while not reader.at_eof():

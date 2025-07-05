@@ -3,7 +3,7 @@ import asyncio
 from pydantic import ValidationError
 import server.errors as exc
 from server.config import ServerConfig
-from server.models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent, BasePermissionComponent, RequestComponentType
+from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent, BasePermissionComponent, RequestComponentType
 from server.parsers import serialize_json
 from typing import Any, Literal
 import orjson

@@ -1,6 +1,6 @@
 import asyncio
 from server.config import CategoryFlag
-from server.models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent, BaseHeaderComponent
+from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent, BaseHeaderComponent
 from pydantic import BaseModel
 import orjson
 from typing import Any

@@ -3,8 +3,8 @@ import orjson
 from server.authz.user_manager import SessionMetadata
 from server.bootup import user_master, read_cache, write_cache, append_cache
 from server.errors import InvalidAuthSemantic
-from server.models.request_model import BaseHeaderComponent, BaseAuthComponent
-from server.models.response_models import ResponseHeader, ResponseBody
+from models.request_model import BaseHeaderComponent, BaseAuthComponent
+from models.response_models import ResponseHeader, ResponseBody
 from response_codes import SuccessFlags
 
 async def handle_registration(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent) -> tuple[ResponseHeader, None]:

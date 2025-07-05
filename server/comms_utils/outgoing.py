@@ -1,8 +1,8 @@
 '''Outgoing messages from server to client'''
 import asyncio
 import orjson
-from server.models.request_model import BaseHeaderComponent
-from server.models.response_models import ResponseHeader, ResponseBody
+from models.request_model import BaseHeaderComponent
+from models.response_models import ResponseHeader, ResponseBody
 from typing import Optional, Union
 
 async def send_heartbeat(header: BaseHeaderComponent) -> tuple[ResponseBody, None]:

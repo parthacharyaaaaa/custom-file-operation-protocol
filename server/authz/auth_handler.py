@@ -4,8 +4,8 @@ from server.authz.auth_operations import handle_registration, handle_login, hand
 from server.config import CategoryFlag
 from server.comms_utils.incoming import process_component
 from server.errors import InvalidAuthSemantic, UnsupportedOperation
-from server.models.request_model import BaseHeaderComponent, BaseAuthComponent
-from server.models.response_models import ResponseHeader, ResponseBody
+from models.request_model import BaseHeaderComponent, BaseAuthComponent
+from models.response_models import ResponseHeader, ResponseBody
 from typing import Optional, Coroutine, Any, Callable, TypeAlias
 from types import MappingProxyType
 

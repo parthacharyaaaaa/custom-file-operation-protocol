@@ -3,7 +3,7 @@ from pydantic import BaseModel, IPvAnyAddress, model_validator, Field
 from typing import Annotated, Optional, Union, Any
 from server import response_codes
 from server.config import ServerConfig
-from server.models.request_model import BaseHeaderComponent
+from models.request_model import BaseHeaderComponent
 from datetime import datetime
 from time import time
 from server.errors import ProtocolException

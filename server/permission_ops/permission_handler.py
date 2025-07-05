@@ -4,8 +4,8 @@ from server.bootup import user_master
 from server.comms_utils.incoming import process_component
 from server.config import CategoryFlag
 from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, SlowStreamRate, UnsupportedOperation
-from server.models.request_model import BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent
-from server.models.response_models import ResponseHeader, ResponseBody
+from models.request_model import BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent
+from models.response_models import ResponseHeader, ResponseBody
 from server.permission_ops.permission_flags import PermissionFlags
 from server.permission_ops.permission_operations import grant_permission, revoke_permission, hide_file, publicise_file, transfer_ownership
 from typing import Optional, TypeAlias, Callable, Coroutine, Any
