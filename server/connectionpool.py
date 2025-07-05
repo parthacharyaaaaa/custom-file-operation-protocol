@@ -88,7 +88,7 @@ class LeasedConnection:
         return attr
 
 class ConnectionPoolManager:
-    async def __init__(self, conninfo: str, lease_duration: float, high_priority_conns: int, mid_priority_conns: int, low_priority_conns: int, connection_timeout: float = 10, connection_refresh_timer: float = 600) -> None:
+    def __init__(self, lease_duration: float, high_priority_conns: int, mid_priority_conns: int, low_priority_conns: int, connection_timeout: float = 10, connection_refresh_timer: float = 600) -> None:
         if connection_timeout <= 0:
             raise ValueError('Connection timeout must be positive')
         if connection_refresh_timer <= 0:
@@ -102,16 +102,17 @@ class ConnectionPoolManager:
 
         # Create connection pools as queue and populate them with AsyncConnection objects
         self._hp_connection_pool: asyncio.Queue = asyncio.Queue(maxsize=high_priority_conns)
-        self._mp_connection_pool: asyncio.Queue = asyncio.Queue(maxsize=high_priority_conns)
-        self._lp_connection_pool: asyncio.Queue = asyncio.Queue(maxsize=high_priority_conns)
+        self._mp_connection_pool: asyncio.Queue = asyncio.Queue(maxsize=mid_priority_conns)
+        self._lp_connection_pool: asyncio.Queue = asyncio.Queue(maxsize=low_priority_conns)
 
-        pg.AsyncConnection.connect
-        for _ in range(high_priority_conns):
-            self._hp_connection_pool.put(await LeasedConnection.connect(conninfo, self, lease_duration, autocommit=True))
-        for _ in range(mid_priority_conns):
-            self._mp_connection_pool.put(await LeasedConnection.connect(conninfo, self, lease_duration, autocommit=True))
-        for _ in range(low_priority_conns):
-            self._lp_connection_pool.put(await LeasedConnection.connect(conninfo, self, lease_duration, autocommit=True))
+    async def populate_pools(self, conninfo: str) -> None:
+        for _ in range(self._hp_connection_pool.maxsize):
+            await self._hp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, autocommit=True))
+        for _ in range(self._mp_connection_pool.maxsize):
+            await self._mp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, autocommit=True))
+        for _ in range(self._lp_connection_pool.maxsize):
+            await self._lp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, autocommit=True))
+
         
     async def request_connection(self, level: Literal[1,2,3], max_lease_duration: Optional[float] = None) -> ConnectionProxy:
         '''Request a connection from one of the priority pools. If none available, waits.

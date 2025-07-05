@@ -19,15 +19,15 @@ read_cache: TTLCache[str, dict[str, AsyncBufferedReader]] = None
 write_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]] = None
 append_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]] = None
 
-def init_connection_master(conninfo: str, config: type[ServerConfig]) -> ConnectionPoolManager:
+async def init_connection_master(conninfo: str, config: type[ServerConfig]) -> ConnectionPoolManager:
     global connection_master
-    connection_master = ConnectionPoolManager(conninfo, config.CONNECTION_LEASE_DURATION.value, *config.MAX_CONNECTIONS.value, connection_timeout=config.CONNECTION_TIMEOUT.value, connection_refresh_timer=config.CONNECTION_REFRESH_TIMER.value)
-
+    connection_master = ConnectionPoolManager(config.CONNECTION_LEASE_DURATION.value, *config.MAX_CONNECTIONS.value, connection_timeout=config.CONNECTION_TIMEOUT.value, connection_refresh_timer=config.CONNECTION_REFRESH_TIMER.value)
+    await connection_master.populate_pools(conninfo)
     return connection_master
 
-def init_user_master(config: type[ServerConfig]) -> UserManager:
+def init_user_master() -> UserManager:
     global user_master
-    user_master = UserManager()
+    user_master = UserManager(connection_master=connection_master)
 
     return user_master
 
