@@ -1,10 +1,10 @@
-import asyncio
-from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries, rename_file_entries
-import aiofiles
-from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
-from typing import Optional, Union, Literal
-from cachetools import TTLCache
 import os
+import aiofiles
+from uuid import uuid4
+from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
+from cachetools import TTLCache
+from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries, rename_file_entries
+from typing import Optional, Union, Literal
 
 async def preemptive_eof_check(reader: AsyncBufferedReader) -> bool:
     if not await reader.read(1):
@@ -174,3 +174,26 @@ async def rename_file(fpath: os.PathLike, name: str, extension: str, deleted_cac
         return True
     except (PermissionError, OSError):
         return False
+    
+def transfer_file(root: os.PathLike, previous_owner: str, file: os.PathLike, new_owner: os.PathLike, deleted_cache: TTLCache[str, Literal[True]],
+                  new_name: Optional[str] = None, **cache_mapping) -> os.PathLike:
+    prev_fpath = os.path.join(root, previous_owner, file)
+    if prev_fpath in deleted_cache or not os.path.isfile(prev_fpath):
+        return None
+
+    try:
+        if not os.path.isdir(root):
+            os.makedirs(root, exist_ok=True)
+
+        if new_name:
+            file = new_name
+        new_fpath: os.PathLike = os.path.join(root, new_owner, file)
+        if os.path.isfile(new_fpath):
+            file = '_'.join(uuid4().hex, file)
+            new_fpath = os.path.join(root, new_owner, file)
+        
+        os.replace(src=prev_fpath, dst=new_fpath)
+        return file
+    except (PermissionError, OSError):
+        return None
+    
