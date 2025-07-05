@@ -13,7 +13,6 @@ from typing import Optional, Union, Any
 from cachetools import TTLCache
 from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
 from server.authz.singleton import MetaUserManager
-from server.bootup import connection_master
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog
 from server.config import ServerConfig
@@ -99,7 +98,7 @@ class UserManager(metaclass=MetaUserManager):
                                          .format(tablename=sql.Identifier('activity_logs'),
                                                  columns_template=sql.SQL(', ').join([sql.Identifier(key) for key in list(ActivityLog.model_fields.keys())]),
                                                  placeholder_template=sql.SQL(', ').join(['%s' for _ in range(len(ActivityLog.model_fields))])))
-    def __init__(self):
+    def __init__(self, connection_master: ConnectionPoolManager):
         self.connection_master: ConnectionPoolManager = connection_master
         self.session: dict[str, SessionMetadata] = {}
         self.previous_digests_mapping: TTLCache[str, list[bytes, bytes]] = TTLCache(0, UserManager.SESSION_LIFESPAN)
@@ -244,7 +243,7 @@ class UserManager(metaclass=MetaUserManager):
             asyncio.create_task(self.terminate_user_cache(identifier=str, *caches))
 
     async def change_password(self, username: str, new_password: str) -> None:
-        proxy: ConnectionProxy = await connection_master.request_connection(level=3)
+        proxy: ConnectionProxy = await self.connection_master.request_connection(level=3)
         try:
             async with proxy.cursor() as cursor:
                 await cursor.execute('''SELECT pw_hash, pw_salt
