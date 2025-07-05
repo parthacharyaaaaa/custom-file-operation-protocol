@@ -5,15 +5,12 @@ from server.models.request_model import BaseHeaderComponent
 from server.models.response_models import ResponseHeader, ResponseBody
 from typing import Optional, Union
 
-async def send_heartbeat(header: BaseHeaderComponent, writer: asyncio.StreamWriter, close_conn: bool = False) -> None:
+async def send_heartbeat(header: BaseHeaderComponent) -> tuple[ResponseBody, None]:
     '''Send a heartbeat signal back to the client'''
-    writer.write(orjson.dumps(ResponseHeader.make_response_header(header.version, '1:hb', description="Doki Doki").model_dump_json()))
-    await writer.drain()
-    if close_conn:
-        writer.write_eof()
-        writer.close()
-        await writer.wait_closed()
-    return
+    return (
+        ResponseHeader(version=header.version, code='1:hb', description='Doki Doki', ended_connection=header.finish),
+        None
+    )
 
 async def send_response(writer: asyncio.StreamWriter, response: Union[ResponseHeader, bytes], body: Optional[Union[ResponseBody, bytes]] = None) -> None:
     header_stream: bytes = response if isinstance(response, bytes) else orjson.dumps(response.model_dump())
