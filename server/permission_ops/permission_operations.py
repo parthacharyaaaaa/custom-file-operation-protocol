@@ -1,9 +1,14 @@
+import asyncio
+import os
 import orjson
 import psycopg.errors as pg_exc
 from psycopg.rows import Row, dict_row
 from server.bootup import connection_master
 from response_codes import SuccessFlags
+from server.bootup import read_cache, write_cache, append_cache, delete_cache
+from server.config import ServerConfig
 from server.connectionpool import ConnectionProxy
+from server.file_ops.operations import transfer_file
 from server.database.models import role_types
 from server.errors import OperationContested, DatabaseFailure, FileNotFound, FileConflict, InsufficientPermissions, OperationalConflict
 from server.models.request_model import BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent
@@ -31,7 +36,6 @@ async def check_file_permission(filename: str, owner: str, grantee: str, check_f
     finally:
         if reclaim_after:
             await connection_master.reclaim_connection(proxy)
-
 
 async def publicise_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, None]:
     proxy: ConnectionProxy = connection_master.request_connection(level=1)
@@ -63,7 +67,6 @@ async def publicise_file(header_component: BaseHeaderComponent, auth_component: 
         connection_master.reclaim_connection(proxy)
 
     return ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value, ended_connection=header_component.finish), None
-
 
 async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, ResponseBody]:
     proxy: ConnectionProxy = connection_master.request_connection(level=1)
@@ -143,7 +146,7 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
     
     return ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_GRANT, ended_connection=header_component.finish), None
 
-async def revoke_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, None]:
+async def revoke_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, ResponseBody]:
     allowed_roles: list[role_types] = ['manager', 'owner']
     if (permission_component.permission_flags & PermissionFlags.MANAGER.value): # If request is to revoke a user's manager role, then only the owner of this file is allowed
         allowed_roles.remove('manager')
@@ -181,3 +184,73 @@ async def revoke_permission(header_component: BaseHeaderComponent, auth_componen
     
     return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_REVOKE, ended_connection=header_component.finish),
             ResponseBody(contents=orjson.dumps({'revoked_role_data' : permission_mapping})))
+
+async def transfer_ownership(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, ResponseBody]:
+    if auth_component.identity != permission_component.subject_file_owner:
+        raise InsufficientPermissions(f'Only file owner {permission_component.subject_file_owner} is permitted to transfer ownership of file {permission_component.subject_file}')
+    if permission_component.subject_file_owner == permission_component.subject_user:
+        raise OperationalConflict('Cannot transfer file ownership to owner themselves, what are you trying to accomplish?')
+    
+    proxy: ConnectionProxy = await connection_master.request_connection(level=3)
+    new_fname: str = None
+    transfer_datetime_iso: str = None
+    try:
+        async with proxy.cursor(row_factory=dict_row) as cursor:
+            # Auth component can easily be tampered to reflect same username as file owner, check against database
+            if not await check_file_permission(permission_component.subject_file, permission_component.subject_file_owner, permission_component.subject_user, ['owner'], proxy):
+                # TODO: Log tampered identity claim in auth component
+                raise InsufficientPermissions(f'Only file owner {permission_component.subject_file_owner} is permitted to transfer ownership of file {permission_component.subject_file}')
+            
+            # Proceed to transfer ownership 
+            await cursor.execute('''SELECT *
+                                 FROM file_permissions
+                                 WHERE file_owner = %s
+                                 FOR UPDATE NOWAIT;''',
+                                 (permission_component.subject_file_owner,))
+            
+            # file_permissions_mapping: list[dict[str, str]] = await cursor.fetchall()  # Do we even need to return this?
+            # Before committing, it is important to move this file to the new owner's directory. This way in case of an OSError/PermissionError we won't have inconsistent state
+            new_fname = await asyncio.wait_for(
+                asyncio.to_thread(transfer_file,
+                                  root=ServerConfig.ROOT.value, file=permission_component.subject_file,
+                                  previous_owner=permission_component.subject_file_owner, new_owner=permission_component.subject_user,
+                                  deleted_cache=delete_cache, read_cache=read_cache, write_cache=write_cache, append_cache=append_cache),
+                timeout=ServerConfig.FILE_TRANSFER_TIMEOUT.value)
+            if not new_fname:   # Failed to transfer file
+                raise FileConflict(f'Failed to perform file transfer from {permission_component.subject_file_owner} to {permission_component.subject_user}')
+            
+            # It is important to rely on returned filename from transfer_file, because the new owner may have a file with the same name already in their directory. 
+            # In such cases, a new filename is determined by prefixing the file with a UUID. Hence, filename must also be updated
+            await cursor.execute('''UPDATE file_permissions
+                                  SET file_owner = %s, filename = %s
+                                  WHERE file_owner = %s AND filename = %s;''',
+                                  (permission_component.subject_user, new_fname, permission_component.subject_file_owner, permission_component.subject_file,))
+
+            await cursor.execute('''UPDATE files
+                                 SET filename = %s, owner = %s
+                                 WHERE filename = %s AND owner = %s;''',
+                                 (new_fname, permission_component.subject_user, permission_component.subject_file_owner, permission_component.subject_user,))
+        await proxy.commit()
+        transfer_datetime_iso = datetime.now().isoformat()
+    except Exception as e:
+        # Before re-raising the same exception or a new corresponding ProtocolException, we need to rollback any file changes
+        if new_fname:   # new_fname being not None implies the file was transferred, but an error occured at the database level
+            await asyncio.wait_for(
+                asyncio.to_thread(transfer_file,
+                                  root=ServerConfig.ROOT.value, file=new_fname, new_name=permission_component.subject_file,
+                                  previous_owner=permission_component.subject_user, new_owner=permission_component.subject_file_owner,
+                                  deleted_cache=delete_cache, read_cache=read_cache, write_cache=write_cache, append_cache=append_cache),
+                timeout=ServerConfig.FILE_TRANSFER_TIMEOUT.value)
+            
+        if isinstance(e, pg_exc.LockNotAvailable):
+            raise OperationContested
+        elif isinstance(e, pg_exc.Error):
+            raise DatabaseFailure(f'Failed to transfer ownership of file {permission_component.subject_file} to {permission_component.subject_user}')
+        raise e
+    finally:
+        await connection_master.reclaim_connection(proxy)
+
+    return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_OWNERSHIP_TRANSFER, ended_connection=header_component.finish),
+            ResponseBody(contents=orjson.dumps({'old_filepath' : os.path.join(permission_component.subject_file_owner, permission_component.subject_file),
+                                                'new_filepath' : os.path.join(permission_component.subject_user, new_fname),
+                                                'transfer_datetime' : transfer_datetime_iso})))
