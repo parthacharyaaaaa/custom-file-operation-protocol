@@ -1,7 +1,7 @@
 '''Module for defining schema of outgoing responses'''
-from pydantic import BaseModel, IPvAnyAddress, model_validator, Field
-from typing import Annotated, Optional, Union, Any
-from server import response_codes
+from pydantic import BaseModel, IPvAnyAddress, Field
+from typing import Annotated, Optional, Union
+from response_codes import CODES
 from server.config import ServerConfig
 from models.request_model import BaseHeaderComponent
 from datetime import datetime
@@ -39,7 +39,7 @@ class ResponseHeader(BaseModel):
     ] = None
 
     def validate_code(self) -> bool:
-        for response_category in response_codes:
+        for response_category in CODES:
             if self.code in response_category:
                 return True
         return False

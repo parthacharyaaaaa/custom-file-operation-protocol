@@ -61,3 +61,5 @@ class ServerErrorFlags(Flag):
     UNKNOWN_EXCEPTION = "3:?"
     OUT_OF_MEMORY = "3:mem"
     OUT_OF_DISK_SPACE = "3:disk"
+
+CODES: tuple[str] = tuple(k for k, v in (ServerErrorFlags._value2member_map_ | ClientErrorFlags._value2member_map_ | IntermediaryFlags._value2member_map_ | SuccessFlags._value2member_map_).items())
