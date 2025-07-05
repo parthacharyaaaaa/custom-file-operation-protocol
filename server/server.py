@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import orjson
 from functools import partial
 from typing import Optional, Any, Coroutine, Callable
@@ -51,11 +52,11 @@ async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -
                 return
             
 
-async def main() -> None:    
+async def main() -> None:
     # Initialize all extensions that the server depends on
-    init_user_master(ServerConfig)
-    init_connection_master(conninfo=make_conninfo(user=os.environ['PG_USERNAME'], password=os.environ['PG_PASSWORD'], host=os.environ['PG_HOST'], port=os.environ['PG_PORT'], dbname=os.environ['PG_DBNAME']),
-                           config=ServerConfig)
+    init_user_master()
+    await init_connection_master(conninfo=make_conninfo(user=os.environ['PG_USERNAME'], password=os.environ['PG_PASSWORD'], host=os.environ['PG_HOST'], port=os.environ['PG_PORT'], dbname=os.environ['PG_DBNAME']),
+                                 config=ServerConfig)
     init_file_lock()
 
     # Start server
@@ -64,4 +65,7 @@ async def main() -> None:
     async with server:
         await server.serve_forever()
 
-asyncio.run(main())
+if __name__ == '__main__':
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.run(main())
