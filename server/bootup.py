@@ -14,6 +14,7 @@ user_master: UserManager = None
 file_locks: dict[str, asyncio.Lock] = None
 
 # Caches
+delete_cache: TTLCache[str, True] = None
 read_cache: TTLCache[str, dict[str, AsyncBufferedReader]] = None
 write_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]] = None
 append_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]] = None
@@ -37,7 +38,8 @@ def init_file_lock() -> set:
     return file_locks
 
 def init_caches() -> set:
-    global read_cache, write_cache, append_cache
+    global read_cache, write_cache, append_cache, delete_cache
     read_cache = TTLCache(maxsize=ServerConfig.FILE_CACHE_SIZE.value, ttl=ServerConfig.FILE_CACHE_TTL.value)
     write_cache = TTLCache(maxsize=ServerConfig.FILE_CACHE_SIZE.value, ttl=ServerConfig.FILE_CACHE_TTL.value)
     append_cache = TTLCache(maxsize=ServerConfig.FILE_CACHE_SIZE.value, ttl=ServerConfig.FILE_CACHE_TTL.value)
+    delete_cache= TTLCache(maxsize=ServerConfig.FILE_CACHE_SIZE.value, ttl=ServerConfig.FILE_CACHE_TTL.value)
