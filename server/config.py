@@ -48,6 +48,7 @@ class ServerConfig(Enum):
     CACHE_PUBLICISED_FILES: bool = True
     CHUNK_MAX_SIZE: int = 4096
     FILE_READ_TIMEOUT: float = 5.0
+    FILE_TRANSFER_TIMEOUT: float = 6.0
 
     # Auth
     MAX_AUTH_ATTEMPTS: int = 5
