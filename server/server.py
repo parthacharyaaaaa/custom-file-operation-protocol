@@ -5,7 +5,7 @@ import orjson
 from functools import partial
 from typing import Optional, Any, Coroutine, Callable
 from psycopg.conninfo import make_conninfo
-from server.bootup import init_connection_master, init_user_master, init_file_lock
+from server.bootup import init_connection_master, init_user_master, init_file_lock, init_caches
 from server.comms_utils.incoming import process_component
 from server.comms_utils.outgoing import send_response
 from server.config import ServerConfig, CategoryFlag
@@ -54,10 +54,11 @@ async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -
 
 async def main() -> None:
     # Initialize all extensions that the server depends on
-    init_user_master()
     await init_connection_master(conninfo=make_conninfo(user=os.environ['PG_USERNAME'], password=os.environ['PG_PASSWORD'], host=os.environ['PG_HOST'], port=os.environ['PG_PORT'], dbname=os.environ['PG_DBNAME']),
                                  config=ServerConfig)
+    init_user_master()
     init_file_lock()
+    init_caches()
 
     # Start server
     server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback),

@@ -37,7 +37,7 @@ def init_file_lock() -> set:
 
     return file_locks
 
-def init_caches() -> set:
+def init_caches() -> None:
     global read_cache, write_cache, append_cache, delete_cache
     read_cache = TTLCache(maxsize=ServerConfig.FILE_CACHE_SIZE.value, ttl=ServerConfig.FILE_CACHE_TTL.value)
     write_cache = TTLCache(maxsize=ServerConfig.FILE_CACHE_SIZE.value, ttl=ServerConfig.FILE_CACHE_TTL.value)
