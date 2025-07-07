@@ -21,10 +21,6 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     # Make sure request is coming from file owner
     if file_component.subject_file_owner != auth_component.identity:
         raise InsufficientPermissions(f'Missing permission to delete file {file_component.subject_file} owned by {file_component.subject_file_owner}')
-    # Validate against session, in case of tampered auth component
-    if not user_master.authenticate_session(username=auth_component.identity, token=auth_component.token):
-        # TODO: Add logging for tampered auth component
-        raise InsufficientPermissions(f'The demon of Babylon disguises himself with the coat of the righteous')
     
     # Request validated. No need to acquire lock since owner's deletion request is more important than any concurrent file amendment locks
     file: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
@@ -38,10 +34,6 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
             None)
 
 async def handle_amendment(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, ResponseBody]:
-    # Authetenticate session
-    if not user_master.authenticate_session(username=auth_component.identity, token=auth_component.token):
-        raise InsufficientPermissions(f'Invalid session and/or auth component for user {auth_component.identity}')
-    
     # Check permissions
     if not check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner, grantee=auth_component.identity,
                                  check_for=role_types - ['reader']):
@@ -79,11 +71,7 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_AMEND, ended_connection=header_component.finish),
             ResponseBody(cursor_position=cursor_position, keepalive_accepted=keepalive_accepted))
 
-async def handle_read(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, ResponseBody]:
-    # Authetenticate session
-    if not user_master.authenticate_session(username=auth_component.identity, token=auth_component.token):
-        raise InsufficientPermissions(f'Invalid session and/or auth component for user {auth_component.identity}')
-    
+async def handle_read(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, ResponseBody]:    
     # Check permissions
     if not check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner, grantee=auth_component.identity, check_for=role_types):
         raise InsufficientPermissions(f'User {auth_component.identity} does not have read permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}')
@@ -102,11 +90,6 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
 async def handle_creation(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, None]:
     if file_component.subject_file_owner != auth_component.identity:
         raise InvalidFileData(f'As user {auth_component.identity}, you only have permission to create new files in your own directory and not /{file_component.subject_file_owner}')
-    
-    # Authetenticate session
-    if not user_master.authenticate_session(username=auth_component.identity, token=auth_component.token):
-        raise InsufficientPermissions(f'Invalid session and/or auth component for user {auth_component.identity}')
-    
     
     fpath, epoch = await create_file(root=ServerConfig.ROOT.value, owner=auth_component.identity, filename=file_component.subject_file)
     if not fpath:
