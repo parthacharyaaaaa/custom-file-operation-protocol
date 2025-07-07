@@ -9,7 +9,7 @@ from models.response_models import ResponseHeader, ResponseBody
 from server.bootup import user_master
 from server.comms_utils.incoming import process_component
 from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, SlowStreamRate, UnsupportedOperation
-from server.file_ops.base_operations import create_file, read_file, write_file, append_file, delete_file
+from server.file_ops.file_subhandlers import handle_read, handle_amendment, handle_deletion, handle_creation
 
 import orjson
 from pydantic import ValidationError
@@ -22,7 +22,7 @@ _FILE_SUBHANDLER_MAPPING: MappingProxyType[int, FILE_SUBHANDLERS] = MappingProxy
     dict(
         zip(
             FileFlags._member_names_,
-            [create_file, read_file, write_file, append_file, delete_file]
+            [handle_creation, handle_read, handle_amendment, handle_amendment, handle_deletion]
         )
     )
 )
