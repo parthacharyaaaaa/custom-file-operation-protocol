@@ -74,7 +74,10 @@ class ResponseHeader(BaseModel):
 
 class ResponseBody(BaseModel):
     contents: Union[bytes, str]
+
     chunk_number: Optional[Annotated[int, Field(ge=0, frozen=True, default=None)]]
-    return_partial: Optional[Annotated[bool, Field(default=True)]]\
+    return_partial: Optional[Annotated[bool, Field(default=True)]]
+    cursor_position: Optional[Annotated[int, Field(le=0, default=0, frozen=True)]]
+
     
     keepalive_accepted: Optional[bool]
