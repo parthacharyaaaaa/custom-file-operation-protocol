@@ -1,12 +1,14 @@
 import os
 
-from response_codes import SuccessFlags
+from models.flags import FileFlags
 from models.response_models import ResponseHeader, ResponseBody
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent
+from response_codes import SuccessFlags
 
 from server.bootup import user_master, file_locks, delete_cache, read_cache, write_cache, append_cache
 from server.config import ServerConfig
-from server.file_ops.base_operations import read_file, delete_file
+from server.file_ops.base_operations import read_file, write_file, append_file, delete_file
+from server.file_ops.cache_ops import get_reader
 from server.errors import InsufficientPermissions, FileConflict
 from server.permission_ops.permission_operations import check_file_permission
 from server.database.models import role_types
@@ -34,7 +36,36 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
             None)
 
 async def handle_amendment(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, ResponseBody]:
-    ...
+    # Authetenticate session
+    if not user_master.authenticate_session(username=auth_component.identity, token=auth_component.token):
+        raise InsufficientPermissions(f'Invalid session and/or auth component for user {auth_component.identity}')
+    
+    # Check permissions
+    if not check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner, grantee=auth_component.identity,
+                                 check_for=role_types - ['reader']):
+        raise InsufficientPermissions(f'User {auth_component.identity} does not have write permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}')
+    
+    fpath: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
+    cursor_position: int = None
+    keepalive_accepted: bool = False
+
+    if header_component.subcategory & FileFlags.WRITE:
+        cursor_position = await write_file(root=ServerConfig.ROOT.value, fpath=fpath,
+                                           data=file_component.write_data,
+                                           deleted_cache=delete_cache, write_cache=write_cache,
+                                           cursor_position=file_component.cursor_position, writer_keepalive=file_component.cursor_keepalive, purge_writer=header_component.finish,
+                                           identifier=auth_component.identity, cached=True)
+        keepalive_accepted = get_reader(write_cache, fpath, auth_component.identity) 
+    else:
+        cursor_position = await append_file(root=ServerConfig.ROOT.value, fpath=fpath,
+                                           data=file_component.write_data,
+                                           deleted_cache=delete_cache, append_cache=append_cache,
+                                           append_writer_keepalive=file_component.cursor_keepalive, purge_append_writer=header_component.finish,
+                                           identifier=auth_component.identity, cached=True)
+        keepalive_accepted = get_reader(append_cache, fpath, auth_component.identity) 
+    
+    return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_AMEND, ended_connection=header_component.finish),
+            ResponseBody(cursor_position=cursor_position, keepalive_accepted=keepalive_accepted))
 
 async def handle_read(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, ResponseBody]:
     # Authetenticate session
@@ -52,7 +83,7 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
                                                               purge_reader=header_component.finish, identifier=auth_component.identity, cached=True)
     
     return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_READ, ended_connection=header_component.finish),
-            ResponseBody(contents=orjson.dumps({'read' : read_data}), return_partial=not eof_reached, chunk_number=file_component.chunk_number+1, keepalive_accepted=bool(read_cache.get(fpath)))) 
+            ResponseBody(contents=orjson.dumps({'read' : read_data}), return_partial=not eof_reached, chunk_number=file_component.chunk_number+1, cursor_position=cursor_position, keepalive_accepted=bool(get_reader(read_cache, fpath, auth_component.identity)))) 
 
 async def handle_creation(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, None]:
     ...
