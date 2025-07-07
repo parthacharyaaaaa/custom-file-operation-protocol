@@ -1,5 +1,6 @@
 import os
 import asyncio
+from datetime import datetime
 
 from models.flags import FileFlags
 from models.response_models import ResponseHeader, ResponseBody
@@ -9,9 +10,9 @@ from response_codes import SuccessFlags
 from server.bootup import user_master, file_locks, delete_cache, read_cache, write_cache, append_cache
 from server.config import ServerConfig
 from server.database.models import role_types
-from server.file_ops.base_operations import read_file, write_file, append_file, delete_file, acquire_file_lock
+from server.file_ops.base_operations import create_file, read_file, write_file, append_file, delete_file, acquire_file_lock
 from server.file_ops.cache_ops import get_reader
-from server.errors import InsufficientPermissions, FileConflict, FileContested
+from server.errors import InsufficientPermissions, FileConflict, FileContested, InvalidFileData
 from server.permission_ops.permission_operations import check_file_permission
 
 import orjson
@@ -97,4 +98,18 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
             ResponseBody(contents=orjson.dumps({'read' : read_data}), return_partial=not eof_reached, chunk_number=file_component.chunk_number+1, cursor_position=cursor_position, keepalive_accepted=bool(get_reader(read_cache, fpath, auth_component.identity)))) 
 
 async def handle_creation(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, None]:
-    ...
+    if file_component.subject_file_owner != auth_component.identity:
+        raise InvalidFileData(f'As user {auth_component.identity}, you only have permission to create new files in your own directory and not /{file_component.subject_file_owner}')
+    
+    # Authetenticate session
+    if not user_master.authenticate_session(username=auth_component.identity, token=auth_component.token):
+        raise InsufficientPermissions(f'Invalid session and/or auth component for user {auth_component.identity}')
+    
+    
+    fpath, epoch = await create_file(root=ServerConfig.ROOT.value, owner=auth_component.identity, filename=file_component.subject_file)
+    if not fpath:
+        raise FileConflict(f'Failed to create file {fpath}')
+    os.path.getctime
+    
+    return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_CREATION, ended_connection=header_component.finish),
+            ResponseBody(return_partial=False, keepalive_accepted=False, contents=orjson.dumps({'path' : fpath, 'iso_epoch' : datetime.fromtimestamp(epoch).isoformat()})))
