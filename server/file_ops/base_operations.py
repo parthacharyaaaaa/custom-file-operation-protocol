@@ -3,6 +3,7 @@ from uuid import uuid4
 from typing import Optional, Union, Literal
 from zlib import adler32
 from math import inf
+from time import ctime
 
 import asyncio
 import aiofiles
@@ -168,7 +169,7 @@ async def append_file(root: os.PathLike, fpath: str, data: Union[bytes, str], de
     
     return len(data)
 
-async def create_file(root: os.PathLike, owner: str, filename: str) -> Optional[str]:
+async def create_file(root: os.PathLike, owner: str, filename: str) -> Optional[tuple[str, float]]:
     owner = owner.lower()
     parent_dir: os.PathLike = os.path.join(root, owner)
     os.makedirs(parent_dir, exist_ok=True)
@@ -179,7 +180,7 @@ async def create_file(root: os.PathLike, owner: str, filename: str) -> Optional[
     except FileExistsError:
         return None
     
-    return os.path.join(owner, filename)
+    return os.path.join(owner, filename), ctime(os.path.getctime(fpath))
 
 async def delete_file(root: os.PathLike, fpath: os.PathLike, deleted_cache: TTLCache[str, Literal[True]], *caches: TTLCache[str, dict[str, Union[AsyncBufferedIOBase, AsyncBufferedReader]]]) -> bool:
     abs_fpath: os.PathLike = os.path.join(root, fpath)
