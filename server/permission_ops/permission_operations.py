@@ -16,9 +16,9 @@ from server.bootup import connection_master
 from server.bootup import read_cache, write_cache, append_cache, delete_cache
 from server.config import ServerConfig
 from server.connectionpool import ConnectionProxy
-from server.file_ops.base_operations import transfer_file
 from server.database.models import role_types
 from server.errors import OperationContested, DatabaseFailure, FileNotFound, FileConflict, InsufficientPermissions, OperationalConflict
+from server.file_ops.base_operations import transfer_file
 
 # TODO: Add logging for database-related failures
 
@@ -30,8 +30,8 @@ async def check_file_permission(filename: str, owner: str, grantee: str, check_f
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute(''''SELECT role
                                  FROM file_permissions
-                                 WHERE file_owner = %s AND filename = %s AND grantee = %s;''',
-                                 (owner, filename, grantee,))
+                                 WHERE file_owner = %s AND filename = %s AND grantee = %s AND granted_until > %s;''',
+                                 (owner, filename, grantee, datetime.now(),))
             role_mapping: dict[str, role_types] = await cursor.fetchone()
             if not role_mapping:
                 return False
@@ -120,9 +120,10 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute('''SELECT role, granted_by
                                  FROM file_permissions
-                                 WHERE file_owner = %s AND filename = %s AND grantee = %s
+                                 WHERE file_owner = %s AND filename = %s AND grantee = %s AND granted_until > %s
                                  FOR UPDATE NOWAIT;''',
-                                 (permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user,))
+                                 (permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user, datetime.now()))
+            
             permission_mapping: dict[str, str] = await cursor.fetchone()
             requested_role: role_types = PermissionFlags._value2member_map_[permission_component.permission_flags & 0b11100000] # Most significant 3 bits reserved for role
             if permission_mapping:
@@ -135,9 +136,9 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
                 elif (permission_mapping['granted_by'] == permission_component.subject_file_owner) and (auth_component.identity != permission_component.subject_file_owner):
                     raise InsufficientPermissions(f'Insufficient permission to override role of user {permission_component.subject_user} on file {permission_component.subject_file} owned by {permission_component.subject_file_owner} (role previosuly granted by {permission_component["granted_by"]})')
             await cursor.execute('''UPDATE file_permissions
-                                 SET role = %s, granted_at = %s, granted_by = %s
+                                 SET role = %s, granted_at = %s, granted_by = %s, granted_until = %s,
                                  WHERE file_owner = %s AND filename = %s AND grantee = %s''',
-                                 (requested_role, datetime.now(), auth_component.identity,
+                                 (requested_role, datetime.now(), auth_component.identity, permission_component.effect_duration,
                                   permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user,))
         await proxy.commit()
     except pg_exc.LockNotAvailable:
@@ -162,9 +163,9 @@ async def revoke_permission(header_component: BaseHeaderComponent, auth_componen
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute('''SELECT role, granted_by, granted_at, grantee
                                  FROM file_permissions
-                                 WHERE file_owner = %s AND filename = %s AND grantee = %s
+                                 WHERE file_owner = %s AND filename = %s AND grantee = %s AND granted_until > %s
                                  FOR UPDATE NOWAIT;''',
-                                 (permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user,))
+                                 (permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user, datetime.now(),))
             permission_mapping: dict[str, str] = await cursor.fetchone()
 
             if not permission_mapping:
