@@ -16,7 +16,7 @@ from server.bootup import connection_master
 from server.bootup import read_cache, write_cache, append_cache, delete_cache
 from server.config import ServerConfig
 from server.connectionpool import ConnectionProxy
-from server.file_ops.operations import transfer_file
+from server.file_ops.base_operations import transfer_file
 from server.database.models import role_types
 from server.errors import OperationContested, DatabaseFailure, FileNotFound, FileConflict, InsufficientPermissions, OperationalConflict
 
