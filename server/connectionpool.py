@@ -134,7 +134,7 @@ class ConnectionPoolManager:
         
         token: str = uuid4().hex
         requested_connection._set_usage_token(token)
-        if max_lease_duration < self.lease_duration:
+        if max_lease_duration and max_lease_duration > self.lease_duration:
             warn(f'Requested lease duration cannot be higher than {self.lease_duration}. Requested connection will now have lease duration of {self.lease_duration} and not {max_lease_duration}', type=UserWarning)
             max_lease_duration = self.lease_duration
 
