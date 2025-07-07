@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS FILE_PERMISSIONS(
     role role_type NOT NULL,
     granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     granted_by VARCHAR(128) REFERENCES USERS(username) NOT NULL,
+    granted_until TIMESTAMP,
 
     PRIMARY KEY (file_owner, filename, grantee),
     FOREIGN KEY (file_owner, filename) REFERENCES FILE(owner, filename),
