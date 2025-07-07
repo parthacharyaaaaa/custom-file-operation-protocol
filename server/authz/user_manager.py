@@ -1,21 +1,25 @@
 import os
-import asyncio
 import re
-import psycopg.errors as pg_errors
-from psycopg.rows import Row
-import psycopg.sql as sql
 import time
 from datetime import datetime
 from secrets import token_bytes
 from hmac import compare_digest
 from hashlib import pbkdf2_hmac
 from typing import Optional, Union, Any
-from cachetools import TTLCache
+
+import asyncio
 from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
+
+from cachetools import TTLCache
+
+import psycopg.errors as pg_errors
+from psycopg.rows import Row
+import psycopg.sql as sql
+
 from server.authz.singleton import MetaUserManager
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
-from server.database.models import ActivityLog
 from server.config import ServerConfig
+from server.database.models import ActivityLog
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned, InvalidAuthData, OperationContested
 
 class SessionMetadata:

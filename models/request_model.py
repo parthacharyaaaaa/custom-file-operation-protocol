@@ -1,7 +1,8 @@
 '''Module for defining schema of incoming requests'''
 from pydantic import BaseModel, Field, model_validator, IPvAnyAddress, ValidationError
 from typing import Annotated, Optional, Literal, Union, TypeAlias
-from server.config import CategoryFlag, PermissionFlag, ServerConfig
+from server.config import ServerConfig
+from models.flags import CategoryFlag, PermissionFlags
 
 RequestComponentType: TypeAlias = Union['BaseHeaderComponent', 'BaseAuthComponent', 'BaseFileComponent', 'BasePermissionComponent']
 
@@ -57,18 +58,13 @@ class BasePermissionComponent(BaseModel):
     subject_user: Optional[Annotated[Union[str, Literal['*']], Field(frozen=True, default=None, pattern=ServerConfig.USERNAME_REGEX.value)]] # + For grnting, - for removal
     
     # Permission data
-    permission_flags: Annotated[PermissionFlag, Field(frozen=True)]
+    permission_flags: Annotated[PermissionFlags, Field(frozen=True)]
     effect_duration: Optional[Annotated[int, Field(le=ServerConfig.EFFECT_DURATION_RANGE.value[0], ge=ServerConfig.EFFECT_DURATION_RANGE.value[1], frozen=True, default=0)]]
 
     @model_validator(mode='after')
     def permission_logic_check(self) -> 'BasePermissionComponent':
-        if self.permission_flags & (PermissionFlag.OWN.value | PermissionFlag.GRANT.value):   # Grant and ownership permissions are high level and cannot be given globally at once
-            if self.subject_user == '*':
-                # Attempt to make every user the owner/permission granter of this file
-                raise ValueError('Attempt to make ownership global')
-            if self.effect_duration:
-                # Attempt to transfer ownership or grant access temporarily
-                raise ValueError('Attempt to set duration to owner/grant permission')
+        if (self.permission_flags & (PermissionFlags.TRANSFER.value | PermissionFlags.MANAGER.value)) and self.effect_duration:   # managerial and ownership permissions are high level and cannot be given globally at once
+            raise ValueError('Cannot set duration for managerial/ownership roles of a file')
         return self
 
 class BaseHeaderComponent(BaseModel):

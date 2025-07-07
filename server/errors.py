@@ -1,7 +1,7 @@
 from abc import ABC
 from datetime import datetime
 from typing import Optional
-from server.config import CategoryFlag
+from models.flags import CategoryFlag
 
 class ProtocolException(ABC, BaseException):
     '''Abstract base exception class for all protocol specific exceptions. Contains all the bare minimum data required to construct and send a response to an erroneous request'''
@@ -9,8 +9,8 @@ class ProtocolException(ABC, BaseException):
     description: str
     exception_iso_timestamp: datetime
 
-    def __init__(self, description: str):
-        self.description = description
+    def __init__(self, description: Optional[str] = None):
+        self.description = description or self.__class__.description
         self.exception_iso_timestamp = datetime.now().isoformat()
 
 class SlowStreamRate(ProtocolException):

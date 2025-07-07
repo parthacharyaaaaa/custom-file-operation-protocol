@@ -1,10 +1,12 @@
 import asyncio
-from server.config import CategoryFlag
-from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent, BaseHeaderComponent
-from pydantic import BaseModel
-import orjson
 from typing import Any
 from types import MappingProxyType
+
+from models.flags import CategoryFlag
+from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent, BaseHeaderComponent
+
+from pydantic import BaseModel
+import orjson
 
 CATEGORY_MODEL_MAP: MappingProxyType[int, type[BaseModel]] = MappingProxyType({CategoryFlag.AUTH: BaseAuthComponent, CategoryFlag.FILE_OP: BaseFileComponent, CategoryFlag.PERMISSION: BasePermissionComponent})
 

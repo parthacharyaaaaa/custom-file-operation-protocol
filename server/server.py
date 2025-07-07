@@ -4,15 +4,19 @@ import sys
 import orjson
 from functools import partial
 from typing import Optional, Any, Coroutine, Callable
+
+from models.flags import CategoryFlag
+from models.request_model import BaseHeaderComponent
+from models.response_models import ResponseHeader, ResponseBody
+
 from psycopg.conninfo import make_conninfo
+
 from server.bootup import init_connection_master, init_user_master, init_file_lock, init_caches
 from server.comms_utils.incoming import process_component
 from server.comms_utils.outgoing import send_response
-from server.config import ServerConfig, CategoryFlag
+from server.config import ServerConfig
 from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
 from server.errors import ProtocolException, UnsupportedOperation, InternalServerError, SlowStreamRate
-from models.request_model import BaseHeaderComponent
-from models.response_models import ResponseHeader, ResponseBody
 
 async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     while not reader.at_eof():
