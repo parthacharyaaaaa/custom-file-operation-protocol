@@ -33,6 +33,10 @@ class InvalidAuthData(ProtocolException):
     code: str = '2:iad'
     description: str = 'Auth values incorrect'
 
+class InvalidFileData(ProtocolException):
+    code: str = '2:ifd'
+    description: str = 'Invalid file component data'
+
 class UnsupportedOperation(ProtocolException):
     code: str = '2:iad'
     description: str = f'Unsupported Operation requested. Must be: {", ".join(CategoryFlag._member_names_)}'

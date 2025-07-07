@@ -37,6 +37,7 @@ class ClientErrorFlags(Flag):
     INVALID_HEADER_VALUES = "2:ihv"
     INVALID_AUTH_SEMANTIC = "2:ias"
     INCORRECT_AUTH_DATA = "2:iad"
+    INVALID_FILE_DATA = "2:ifd"
     EXPIRED_AUTH_TOKEN = "2:exp"
     DUPLICATE_LOGIN = "2:dup"
     USER_AUTHENTICATION_ERROR = "2:auth"
