@@ -22,9 +22,10 @@ class ServerConfig(Enum):
 
     # File I/O
     FILE_CONTENTION_TIMEOUT: float = 5
-    FILENAME_REGEX: str = r'^[^\\/]{1,128}\.[a-zA-Z0-9]{2,10}$'
+    FILENAME_REGEX: str = r'^[\w\-]{1,128}\.[a-zA-Z0-9]{2,10}$'
     FILE_CACHE_SIZE: int = 500
     FILE_CACHE_TTL: int = 180
+    FILE_LOCK_TTL: float = 60
     FILE_TRANSFER_TIMEOUT: float = 6.0
     FILE_COMP_MAX_BYTESIZE: int = 4096
     FILE_READ_TIMEOUT: float = 5.0
