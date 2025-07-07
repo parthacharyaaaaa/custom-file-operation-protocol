@@ -66,7 +66,15 @@ class FileNotFound(ProtocolException):
     description: str = 'No file named {file} under {username} found'
 
     def __init__(self, file: str, username: str, description: Optional[str] = None):
-        super().__init__(description or Banned.description)
+        super().__init__(description or FileNotFound.description)
+        self.description.format(file=file, username=username)
+
+class FileContested(ProtocolException):
+    code: str = '2:cnt'
+    description: str = 'File named {file} under {username} found is currently contested'
+
+    def __init__(self, file: str, username: str, description: Optional[str] = None):
+        super().__init__(description or FileContested.description)
         self.description.format(file=file, username=username)
 
 class FileConflict(ProtocolException):
