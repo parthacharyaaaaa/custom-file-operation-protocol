@@ -1,4 +1,5 @@
 import os
+import shutil
 from uuid import uuid4
 from typing import Optional, Union, Literal
 from zlib import adler32
@@ -12,7 +13,7 @@ from cachetools import TTLCache
 
 from server.bootup import file_locks
 from server.config import ServerConfig
-from server.errors import FileNotFound
+from server.errors import FileNotFound, InternalServerError
 from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries, rename_file_entries
 
 
@@ -228,3 +229,13 @@ def transfer_file(root: os.PathLike, previous_owner: str, file: os.PathLike, new
         return file
     except (PermissionError, OSError):
         return None
+
+def delete_directory(root: os.PathLike, dirname: str) -> list[str]:
+    abs_dpath: os.PathLike = os.path.join(root, dirname)
+    walk_gen = os.walk(top=abs_dpath)
+    try:
+        shutil.rmtree(os.path.join(root, dirname))
+        return next(walk_gen)[2]
+    except (OSError, PermissionError):
+        raise InternalServerError
+    

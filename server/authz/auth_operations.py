@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 from models.request_model import BaseHeaderComponent, BaseAuthComponent
@@ -6,7 +7,9 @@ from models.response_models import ResponseHeader, ResponseBody
 from response_codes import SuccessFlags
 from server.authz.user_manager import SessionMetadata
 from server.bootup import user_master, read_cache, write_cache, append_cache
+from server.config import ServerConfig
 from server.errors import InvalidAuthSemantic
+from server.file_ops.base_operations import delete_directory
 
 import orjson
 
@@ -30,11 +33,18 @@ async def handle_login(header_component: BaseHeaderComponent, auth_component: Ba
     return header, body
 
 async def handle_deletion(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent) -> tuple[ResponseHeader, ResponseBody]:
+    user_master.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
+
     await user_master.delete_user(auth_component.identity, auth_component.password,
-                                    read_cache, write_cache, append_cache)
-    #TODO: Add deletion method for all of this user's files
+                                  read_cache, write_cache, append_cache)
+    
+    # Delete this user's directory
+    files_deleted = await asyncio.wait_for(asyncio.to_thread(delete_directory, root=ServerConfig.ROOT.value, dirname=auth_component.identity),
+                                           timeout=ServerConfig.FILE_TRANSFER_TIMEOUT.value)
+    
     header: ResponseHeader = ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_DELETION)
-    body = ResponseBody(contents=f'All files and permissions under user {auth_component.identity} have been deleted')
+    body = ResponseBody(contents=orjson.dumps({'deleted_count' : len(files_deleted),
+                                               'deleted_files' : files_deleted}))
 
     return header, body
 
