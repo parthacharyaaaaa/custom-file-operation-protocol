@@ -102,6 +102,7 @@ class UserManager(metaclass=MetaUserManager):
                                          .format(tablename=sql.Identifier('activity_logs'),
                                                  columns_template=sql.SQL(', ').join([sql.Identifier(key) for key in list(ActivityLog.model_fields.keys())]),
                                                  placeholder_template=sql.SQL(', ').join(['%s' for _ in range(len(ActivityLog.model_fields))])))
+    
     def __init__(self, connection_master: ConnectionPoolManager):
         self.connection_master: ConnectionPoolManager = connection_master
         self.session: dict[str, SessionMetadata] = {}
@@ -111,6 +112,17 @@ class UserManager(metaclass=MetaUserManager):
         asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
         asyncio.create_task(self.log_activity(), name='Session Logging Task')
 
+
+    @classmethod
+    def construct_logging_map(cls, **kwargs) -> dict[str, Any]:
+        try:
+            activity_log: ActivityLog = ActivityLog(**(kwargs | {'logged_by' : cls.LOG_ALIAS})) # Inject/override logged_by field with alias
+            return activity_log.model_dump()
+        except Exception as e:
+            # Log exception in a safe manner as an internal error
+            activity_log: ActivityLog = ActivityLog(severity=3, logged_by=cls.LOG_ALIAS, log_type='internal', log_details=e.__class__.__name__)
+            return activity_log.model_dump()
+    
     @staticmethod
     def generate_password_hash(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
         password = password.strip()
