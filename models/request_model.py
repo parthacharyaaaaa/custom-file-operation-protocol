@@ -31,6 +31,7 @@ class BaseAuthComponent(BaseModel):
 class BaseFileComponent(BaseModel):
     # Target file
     subject_file: Annotated[str, Field(max_length=1024, pattern=ServerConfig.FILENAME_REGEX.value)]
+    subject_file_owner: Annotated[str, Field(max_length=1024)]
 
     # Sequencing logic
     cursor_position: Annotated[int, Field(ge=0, frozen=True)]
