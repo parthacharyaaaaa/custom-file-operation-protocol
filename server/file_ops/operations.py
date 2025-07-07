@@ -1,10 +1,13 @@
 import os
-import aiofiles
 from uuid import uuid4
+from typing import Optional, Union, Literal
+
+import asyncio
+import aiofiles
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from cachetools import TTLCache
+
 from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries, rename_file_entries
-from typing import Optional, Union, Literal
 
 async def preemptive_eof_check(reader: AsyncBufferedReader) -> bool:
     if not await reader.read(1):
@@ -12,8 +15,9 @@ async def preemptive_eof_check(reader: AsyncBufferedReader) -> bool:
     await reader.seek(-1)
     return True
 
-async def read_file(fpath: str, deleted_cache: TTLCache[str], read_cache: TTLCache[str, dict[str, AsyncBufferedReader]], cursor_position: int, nbytes: int = -1, reader_keepalive: bool = False, purge_reader: bool = False, identifier: Optional[str] = None, cached: bool = False) -> tuple[bytes, int, bool]:
-    if deleted_cache.get(fpath) or not os.path.isfile(fpath):
+async def read_file(root: os.PathLike, fpath: str, deleted_cache: TTLCache[str], read_cache: TTLCache[str, dict[str, AsyncBufferedReader]], cursor_position: int, nbytes: int = -1, reader_keepalive: bool = False, purge_reader: bool = False, identifier: Optional[str] = None, cached: bool = False) -> tuple[bytes, int, bool]:
+    abs_fpath: os.PathLike = os.path.join(root, fpath)
+    if deleted_cache.get(fpath) or not os.path.isfile(abs_fpath):
         raise FileNotFoundError
 
     eof_reached: bool = False
@@ -60,8 +64,9 @@ async def read_file(fpath: str, deleted_cache: TTLCache[str], read_cache: TTLCac
 
     return data, cursor_position, eof_reached
 
-async def write_file(fpath: str, data: Union[bytes, str], deleted_cache: TTLCache[str], write_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]], cursor_position: int, writer_keepalive: bool = False, purge_writer: bool = False, identifier: Optional[str] = None, cached: bool = False) -> int:
-    if deleted_cache.get(fpath) or not os.path.isfile(fpath):
+async def write_file(root: os.PathLike, fpath: str, data: Union[bytes, str], deleted_cache: TTLCache[str], write_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]], cursor_position: int, writer_keepalive: bool = False, purge_writer: bool = False, identifier: Optional[str] = None, cached: bool = False) -> int:
+    abs_fpath: os.PathLike = os.path.join(root, fpath)
+    if deleted_cache.get(fpath) or not os.path.isfile(abs_fpath):
         raise FileNotFoundError()
     
     # Only one coroutine is allowed to write to a file at a given time
@@ -102,8 +107,9 @@ async def write_file(fpath: str, data: Union[bytes, str], deleted_cache: TTLCach
     
     return cursor_position + len(data)
 
-async def append_file(fpath: str, data: Union[bytes, str], deleted_cache: TTLCache[str], append_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]], append_writer_keepalive: bool = False, purge_append_writer: bool = False, identifier: Optional[str] = None, cached: bool = False) -> int:
-    if deleted_cache.get(fpath) or not os.path.isfile(fpath):
+async def append_file(root: os.PathLike, fpath: str, data: Union[bytes, str], deleted_cache: TTLCache[str], append_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]], append_writer_keepalive: bool = False, purge_append_writer: bool = False, identifier: Optional[str] = None, cached: bool = False) -> int:
+    abs_fpath: os.PathLike = os.path.join(root, fpath)
+    if deleted_cache.get(fpath) or not os.path.isfile(abs_fpath):
         raise FileNotFoundError()
     
     # Only one coroutine is allowed to write to a file at a given time
@@ -140,36 +146,39 @@ async def append_file(fpath: str, data: Union[bytes, str], deleted_cache: TTLCac
     
     return len(data)
 
-async def create_file(owner: str, filename: str, root: os.PathLike, extension: str = '.txt') -> Optional[str]:
-    parent_dir: os.PathLike = os.path.join(root, owner.lower())
+async def create_file(root: os.PathLike, owner: str, filename: str) -> Optional[str]:
+    owner = owner.lower()
+    parent_dir: os.PathLike = os.path.join(root, owner)
     os.makedirs(parent_dir, exist_ok=True)
 
-    fpath: os.PathLike = os.path.join(parent_dir, f'{filename}.{extension}')
+    fpath: os.PathLike = os.path.join(parent_dir, filename)
     try:
         async with aiofiles.open(fpath, mode='x'): pass
     except FileExistsError:
         return None
     
-    return fpath
+    return os.path.join(owner, filename)
 
-async def delete_file(fpath: os.PathLike, deleted_cache: TTLCache[str, Literal[True]], read_cache: TTLCache[str, dict[str, AsyncBufferedReader]], write_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]], append_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> bool:
-    if fpath in deleted_cache or not os.path.isfile(fpath):
+async def delete_file(root: os.PathLike, fpath: os.PathLike, deleted_cache: TTLCache[str, Literal[True]], *caches: TTLCache[str, dict[str, Union[AsyncBufferedIOBase, AsyncBufferedReader]]]) -> bool:
+    abs_fpath: os.PathLike = os.path.join(root, fpath)
+    if fpath in deleted_cache or not os.path.isfile(abs_fpath):
         raise False
     try:
-        os.remove(fpath)
-        await purge_file_entries(fpath, deleted_cache, read_cache, append_cache, write_cache)
+        os.remove(abs_fpath)
+        await purge_file_entries(fpath, deleted_cache, *caches)
         return True
     except (FileNotFoundError, PermissionError, OSError):
         return False
 
-async def rename_file(fpath: os.PathLike, name: str, extension: str, deleted_cache: TTLCache[str, Literal[True]], read_cache: TTLCache[str, dict[str, AsyncBufferedReader]], write_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]], append_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> bool:
-    if fpath in deleted_cache or not os.path.isfile(fpath):
+def rename_file(root: os.PathLike, fpath: os.PathLike, name: str, deleted_cache: TTLCache[str, Literal[True]], *caches: TTLCache[str, dict[str, Union[AsyncBufferedReader, AsyncBufferedIOBase]]]) -> bool:
+    abs_fpath: os.PathLike = os.path.join(root, fpath)
+    if fpath in deleted_cache or not os.path.isfile(abs_fpath):
         return False
     
     try:
-        new_fpath: os.PathLike = os.path.join(os.path.dirname(fpath), f'{name}.{extension}')
+        new_fpath: os.PathLike = os.path.join(os.path.dirname(abs_fpath), name)
         os.rename(fpath, new_fpath)
-        rename_file_entries(fpath, new_fpath, read_cache, write_cache, append_cache)
+        rename_file_entries(fpath, new_fpath, *caches)
         
         return True
     except (PermissionError, OSError):
@@ -196,4 +205,3 @@ def transfer_file(root: os.PathLike, previous_owner: str, file: os.PathLike, new
         return file
     except (PermissionError, OSError):
         return None
-    
