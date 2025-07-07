@@ -1,4 +1,5 @@
 import os
+import asyncio
 
 from models.flags import FileFlags
 from models.response_models import ResponseHeader, ResponseBody
@@ -7,11 +8,11 @@ from response_codes import SuccessFlags
 
 from server.bootup import user_master, file_locks, delete_cache, read_cache, write_cache, append_cache
 from server.config import ServerConfig
-from server.file_ops.base_operations import read_file, write_file, append_file, delete_file
-from server.file_ops.cache_ops import get_reader
-from server.errors import InsufficientPermissions, FileConflict
-from server.permission_ops.permission_operations import check_file_permission
 from server.database.models import role_types
+from server.file_ops.base_operations import read_file, write_file, append_file, delete_file, acquire_file_lock
+from server.file_ops.cache_ops import get_reader
+from server.errors import InsufficientPermissions, FileConflict, FileContested
+from server.permission_ops.permission_operations import check_file_permission
 
 import orjson
 
@@ -46,6 +47,13 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
         raise InsufficientPermissions(f'User {auth_component.identity} does not have write permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}')
     
     fpath: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
+    # Acquire lock
+    try:
+        await asyncio.wait_for(acquire_file_lock(filename=fpath, requestor=auth_component.identity),
+                               timeout=ServerConfig.FILE_CONTENTION_TIMEOUT.value)
+    except asyncio.TimeoutError:
+        raise FileContested(file=file_component.subject_file, username=file_component.subject_file_owner)
+
     cursor_position: int = None
     keepalive_accepted: bool = False
 
@@ -63,6 +71,9 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
                                            append_writer_keepalive=file_component.cursor_keepalive, purge_append_writer=header_component.finish,
                                            identifier=auth_component.identity, cached=True)
         keepalive_accepted = get_reader(append_cache, fpath, auth_component.identity) 
+    
+    if not keepalive_accepted:
+        file_locks.pop(fpath)
     
     return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_AMEND, ended_connection=header_component.finish),
             ResponseBody(cursor_position=cursor_position, keepalive_accepted=keepalive_accepted))
