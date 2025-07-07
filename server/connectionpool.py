@@ -1,11 +1,9 @@
 import psycopg as pg
-from server.protocols import AsyncPsycopgConnectionProtocol
 import asyncio
 from typing import Literal, Optional, NoReturn
 from uuid import uuid4
-from warnings import warn
 
-class ConnectionProxy(AsyncPsycopgConnectionProtocol):
+class ConnectionProxy:
     def __init__(self, leased_conn: 'LeasedConnection', token: str):
         __slots__ = '_token', '_conn'
         self._conn = leased_conn
@@ -19,9 +17,9 @@ class ConnectionProxy(AsyncPsycopgConnectionProtocol):
         return repr(self._conn)
     
     def __getattr__(self, name):
-        attr = getattr(self._conn._pgconn, name)
+        attr = getattr(self._conn, name)
         if callable(attr):
-            if not self.token != self._conn._usage_token:
+            if self.token != self._conn._usage_token:
                 raise PermissionError('Lease expired for this connection')
             
             if asyncio.iscoroutinefunction(attr):
@@ -43,6 +41,7 @@ class LeasedConnection:
         self._lease_duration: float = lease_duration
         self._lease_expired: bool = False
         self._in_use: bool = False
+        self._usage_token: str = None
 
     @classmethod
     async def connect(cls, conninfo: str, manager: 'ConnectionPoolManager', lease_duration: float, **kwargs) -> 'LeasedConnection':
@@ -67,8 +66,16 @@ class LeasedConnection:
     def lease_expired(self, value: bool) -> NoReturn:
         raise TypeError('Lease expired is a read-only attribute.')
     
-    def _set_usage_token(self, token: Optional[str] = None):
+    def _set_usage(self, token: str):
+        if self._usage_token:
+            raise TypeError('Connection currently leased')
         self._usage_token = token
+        self._in_use = True
+
+    def _reset_usage(self):
+        self._usage_token = None
+        self._in_use = False
+        self._lease_expired = False
 
     async def begin_lease_timer(self):
         await asyncio.sleep(self.lease_duration)
@@ -77,16 +84,27 @@ class LeasedConnection:
 
     async def return_to_pool(self):
         await self.manager.reclaim_connection(self)
-
-    def __getattribute__(self, name: str):
-        if name.startswith('_') or name in LeasedConnection.exempt_methods:
-            return super().__getattribute__(name)
+    
+    def __getattr__(self, name):
+        attr = getattr(self._pgconn, name)
         
-        attr = object.__getattribute__(self, name)
         if callable(attr):
-            if object.__getattribute__(self, 'lease_expired'):
+            if self._lease_expired:
                 raise TimeoutError('This connection is expired')
+            if not self._in_use:
+                raise TypeError('Connection not in use. Leaase a connection from the pool to use it')
+            
+            if asyncio.iscoroutinefunction(attr):
+                async def wrapped(*args, **kwargs):
+                    return await attr(*args, **kwargs)
+                return wrapped
+            else:
+                def wrapped(*args, **kwargs):
+                    return attr(*args, **kwargs)
+                return wrapped
+        
         return attr
+
 
 class ConnectionPoolManager:
     def __init__(self, lease_duration: float, high_priority_conns: int, mid_priority_conns: int, low_priority_conns: int, connection_timeout: float = 10, connection_refresh_timer: float = 600) -> None:
@@ -134,7 +152,7 @@ class ConnectionPoolManager:
             raise ValueError('Invalid connection priority level provided')
         
         token: str = uuid4().hex
-        requested_connection._set_usage_token(token)
+        requested_connection._set_usage(token)
         max_lease_duration: float = min(self.lease_duration, (max_lease_duration or self.lease_duration))
 
         requested_connection._lease_duration = max_lease_duration
@@ -147,7 +165,5 @@ class ConnectionPoolManager:
         if proxy._conn.manager != self:
             raise ValueError(f'Connection not reclaimable as it does not belong to this instance of {self.__class__.__name__}')
         
-        proxy._conn._in_use = False
-        proxy._conn._usage_token = None
-        proxy._conn._lease_duration = self.lease_duration
+        proxy._conn._reset_usage()
     
