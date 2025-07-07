@@ -1,10 +1,11 @@
 import psycopg as pg
+from server.protocols import AsyncPsycopgConnectionProtocol
 import asyncio
 from typing import Literal, Optional, NoReturn
 from uuid import uuid4
 from warnings import warn
 
-class ConnectionProxy:
+class ConnectionProxy(AsyncPsycopgConnectionProtocol):
     def __init__(self, leased_conn: 'LeasedConnection', token: str):
         __slots__ = '_token', '_conn'
         self._conn = leased_conn
