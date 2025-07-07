@@ -1,13 +1,30 @@
 import os
 from uuid import uuid4
 from typing import Optional, Union, Literal
+from zlib import adler32
+from math import inf
 
 import asyncio
 import aiofiles
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from cachetools import TTLCache
 
+from server.bootup import file_locks
+from server.config import ServerConfig
 from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries, rename_file_entries
+
+
+async def acquire_file_lock(filename: str, requestor: str, ttl: Optional[int] = None, max_attempts: Optional[int] = None) -> Literal[True]:
+    '''Indefinitely start a coroutine to wait for a lock on a file to be acquired. It is best to use this with `asyncio.wait_for` to prevent the caller from being stalled indefinitely'''
+    global file_locks
+    ttl = min(ServerConfig.FILE_LOCK_TTL.value, (ttl or ServerConfig.FILE_LOCK_TTL.value))
+    holder_checksum = adler32(requestor.encode('utf-8'))
+
+    for attempt in range(max_attempts or inf):
+        acquired: bool = (file_locks.setdefault(filename, holder_checksum) == holder_checksum)
+        if acquired:
+            return True
+        asyncio.sleep(0.1)
 
 async def preemptive_eof_check(reader: AsyncBufferedReader) -> bool:
     if not await reader.read(1):
