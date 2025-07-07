@@ -2,6 +2,7 @@ from abc import ABC
 from datetime import datetime
 from typing import Optional
 from models.flags import CategoryFlag
+from response_codes import ClientErrorFlags, ServerErrorFlags
 
 class ProtocolException(ABC, BaseException):
     '''Abstract base exception class for all protocol specific exceptions. Contains all the bare minimum data required to construct and send a response to an erroneous request'''
@@ -13,52 +14,49 @@ class ProtocolException(ABC, BaseException):
         self.description = description or self.__class__.description
         self.exception_iso_timestamp = datetime.now().isoformat()
 
+# Client side errors
 class SlowStreamRate(ProtocolException):
-    code: str = '2:us'
-    description: str = 'Stream rate too slow, ensure proper network connection'
+    code: str = ClientErrorFlags.UNACCEPTABLE_SPEED.value
+    description: str = 'Stream rate unacceptable, ensure proper network connection'
 
 class InvalidHeaderSemantic(ProtocolException):
-    code: str = '2:ihs'
+    code: str = ClientErrorFlags.INVALID_HEADER_SEMANTIC.value
     description: str = 'Header semantics incorrect, please ensure that all necessary fields are present'
 
 class InvalidHeaderValues(ProtocolException):
-    code: str = '2:ihv'
+    code: str = ClientErrorFlags.INVALID_HEADER_VALUES.value
     description: str = 'Header values incorrect'
 
 class InvalidAuthSemantic(ProtocolException):
-    code: str = '2:ias'
+    code: str = ClientErrorFlags.INVALID_AUTH_SEMANTIC.value
     description: str = 'Auth semantics incorrect, please ensure that all necessary fields are present'
 
 class InvalidAuthData(ProtocolException):
-    code: str = '2:iad'
+    code: str = ClientErrorFlags.INVALID_AUTH_DATA.values
     description: str = 'Auth values incorrect'
 
 class InvalidFileData(ProtocolException):
-    code: str = '2:ifd'
+    code: str = ClientErrorFlags.INVALID_FILE_DATA.value
     description: str = 'Invalid file component data'
 
 class UnsupportedOperation(ProtocolException):
-    code: str = '2:iad'
+    code: str = ClientErrorFlags.UNSUPPORTED_OPERATION.value
     description: str = f'Unsupported Operation requested. Must be: {", ".join(CategoryFlag._member_names_)}'
 
-class InternalServerError(ProtocolException):
-    code: str = '3:*'
-    description: str = 'Internal Server Error'
-
 class UserAuthenticationError(ProtocolException):
-    code: str = '2:exu'
+    code: str = ClientErrorFlags.USER_AUTHENTICATION_ERROR.value
     description: str = 'User authentication error'
 
 class InsufficientPermissions(ProtocolException):
-    code: str = '2:perm'
+    code: str = ClientErrorFlags.INSUFFICIENT_PERMISSIONS.value
     description: str = 'Insufficient permissions for this action'
 
 class OperationalConflict(ProtocolException):
-    code: str = '2:ocf'
+    code: str = ClientErrorFlags.OPERATIONAL_CONFLICT.value
     description: str = 'Operational conflict'
 
 class Banned(ProtocolException):
-    code: str = '2:ban'
+    code: str = ClientErrorFlags.BANNED.value
     description: str = 'User {username} is banned'
 
     def __init__(self, username: str, description: Optional[str] = None):
@@ -66,7 +64,7 @@ class Banned(ProtocolException):
         self.description.format(username=username)
 
 class FileNotFound(ProtocolException):
-    code: str = '2:nf'
+    code: str = ClientErrorFlags.FILE_NOT_FOUND.value
     description: str = 'No file named {file} under {username} found'
 
     def __init__(self, file: str, username: str, description: Optional[str] = None):
@@ -74,7 +72,7 @@ class FileNotFound(ProtocolException):
         self.description.format(file=file, username=username)
 
 class FileContested(ProtocolException):
-    code: str = '2:cnt'
+    code: str = ClientErrorFlags.FILE_CONTESTED.value
     description: str = 'File named {file} under {username} found is currently contested'
 
     def __init__(self, file: str, username: str, description: Optional[str] = None):
@@ -82,17 +80,23 @@ class FileContested(ProtocolException):
         self.description.format(file=file, username=username)
 
 class FileConflict(ProtocolException):
-    code: str = '2:cnf'
+    code: str = ClientErrorFlags.FILE_CONFLICT.value
     description: str = 'Conflicting operation for file named {file} under {username}'
 
     def __init__(self, file: str, username: str, description: Optional[str] = None):
         super().__init__(description or Banned.description)
         self.description.format(file=file, username=username)
 
-class DatabaseFailure(ProtocolException):
-    code: str = '3:db'
-    description: str = 'Database failure'
-
 class OperationContested(ProtocolException):
-    code: str = '3:opc'
+    code: str = ClientErrorFlags.OPERATION_CONTESTED.value
     description: str = 'Operation contested'
+
+
+# Server side errors
+class InternalServerError(ProtocolException):
+    code: str = ServerErrorFlags.INTERNAL_SERVER_ERROR.value
+    description: str = 'Internal Server Error'
+
+class DatabaseFailure(ProtocolException):
+    code: str = ServerErrorFlags.DATABASE_FAILURE.value
+    description: str = 'Database failure'
