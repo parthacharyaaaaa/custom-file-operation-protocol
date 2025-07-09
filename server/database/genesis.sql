@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS ACTIVITY_LOGS(
     occurance_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     severity SMALLINT NOT NULL DEFAULT 1,
     logged_by logger_type NOT NULL,
-    log_data log_type NOT NULL DEFAULT 'unknown',
+    log_category log_type NOT NULL DEFAULT 'unknown',
     log_details VARCHAR(512),
     user_concerned VARCHAR(128) REFERENCES USERS(username),
     host_concerned inet,
