@@ -32,7 +32,7 @@ class InvalidAuthSemantic(ProtocolException):
     description: str = 'Auth semantics incorrect, please ensure that all necessary fields are present'
 
 class InvalidAuthData(ProtocolException):
-    code: str = ClientErrorFlags.INVALID_AUTH_DATA.values
+    code: str = ClientErrorFlags.INCORRECT_AUTH_DATA.value
     description: str = 'Auth values incorrect'
 
 class InvalidFileData(ProtocolException):
