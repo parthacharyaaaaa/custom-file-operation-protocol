@@ -14,7 +14,7 @@ from psycopg.rows import Row, dict_row
 
 from server.bootup import connection_master
 from server.bootup import read_cache, write_cache, append_cache, delete_cache
-from server.config import ServerConfig
+from server.config.server_config import SERVER_CONFIG
 from server.connectionpool import ConnectionProxy
 from server.database.models import role_types
 from server.errors import OperationContested, DatabaseFailure, FileNotFound, FileConflict, InsufficientPermissions, OperationalConflict
@@ -216,10 +216,10 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
             # Before committing, it is important to move this file to the new owner's directory. This way in case of an OSError/PermissionError we won't have inconsistent state
             new_fname = await asyncio.wait_for(
                 asyncio.to_thread(transfer_file,
-                                  root=ServerConfig.ROOT.value, file=permission_component.subject_file,
+                                  root=SERVER_CONFIG.root_directory, file=permission_component.subject_file,
                                   previous_owner=permission_component.subject_file_owner, new_owner=permission_component.subject_user,
                                   deleted_cache=delete_cache, read_cache=read_cache, write_cache=write_cache, append_cache=append_cache),
-                timeout=ServerConfig.FILE_TRANSFER_TIMEOUT.value)
+                timeout=SERVER_CONFIG.file_transfer_timeout)
             if not new_fname:   # Failed to transfer file
                 raise FileConflict(f'Failed to perform file transfer from {permission_component.subject_file_owner} to {permission_component.subject_user}')
             
@@ -241,10 +241,10 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
         if new_fname:   # new_fname being not None implies the file was transferred, but an error occured at the database level
             await asyncio.wait_for(
                 asyncio.to_thread(transfer_file,
-                                  root=ServerConfig.ROOT.value, file=new_fname, new_name=permission_component.subject_file,
+                                  root=SERVER_CONFIG.root_directory, file=new_fname, new_name=permission_component.subject_file,
                                   previous_owner=permission_component.subject_user, new_owner=permission_component.subject_file_owner,
                                   deleted_cache=delete_cache, read_cache=read_cache, write_cache=write_cache, append_cache=append_cache),
-                timeout=ServerConfig.FILE_TRANSFER_TIMEOUT.value)
+                timeout=SERVER_CONFIG.file_transfer_timeout)
             
         if isinstance(e, pg_exc.LockNotAvailable):
             raise OperationContested

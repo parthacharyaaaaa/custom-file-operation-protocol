@@ -1,16 +1,16 @@
 '''Module for defining schema of incoming requests'''
 from pydantic import BaseModel, Field, model_validator, IPvAnyAddress, ValidationError
 from typing import Annotated, Optional, Literal, Union, TypeAlias
-from server.config import ServerConfig
-from models.flags import CategoryFlag, PermissionFlags
+from models.constants import REQUEST_CONSTANTS
+from models.flags import CategoryFlag, PermissionFlags, AuthFlags, FileFlags
 
 RequestComponentType: TypeAlias = Union['BaseHeaderComponent', 'BaseAuthComponent', 'BaseFileComponent', 'BasePermissionComponent']
 
 class BaseAuthComponent(BaseModel):
-    identity: Annotated[str, Field(min_length=ServerConfig.USERNAME_RANGE.value[0], max_length=ServerConfig.USERNAME_RANGE.value[1], pattern=ServerConfig.USERNAME_REGEX.value)]
-    password: Optional[Annotated[str, Field(min_length=ServerConfig.PASSWORD_RANGE.value[0], max_length=ServerConfig.PASSWORD_RANGE.value[1], default=None)]]
-    token: Optional[Annotated[str, Field(min_length=16, max_length=1024, default=None)]]
-    refresh_digest: Optional[Annotated[str, Field(min_length=ServerConfig.REFRESH_DIGEST_LENGTH.value, max_length=ServerConfig.REFRESH_DIGEST_LENGTH.value, frozen=True, default=None)]]
+    identity: Annotated[str, Field(min_length=REQUEST_CONSTANTS.auth.username_range[0], max_length=REQUEST_CONSTANTS.auth.username_range[1], pattern=REQUEST_CONSTANTS.auth.username_regex)]
+    password: Annotated[Optional[str], Field(min_length=REQUEST_CONSTANTS.auth.password_range[0], max_length=REQUEST_CONSTANTS.auth.password_range[1], default=None)]
+    token: Annotated[Optional[str], Field(min_length=16, max_length=1024, default=None)]
+    refresh_digest: Annotated[Optional[str], Field(min_length=REQUEST_CONSTANTS.auth.digest_length, max_length=REQUEST_CONSTANTS.auth.digest_length, frozen=True, default=None)]
 
     @model_validator(mode='after')
     def auth_semantic_check(self) -> 'BaseAuthComponent':
@@ -30,18 +30,18 @@ class BaseAuthComponent(BaseModel):
     
 class BaseFileComponent(BaseModel):
     # Target file
-    subject_file: Annotated[str, Field(max_length=1024, pattern=ServerConfig.FILENAME_REGEX.value)]
+    subject_file: Annotated[str, Field(max_length=1024, pattern=REQUEST_CONSTANTS.file.filename_regex)]
     subject_file_owner: Annotated[str, Field(max_length=1024)]
 
     # Sequencing logic
     cursor_position: Annotated[int, Field(ge=0, frozen=True)]
-    chunk_number: Optional[Annotated[int, Field(ge=0, frozen=True, default=None)]]
-    chunk_size: Optional[Annotated[int, Field(ge=1, le=ServerConfig.CHUNK_MAX_SIZE.value, default=ServerConfig.CHUNK_MAX_SIZE.value)]]  # For read ops
-    write_data: Optional[Annotated[str, Field(min_length=1, max_length=ServerConfig.CHUNK_MAX_SIZE.value, frozen=True)]]    # For write ops
+    chunk_number: Optional[Annotated[int, Field(ge=0, frozen=True, default=None)]]  # Chunk numbering is 0 indexed
+    chunk_size: Annotated[Optional[int], Field(ge=1, le=REQUEST_CONSTANTS.file.chunk_max_size, default=None)]  # For read operations. If specified, must be atleast 1 byte
+    write_data: Annotated[Optional[str], Field(min_length=1, max_length=REQUEST_CONSTANTS.file.chunk_max_size, frozen=True, default=None)]    # For write operations, must be atleast 1 character if specified
     
     # Attributes exclusive to file reads
-    return_partial: Optional[Annotated[bool, Field(default=True)]]
-    cursor_keepalive: Optional[Annotated[bool, Field(default=False)]]
+    return_partial: Annotated[Optional[bool], Field(default=True)]
+    cursor_keepalive: Annotated[Optional[bool], Field(default=False)]
 
     @model_validator(mode='after')
     def file_op_semantic_check(self) -> 'BaseFileComponent':
@@ -54,13 +54,15 @@ class BaseFileComponent(BaseModel):
 
 class BasePermissionComponent(BaseModel):
     # Request subjects
-    subject_file: Annotated[str, Field(frozen=True, pattern=ServerConfig.FILENAME_REGEX.value)]
-    subject_file_owner: Annotated[str, Field(frozen=True, pattern=ServerConfig.USERNAME_REGEX.value, le=ServerConfig.USERNAME_RANGE.value[0], ge=ServerConfig.USERNAME_RANGE.value[1])]
-    subject_user: Optional[Annotated[Union[str, Literal['*']], Field(frozen=True, default=None, pattern=ServerConfig.USERNAME_REGEX.value)]] # + For grnting, - for removal
+    subject_file: Annotated[str, Field(frozen=True, pattern=REQUEST_CONSTANTS.file.filename_regex)]
+    subject_file_owner: Annotated[str, Field(frozen=True, pattern=REQUEST_CONSTANTS.auth.username_regex,
+                                             le=REQUEST_CONSTANTS.auth.username_range[0], ge=REQUEST_CONSTANTS.auth.username_range[1])]
+    
+    subject_user: Annotated[Optional[str], Field(frozen=True, pattern=REQUEST_CONSTANTS.auth.username_regex,
+                                                 le=REQUEST_CONSTANTS.auth.username_range[0], ge=REQUEST_CONSTANTS.auth.username_range[1])]
     
     # Permission data
-    permission_flags: Annotated[PermissionFlags, Field(frozen=True)]
-    effect_duration: Optional[Annotated[int, Field(le=ServerConfig.EFFECT_DURATION_RANGE.value[0], ge=ServerConfig.EFFECT_DURATION_RANGE.value[1], frozen=True, default=0)]]
+    effect_duration: Annotated[Optional[int], Field(le=REQUEST_CONSTANTS.permission.effect_duration_range[0], ge=REQUEST_CONSTANTS.permission.effect_duration_range[1], frozen=True, default=0)]
 
     @model_validator(mode='after')
     def permission_logic_check(self) -> 'BasePermissionComponent':
@@ -69,7 +71,7 @@ class BasePermissionComponent(BaseModel):
         return self
 
 class BaseHeaderComponent(BaseModel):
-    version: Annotated[str, Field(min_length=5, max_length=12, pattern=ServerConfig.VERSION_REGEX.value)]
+    version: Annotated[str, Field(min_length=5, max_length=12, pattern=REQUEST_CONSTANTS.header.version_regex)]
 
     # Read ahead logic
     auth_size: Annotated[int, Field(frozen=True, default=0)]
@@ -85,5 +87,5 @@ class BaseHeaderComponent(BaseModel):
     connection_keepalive: Annotated[bool, Field(default=False)]
 
     # Message category
-    category: Annotated[CategoryFlag, Field(frozen=True)]    # 0b0001, 0b0010, 0b0100, and 0b1000
-    subcategory: Annotated[int, Field(frozen=True, ge=1)]   # Also bitmask literals, but depending on parent category the number of values can differ
+    category: Annotated[CategoryFlag, Field(frozen=True, ge=1)]
+    subcategory: Annotated[Union[AuthFlags, PermissionFlags, FileFlags], Field(frozen=True, ge=1)]

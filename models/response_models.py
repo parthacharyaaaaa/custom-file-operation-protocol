@@ -1,24 +1,27 @@
 '''Module for defining schema of outgoing responses'''
-from pydantic import BaseModel, IPvAnyAddress, Field
-from typing import Annotated, Optional, Union
-from response_codes import CODES
-from server.config import ServerConfig
-from models.request_model import BaseHeaderComponent
 from datetime import datetime
 from time import time
+from typing import Annotated, Optional, Union
+
 from server.errors import ProtocolException
+
+from models.constants import REQUEST_CONSTANTS, RESPONSE_CONSTANTS
+from models.request_model import BaseHeaderComponent
+from models.response_codes import CODES
+
+from pydantic import BaseModel, IPvAnyAddress, Field
 
 class ResponseHeader(BaseModel):
     # Protocol metadata
-    version: Annotated[str, Field(min_length=5, max_length=12, pattern=ServerConfig.VERSION_REGEX.value)]
+    version: Annotated[str, Field(min_length=5, max_length=12, pattern=REQUEST_CONSTANTS.header.version_regex)]
     
     # Response metadata
-    code: Annotated[str, Field(min_length=3, pattern=ServerConfig.RESPONSE_CODE_REGEX.value)]
-    description: Optional[Annotated[str, Field(max_length=256, default=None)]]
+    code: Annotated[str, Field(min_length=3, pattern=RESPONSE_CONSTANTS.header.code_regex)]
+    description: Annotated[Optional[str], Field(max_length=RESPONSE_CONSTANTS.header.description_max_length, default=None)]
 
     # Responder metadata
-    responder_hostname: Annotated[IPvAnyAddress, Field(frozen=True, default=ServerConfig.HOST.value)]
-    responder_port: Annotated[int, Field(frozen=True, default=ServerConfig.PORT.value)]
+    responder_hostname: Annotated[IPvAnyAddress, Field(frozen=True)]
+    responder_port: Annotated[int, Field(frozen=True)]
     responder_timestamp: Annotated[float, Field(frozen=True, default_factory=datetime.now)]
 
     # Response contents
@@ -31,8 +34,8 @@ class ResponseHeader(BaseModel):
     kwargs: Optional[
         Annotated[
             dict[
-                Annotated[str, Field(min_length=4, max_length=16)],
-                Annotated[str, Field(min_length=1, max_length=128)]
+                Annotated[str, Field(min_length=RESPONSE_CONSTANTS.header.kwarg_key_range[0], max_length=RESPONSE_CONSTANTS.header.kwarg_key_range[1])],
+                Annotated[str, Field(min_length=RESPONSE_CONSTANTS.header.kwarg_value_range[0], max_length=RESPONSE_CONSTANTS.header.kwarg_value_range[1])]
                 ],
             Field(default=None)
         ]
@@ -45,29 +48,29 @@ class ResponseHeader(BaseModel):
         return False
     
     @classmethod
-    def make_response_header(cls, version: Optional[str], code: int, description: str, hostname: Optional[str] = None, port: Optional[int] = None, responder_timestamp: Optional[float] = None, body_size: int = 0, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
-        return cls(version=version or ServerConfig.VERSION.value,
+    def make_response_header(cls, version: Optional[str], code: int, description: str, host: str, port: int, responder_timestamp: Optional[float] = None, body_size: int = 0, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
+        return cls(version=version,
                    code=code, description=description,
-                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, responder_timestamp=responder_timestamp or time(),
+                   responder_hostname=host, responder_port=port, responder_timestamp=responder_timestamp or time(),
                    body_size=body_size, ended_connection=end_conn,
                    kwargs=kwargs)
     
     @classmethod
-    def from_protocol_exception(cls, exc: type[ProtocolException], context_request: BaseHeaderComponent, hostname: Optional[str] = None, port: Optional[int] = None, responder_timestamp: Optional[float] = None, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
+    def from_protocol_exception(cls, exc: type[ProtocolException], context_request: BaseHeaderComponent, host: str, port: int, responder_timestamp: Optional[float] = None, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
         return cls(version=context_request.version,
                    code=exc.code,
                    description=exc.description,
-                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, responder_timestamp=responder_timestamp or time(),
+                   responder_hostname=host, responder_port=port, responder_timestamp=responder_timestamp or time(),
                    body_size=0,
                    end_connection=end_conn,
                    kwargs=kwargs)
     
     @classmethod
-    def from_unverifiable_data(cls, exc: type[ProtocolException], version: Optional[int] = None,hostname: Optional[str] = None, port: Optional[int] = None, responder_timestamp: Optional[float] = None, end_conn: Optional[bool] = False, **kwargs) -> 'ResponseHeader':
-        return cls(version=version or ServerConfig.VERSION.value,
+    def from_unverifiable_data(cls, exc: type[ProtocolException], version: str, host: str, port: int, responder_timestamp: Optional[float] = None, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
+        return cls(version=version,
                    code=exc.code,
                    description=exc.description,
-                   responder_hostname=hostname or ServerConfig.HOST.value, responder_port=port or ServerConfig.PORT.value, responder_timestamp=responder_timestamp or time(),
+                   responder_hostname=host, responder_port=port, responder_timestamp=responder_timestamp or time(),
                    body_size=0,
                    end_connection=end_conn,
                    **kwargs)

@@ -12,7 +12,7 @@ from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from cachetools import TTLCache
 
 from server.bootup import file_locks
-from server.config import ServerConfig
+from server.config.server_config import SERVER_CONFIG
 from server.errors import FileNotFound, InternalServerError
 from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries, rename_file_entries
 
@@ -22,7 +22,7 @@ async def acquire_file_lock(filename: str, requestor: str, ttl: Optional[int] = 
     '''
     
     global file_locks
-    ttl = min(ServerConfig.FILE_LOCK_TTL.value, (ttl or ServerConfig.FILE_LOCK_TTL.value))
+    ttl = min(SERVER_CONFIG.file_lock_ttl, (ttl or SERVER_CONFIG.file_lock_ttl))
     holder_checksum = adler32(requestor.encode('utf-8'))
 
     for attempt in range(max_attempts or inf):

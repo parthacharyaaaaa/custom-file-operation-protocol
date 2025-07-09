@@ -1,0 +1,1 @@
+'''Package containing all configurations and constants exclusive to the server'''

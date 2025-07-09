@@ -8,7 +8,7 @@ from models.response_codes import SuccessFlags
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent
 
 from server.bootup import user_master, file_locks, delete_cache, read_cache, write_cache, append_cache
-from server.config import ServerConfig
+from server.config.server_config import SERVER_CONFIG
 from server.database.models import role_types
 from server.file_ops.base_operations import create_file, read_file, write_file, append_file, delete_file, acquire_file_lock
 from server.file_ops.cache_ops import get_reader
@@ -26,7 +26,7 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     file: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
     file_locks[file] = None
 
-    file_deleted: bool = await delete_file(ServerConfig.ROOT.value, file, delete_cache, append_cache, read_cache, write_cache)
+    file_deleted: bool = await delete_file(SERVER_CONFIG.root_directory, file, delete_cache, append_cache, read_cache, write_cache)
     if not file_deleted:
         raise FileConflict(f'Failed to delete file {file_component.subject_file}')
     
@@ -43,7 +43,7 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     # Acquire lock
     try:
         await asyncio.wait_for(acquire_file_lock(filename=fpath, requestor=auth_component.identity),
-                               timeout=ServerConfig.FILE_CONTENTION_TIMEOUT.value)
+                               timeout=SERVER_CONFIG.file_contention_timeout)
     except asyncio.TimeoutError:
         raise FileContested(file=file_component.subject_file, username=file_component.subject_file_owner)
 
@@ -51,14 +51,14 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     keepalive_accepted: bool = False
 
     if header_component.subcategory & FileFlags.WRITE:
-        cursor_position = await write_file(root=ServerConfig.ROOT.value, fpath=fpath,
+        cursor_position = await write_file(root=SERVER_CONFIG.root_directory, fpath=fpath,
                                            data=file_component.write_data,
                                            deleted_cache=delete_cache, write_cache=write_cache,
                                            cursor_position=file_component.cursor_position, writer_keepalive=file_component.cursor_keepalive, purge_writer=header_component.finish,
                                            identifier=auth_component.identity, cached=True)
         keepalive_accepted = get_reader(write_cache, fpath, auth_component.identity) 
     else:
-        cursor_position = await append_file(root=ServerConfig.ROOT.value, fpath=fpath,
+        cursor_position = await append_file(root=SERVER_CONFIG.root_directory, fpath=fpath,
                                            data=file_component.write_data,
                                            deleted_cache=delete_cache, append_cache=append_cache,
                                            append_writer_keepalive=file_component.cursor_keepalive, purge_append_writer=header_component.finish,
@@ -77,7 +77,7 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
         raise InsufficientPermissions(f'User {auth_component.identity} does not have read permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}')
     
     fpath: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
-    read_data, cursor_position, eof_reached = await read_file(root=ServerConfig.ROOT.value, fpath=fpath,
+    read_data, cursor_position, eof_reached = await read_file(root=SERVER_CONFIG.root_directory, fpath=fpath,
                                                               deleted_cache=delete_cache, read_cache=read_cache,
                                                               cursor_position=file_component.cursor_position, nbytes=file_component.chunk_size, reader_keepalive=file_component.cursor_keepalive,
                                                               purge_reader=header_component.finish, identifier=auth_component.identity, cached=True)
@@ -91,7 +91,7 @@ async def handle_creation(header_component: BaseHeaderComponent, auth_component:
     if file_component.subject_file_owner != auth_component.identity:
         raise InvalidFileData(f'As user {auth_component.identity}, you only have permission to create new files in your own directory and not /{file_component.subject_file_owner}')
     
-    fpath, epoch = await create_file(root=ServerConfig.ROOT.value, owner=auth_component.identity, filename=file_component.subject_file)
+    fpath, epoch = await create_file(root=SERVER_CONFIG.root_directory, owner=auth_component.identity, filename=file_component.subject_file)
     if not fpath:
         raise FileConflict(f'Failed to create file {fpath}')
     os.path.getctime

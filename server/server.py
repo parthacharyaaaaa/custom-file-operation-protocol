@@ -5,6 +5,7 @@ import orjson
 from functools import partial
 from typing import Optional, Any, Coroutine, Callable
 
+from models.constants import load_constants, REQUEST_CONSTANTS
 from models.flags import CategoryFlag
 from models.request_model import BaseHeaderComponent
 from models.response_models import ResponseHeader, ResponseBody
@@ -14,7 +15,7 @@ from psycopg.conninfo import make_conninfo
 from server.bootup import init_connection_master, init_user_master, init_file_lock, init_caches, init_logger
 from server.comms_utils.incoming import process_component
 from server.comms_utils.outgoing import send_response
-from server.config import ServerConfig
+from server.config.server_config import load_server_config, ServerConfig
 from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
 from server.errors import ProtocolException, UnsupportedOperation, InternalServerError, SlowStreamRate
 
@@ -57,17 +58,23 @@ async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -
             
 
 async def main() -> None:
+    # Load global and server configurations
+    if not REQUEST_CONSTANTS:
+        load_constants()
+    
+    config: ServerConfig = load_server_config()
+
     # Initialize all extensions that the server depends on
     await init_connection_master(conninfo=make_conninfo(user=os.environ['PG_USERNAME'], password=os.environ['PG_PASSWORD'], host=os.environ['PG_HOST'], port=os.environ['PG_PORT'], dbname=os.environ['PG_DBNAME']),
-                                 config=ServerConfig)
-    init_user_master()
-    init_file_lock()
-    init_caches()
-    init_logger()
+                                 config=config)
+    init_user_master(config)
+    init_file_lock(config)
+    init_caches(config)
+    init_logger(config)
 
     # Start server
     server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback),
-                                                        host=ServerConfig.HOST.value, port=ServerConfig.PORT.value)
+                                                        host=str(config.host), port=config.port)
     async with server:
         await server.serve_forever()
 

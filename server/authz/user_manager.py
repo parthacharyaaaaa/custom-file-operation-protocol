@@ -12,12 +12,13 @@ from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
 
 from cachetools import TTLCache
 
+from models.constants import REQUEST_CONSTANTS
+
 import psycopg.errors as pg_errors
 from psycopg.rows import Row
 
 from server.authz.singleton import MetaUserManager
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
-from server.config import ServerConfig
 from server.database.models import ActivityLog
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned, InvalidAuthData, OperationContested
 
@@ -87,19 +88,19 @@ class UserManager(metaclass=MetaUserManager):
     HASHING_ALGORITHM: str = 'sha256'
     PBKDF_ITERATIONS: int = 100_000
     SALT_LENGTH: int = 16
-    USERNAME_REGEX: str = ServerConfig.USERNAME_REGEX.value
+    USERNAME_REGEX: str = REQUEST_CONSTANTS.auth.username_regex
     TOKEN_LENGTH: int = 32
     REFRESH_DIGEST_LENGTH: int = 128
-    SESSION_LIFESPAN: float = ServerConfig.SESSION_LIFESPAN.value
-    SESSION_REFRESH_NBF: float = ServerConfig.SESSION_LIFESPAN.value * 0.5
     LOG_DUMP_INTERVAL: float = 180
     LOG_ALIAS: str = 'user_master'
 
-    def __init__(self, connection_master: ConnectionPoolManager, log_queue: asyncio.PriorityQueue[ActivityLog]):
+    def __init__(self, connection_master: ConnectionPoolManager, log_queue: asyncio.PriorityQueue[ActivityLog], session_lifespan: float):
         self.connection_master: ConnectionPoolManager = connection_master
         self.session: dict[str, SessionMetadata] = {}
-        self.previous_digests_mapping: TTLCache[str, list[bytes, bytes]] = TTLCache(0, UserManager.SESSION_LIFESPAN)
         self._log_queue: asyncio.PriorityQueue[ActivityLog] = log_queue
+        self.session_lifespan = session_lifespan
+        self.session_refresh_nbf = session_lifespan // 2
+        self.previous_digests_mapping: TTLCache[str, list[bytes, bytes]] = TTLCache(0, self.session_lifespan)
 
         asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
     
@@ -188,7 +189,7 @@ class UserManager(metaclass=MetaUserManager):
 
         return auth_data
         
-    async def create_user(self, username: str, password: str, make_dir: bool = False) -> None:
+    async def create_user(self, username: str, password: str, root: str, make_dir: bool = False) -> None:
         if not (username:=UserManager.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
         
@@ -209,7 +210,7 @@ class UserManager(metaclass=MetaUserManager):
             await self.connection_master.reclaim_connection(proxy._conn)    # Always return leased connection to connection master
 
         if make_dir:
-            os.makedirs(os.path.join(ServerConfig.ROOT.value, username))
+            os.makedirs(os.path.join(root, username))
 
     async def delete_user(self, username: str, password: str, *caches) -> None:
         if not (username:=UserManager.check_username_validity(username)):
@@ -321,7 +322,7 @@ class UserManager(metaclass=MetaUserManager):
         if not auth_data:
             raise UserAuthenticationError('No such session exists')
         
-        if time.time() < auth_data.last_refresh + UserManager.SESSION_REFRESH_NBF:    # Premature refresh attempt
+        if time.time() < auth_data.last_refresh + UserManager.self.session_refresh_nbf:    # Premature refresh attempt
             raise UserAuthenticationError('Session not old enough to refresh yet')
         
         # session exists, token matches, and refresh attempt is mature. Proceed to check refresh digest
@@ -454,7 +455,7 @@ class UserManager(metaclass=MetaUserManager):
             await self.connection_master.reclaim_connection(proxy)
 
     async def expire_sessions(self) -> None:
-        sleep_duration: float = UserManager.SESSION_LIFESPAN // 3
+        sleep_duration: float = self.session_lifespan // 3
         while True:
             reference_threshold: float = time.time()
             hitlist: list[str] = []

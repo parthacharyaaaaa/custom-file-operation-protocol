@@ -105,7 +105,6 @@ class LeasedConnection:
         
         return attr
 
-
 class ConnectionPoolManager:
     def __init__(self, lease_duration: float, high_priority_conns: int, mid_priority_conns: int, low_priority_conns: int, connection_timeout: float = 10, connection_refresh_timer: float = 600) -> None:
         if connection_timeout <= 0:

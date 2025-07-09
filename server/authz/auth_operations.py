@@ -7,7 +7,7 @@ from models.response_models import ResponseHeader, ResponseBody
 
 from server.authz.user_manager import SessionMetadata
 from server.bootup import user_master, read_cache, write_cache, append_cache
-from server.config import ServerConfig
+from server.config.server_config import SERVER_CONFIG
 from server.errors import InvalidAuthSemantic
 from server.file_ops.base_operations import delete_directory
 
@@ -39,8 +39,8 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
                                   read_cache, write_cache, append_cache)
     
     # Delete this user's directory
-    files_deleted = await asyncio.wait_for(asyncio.to_thread(delete_directory, root=ServerConfig.ROOT.value, dirname=auth_component.identity),
-                                           timeout=ServerConfig.FILE_TRANSFER_TIMEOUT.value)
+    files_deleted = await asyncio.wait_for(asyncio.to_thread(delete_directory, root=SERVER_CONFIG.root_directory, dirname=auth_component.identity),
+                                           timeout=SERVER_CONFIG.file_transfer_timeout)
     
     header: ResponseHeader = ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_DELETION)
     body = ResponseBody(contents=orjson.dumps({'deleted_count' : len(files_deleted),

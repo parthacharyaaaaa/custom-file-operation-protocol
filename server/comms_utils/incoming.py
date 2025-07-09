@@ -6,7 +6,7 @@ from types import MappingProxyType
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent, BasePermissionComponent, RequestComponentType
 from models.flags import CategoryFlag
 
-from server.config import ServerConfig
+from server.config.server_config import SERVER_CONFIG
 import server.errors as exc
 
 from pydantic import BaseModel, ValidationError
@@ -30,13 +30,13 @@ async def parse_body(header: BaseHeaderComponent, body: bytes) -> BaseModel:
 async def process_component(n_bytes: int, reader: asyncio.StreamReader, component_type: Literal['header', 'auth', 'file', 'permission']) -> RequestComponentType:
     model, timeout = None, None
     if component_type == 'header':
-        model, timeout = BaseHeaderComponent, ServerConfig.HEADER_READ_TIMEOUT.value
+        model, timeout = BaseHeaderComponent, SERVER_CONFIG.read_timeout
     elif component_type == 'auth':
-        model, timeout = BaseAuthComponent, ServerConfig.AUTH_READ_TIMEOUT.value
+        model, timeout = BaseAuthComponent, SERVER_CONFIG.read_timeout
     elif component_type == 'file':
-        model, timeout = BaseFileComponent, ServerConfig.FILE_READ_TIMEOUT.value
+        model, timeout = BaseFileComponent, SERVER_CONFIG.read_timeout
     elif component_type == 'permission':
-        model, timeout = BasePermissionComponent, ServerConfig.PERMISSION_READ_TIMEOUT.value
+        model, timeout = BasePermissionComponent, SERVER_CONFIG.read_timeout
     
     try:
         raw_component: bytes = await asyncio.wait_for(reader.readexactly(n_bytes), timeout)
