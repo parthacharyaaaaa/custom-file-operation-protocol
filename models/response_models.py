@@ -56,8 +56,8 @@ class ResponseHeader(BaseModel):
                    kwargs=kwargs)
     
     @classmethod
-    def from_protocol_exception(cls, exc: type[ProtocolException], context_request: BaseHeaderComponent, host: str, port: int, responder_timestamp: Optional[float] = None, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
-        return cls(version=context_request.version,
+    def from_protocol_exception(cls, exc: type[ProtocolException], version: str, host: str, port: int, responder_timestamp: Optional[float] = None, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
+        return cls(version=version,
                    code=exc.code,
                    description=exc.description,
                    responder_hostname=host, responder_port=port, responder_timestamp=responder_timestamp or time(),
@@ -74,6 +74,10 @@ class ResponseHeader(BaseModel):
                    body_size=0,
                    end_connection=end_conn,
                    **kwargs)
+    
+    
+    def as_bytes(self) -> bytes:
+        return self.model_dump_json().encode('utf-8')
 
 class ResponseBody(BaseModel):
     contents: Union[bytes, str]
@@ -84,3 +88,7 @@ class ResponseBody(BaseModel):
 
     
     keepalive_accepted: Optional[bool]
+
+    
+    def as_bytes(self) -> bytes:
+        return self.model_dump_json().encode('utf-8')
