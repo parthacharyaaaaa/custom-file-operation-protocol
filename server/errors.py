@@ -2,7 +2,7 @@ from abc import ABC
 from datetime import datetime
 from typing import Optional
 from models.flags import CategoryFlag
-from response_codes import ClientErrorFlags, ServerErrorFlags
+from models.response_codes import ClientErrorFlags, ServerErrorFlags
 
 class ProtocolException(ABC, BaseException):
     '''Abstract base exception class for all protocol specific exceptions. Contains all the bare minimum data required to construct and send a response to an erroneous request'''

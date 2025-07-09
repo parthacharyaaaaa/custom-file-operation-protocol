@@ -6,12 +6,12 @@ from datetime import datetime
 
 from models.flags import PermissionFlags
 from models.response_models import ResponseHeader, ResponseBody
+from models.response_codes import SuccessFlags
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent
 
 import psycopg.errors as pg_exc
 from psycopg.rows import Row, dict_row
 
-from response_codes import SuccessFlags
 from server.bootup import connection_master
 from server.bootup import read_cache, write_cache, append_cache, delete_cache
 from server.config import ServerConfig

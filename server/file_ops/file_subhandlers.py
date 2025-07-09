@@ -4,8 +4,8 @@ from datetime import datetime
 
 from models.flags import FileFlags
 from models.response_models import ResponseHeader, ResponseBody
+from models.response_codes import SuccessFlags
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent
-from response_codes import SuccessFlags
 
 from server.bootup import user_master, file_locks, delete_cache, read_cache, write_cache, append_cache
 from server.config import ServerConfig
