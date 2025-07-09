@@ -19,10 +19,11 @@ from server.config.server_config import load_server_config, ServerConfig
 from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
 from server.errors import ProtocolException, UnsupportedOperation, InternalServerError, SlowStreamRate
 
-async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, host: str, port: int) -> None:
     while not reader.at_eof():
+        header_component: BaseHeaderComponent = None
         try:
-            header_component: BaseHeaderComponent = await process_component(n_bytes=ServerConfig.HEADER_READ_BYTESIZE.value,
+            header_component: BaseHeaderComponent = await process_component(n_bytes=REQUEST_CONSTANTS.header.max_bytesize,
                                                                             reader=reader,
                                                                             component_type='header')
             if not header_component:
@@ -49,7 +50,9 @@ async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -
             connection_end: bool = False if not header_component else header_component.finish
             response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=e if isinstance(e, ProtocolException) else InternalServerError,
                                                                               context_request=header_component,
-                                                                              end_conn=connection_end)
+                                                                              end_conn=connection_end,
+                                                                              host=host,
+                                                                              port=port)
             await send_response(writer=writer, response=response)
             if connection_end:
                 writer.close()
@@ -73,7 +76,7 @@ async def main() -> None:
     init_logger(config)
 
     # Start server
-    server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback),
+    server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback, str(config.host), config.port),
                                                         host=str(config.host), port=config.port)
     async with server:
         await server.serve_forever()

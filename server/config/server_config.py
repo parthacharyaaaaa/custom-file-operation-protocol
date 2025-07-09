@@ -55,5 +55,4 @@ def load_server_config() -> ServerConfig:
 
     # Laziest code I have ever written
     SERVER_CONFIG = ServerConfig.model_validate({'version' :loaded_constants['version']} | loaded_constants['network'] | loaded_constants['database'] | loaded_constants['file'] | loaded_constants['auth'] | loaded_constants['logging'])
-    print(SERVER_CONFIG.model_dump())
     return SERVER_CONFIG
