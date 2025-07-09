@@ -11,7 +11,7 @@ from models.response_models import ResponseHeader, ResponseBody
 
 from psycopg.conninfo import make_conninfo
 
-from server.bootup import init_connection_master, init_user_master, init_file_lock, init_caches
+from server.bootup import init_connection_master, init_user_master, init_file_lock, init_caches, init_logger
 from server.comms_utils.incoming import process_component
 from server.comms_utils.outgoing import send_response
 from server.config import ServerConfig
@@ -63,6 +63,7 @@ async def main() -> None:
     init_user_master()
     init_file_lock()
     init_caches()
+    init_logger()
 
     # Start server
     server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback),

@@ -13,6 +13,11 @@ class ServerConfig(Enum):
     HEADER_READ_TIMEOUT: float = 1.0
     HEADER_READ_BYTESIZE: int = 256
 
+    # Logging
+    BATCH_SIZE: int = 100
+    LOG_FLUSH_WAITING_PERIOD: float = 1.0
+    LOG_FLUSH_INTERVAL: float = 5.0
+
     # Database
     MAX_CONNECTIONS: tuple[int, int, int] = (30, 20, 10)    # High priority -> low priority
     CONNECTION_OVERFLOW_ALLOWANCE: int = 10     # Applies to all connections
