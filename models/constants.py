@@ -69,3 +69,5 @@ def load_constants():
                                                          'permission' : PermissionRequestConstants.model_validate(loaded_constants['components']['request']['permission'])})
     
     RESPONSE_CONSTANTS = ResponseConstants.model_validate({'header' : HeaderResponseConstants.model_validate(loaded_constants['components']['response']['header'])})
+
+    return REQUEST_CONSTANTS, RESPONSE_CONSTANTS
