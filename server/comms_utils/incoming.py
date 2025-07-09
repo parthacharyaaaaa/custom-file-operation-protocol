@@ -27,16 +27,15 @@ async def parse_body(header: BaseHeaderComponent, body: bytes) -> BaseModel:
     return component_cls.model_validate(body_mapping)
 
 async def process_component(n_bytes: int, reader: asyncio.StreamReader, component_type: Literal['header', 'auth', 'file', 'permission'], timeout: float) -> RequestComponentType:
-    model, timeout = None, None
+    model = None
     if component_type == 'header':
-        model, timeout = BaseHeaderComponent, timeout
+        model = BaseHeaderComponent
     elif component_type == 'auth':
-        model, timeout = BaseAuthComponent, timeout
+        model = BaseAuthComponent
     elif component_type == 'file':
-        model, timeout = BaseFileComponent, timeout
+        model = BaseFileComponent
     elif component_type == 'permission':
-        model, timeout = BasePermissionComponent, timeout
-    
+        model = BasePermissionComponent
     try:
         raw_component: bytes = await asyncio.wait_for(reader.readexactly(n_bytes), timeout)
         component_mapping: dict[str, Any] = await serialize_json(raw_component)
