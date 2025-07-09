@@ -38,8 +38,7 @@ async def process_component(n_bytes: int, reader: asyncio.StreamReader, componen
         model = BasePermissionComponent
     try:
         raw_component: bytes = await asyncio.wait_for(reader.readexactly(n_bytes), timeout)
-        component_mapping: dict[str, Any] = await serialize_json(raw_component)
-        return model.model_validate_json(component_mapping)
+        return model.model_validate_json(raw_component)
     
     except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
         raise exc.InvalidHeaderSemantic
