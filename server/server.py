@@ -19,7 +19,7 @@ from server.config.server_config import load_server_config, ServerConfig
 from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
 from server.errors import ProtocolException, UnsupportedOperation, InternalServerError, SlowStreamRate
 
-async def callback_closure(config: ServerConfig, request_constants: RequestConstants, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+def prepare_callback(config: ServerConfig, request_constants: RequestConstants):
     async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         while not reader.at_eof():
             header_component: BaseHeaderComponent = None
@@ -30,7 +30,6 @@ async def callback_closure(config: ServerConfig, request_constants: RequestConst
                                                                                 timeout=config.read_timeout)
                 if not header_component:
                     raise SlowStreamRate('Unable to parse header')
-                
                 handler: Callable[[BaseHeaderComponent], Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]] = TOP_LEVEL_REQUEST_MAPPING.get(header_component.category)
                 if not handler:
                     raise UnsupportedOperation(f'Operation category must be in: {", ".join(CategoryFlag._member_names_)}')
@@ -61,7 +60,7 @@ async def callback_closure(config: ServerConfig, request_constants: RequestConst
                     await writer.wait_closed()
                     return
 
-    await callback(reader, writer)
+    return callback
 
 async def main() -> None:
     global REQUEST_CONSTANTS
@@ -81,7 +80,7 @@ async def main() -> None:
 
     # Start server
     # partial is used to pass the SERVER_CONFIG and the REQUEST_CONSTANTS model
-    server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback_closure, config, REQUEST_CONSTANTS),
+    server: asyncio.Server = await asyncio.start_server(client_connected_cb=prepare_callback(config, REQUEST_CONSTANTS),
                                                         host=str(config.host), port=config.port)
     async with server:
         await server.serve_forever()
