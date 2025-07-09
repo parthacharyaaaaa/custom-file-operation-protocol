@@ -43,7 +43,7 @@ async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseH
     if not auth_component.auth_logical_check(flag='authentication'):
         raise InvalidAuthSemantic('File operations require an auth component with ONLY the following: identity, token, refresh_digest')
     
-    user_master.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
+    await user_master.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
     if header_component.subcategory not in FileFlags._value2member_map_:
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.FILE_OP._name_}')
     

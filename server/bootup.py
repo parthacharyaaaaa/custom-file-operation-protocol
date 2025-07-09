@@ -32,7 +32,7 @@ async def init_connection_master(conninfo: str, config: type[ServerConfig]) -> C
 
 def init_user_master() -> UserManager:
     global user_master
-    user_master = UserManager(connection_master=connection_master)
+    user_master = UserManager(connection_master=connection_master, log_queue=log_queue)
 
     return user_master
 

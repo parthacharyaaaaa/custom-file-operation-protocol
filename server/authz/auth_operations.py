@@ -33,7 +33,7 @@ async def handle_login(header_component: BaseHeaderComponent, auth_component: Ba
     return header, body
 
 async def handle_deletion(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent) -> tuple[ResponseHeader, ResponseBody]:
-    user_master.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
+    await user_master.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
 
     await user_master.delete_user(auth_component.identity, auth_component.password,
                                   read_cache, write_cache, append_cache)
@@ -49,7 +49,7 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     return header, body
 
 async def handle_password_change(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent) -> tuple[ResponseHeader, ResponseBody]:
-    user_master.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
+    await user_master.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
     await user_master.change_password(username=auth_component, new_password=auth_component.password)
 
     # Terminate session and require reauthentication
