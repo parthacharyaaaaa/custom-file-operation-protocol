@@ -5,7 +5,7 @@ import orjson
 from functools import partial
 from typing import Optional, Any, Coroutine, Callable
 
-from models.constants import load_constants, REQUEST_CONSTANTS
+from models.constants import load_constants, REQUEST_CONSTANTS, RequestConstants
 from models.flags import CategoryFlag
 from models.request_model import BaseHeaderComponent
 from models.response_models import ResponseHeader, ResponseBody
@@ -19,51 +19,55 @@ from server.config.server_config import load_server_config, ServerConfig
 from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
 from server.errors import ProtocolException, UnsupportedOperation, InternalServerError, SlowStreamRate
 
-async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, host: str, port: int) -> None:
-    while not reader.at_eof():
-        header_component: BaseHeaderComponent = None
-        try:
-            header_component: BaseHeaderComponent = await process_component(n_bytes=REQUEST_CONSTANTS.header.max_bytesize,
-                                                                            reader=reader,
-                                                                            component_type='header')
-            if not header_component:
-                raise SlowStreamRate('Unable to parse header')
-            
-            handler: Callable[[BaseHeaderComponent], Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]] = TOP_LEVEL_REQUEST_MAPPING.get(header_component.category)
-            if not handler:
-                raise UnsupportedOperation(f'Operation category must be in: {", ".join(CategoryFlag._member_names_)}')
-            
-            response_header, response_body = await handler(header_component)
-            body_stream: bytes = None
-            if response_body:
-                body_stream: bytes = orjson.dumps(response_body.model_dump())
-                response_header.body_size = len(body_stream)
-            
-            await send_response(writer=writer, response=response_header, body=body_stream)
-            
-            if response_header.ended_connection or header_component.connection_keepalive:
-                writer.close()
-                await writer.wait_closed()
-                return
+async def callback_closure(config: ServerConfig, request_constants: RequestConstants, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        while not reader.at_eof():
+            header_component: BaseHeaderComponent = None
+            try:
+                header_component: BaseHeaderComponent = await process_component(n_bytes=request_constants.header.max_bytesize,
+                                                                                reader=reader,
+                                                                                component_type='header',
+                                                                                timeout=config.read_timeout)
+                if not header_component:
+                    raise SlowStreamRate('Unable to parse header')
+                
+                handler: Callable[[BaseHeaderComponent], Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]] = TOP_LEVEL_REQUEST_MAPPING.get(header_component.category)
+                if not handler:
+                    raise UnsupportedOperation(f'Operation category must be in: {", ".join(CategoryFlag._member_names_)}')
+                
+                response_header, response_body = await handler(header_component)
+                body_stream: bytes = None
+                if response_body:
+                    body_stream: bytes = orjson.dumps(response_body.model_dump())
+                    response_header.body_size = len(body_stream)
+                
+                await send_response(writer=writer, response=response_header, body=body_stream)
+                
+                if response_header.ended_connection or header_component.connection_keepalive:
+                    writer.close()
+                    await writer.wait_closed()
+                    return
 
-        except Exception as e:
-            connection_end: bool = False if not header_component else header_component.finish
-            response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=e if isinstance(e, ProtocolException) else InternalServerError,
-                                                                              context_request=header_component,
-                                                                              end_conn=connection_end,
-                                                                              host=host,
-                                                                              port=port)
-            await send_response(writer=writer, response=response)
-            if connection_end:
-                writer.close()
-                await writer.wait_closed()
-                return
-            
+            except Exception as e:
+                connection_end: bool = False if not header_component else header_component.finish
+                response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=e if isinstance(e, ProtocolException) else InternalServerError,
+                                                                                version=config.version if not header_component else header_component.version,
+                                                                                end_conn=connection_end,
+                                                                                host=str(config.host),
+                                                                                port=config.port)
+                await send_response(writer=writer, response=response)
+                if connection_end:
+                    writer.close()
+                    await writer.wait_closed()
+                    return
+
+    await callback(reader, writer)
 
 async def main() -> None:
+    global REQUEST_CONSTANTS
     # Load global and server configurations
     if not REQUEST_CONSTANTS:
-        load_constants()
+        REQUEST_CONSTANTS, _ = load_constants()
     
     config: ServerConfig = load_server_config()
 
@@ -76,7 +80,8 @@ async def main() -> None:
     init_logger(config)
 
     # Start server
-    server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback, str(config.host), config.port),
+    # partial is used to pass the SERVER_CONFIG and the REQUEST_CONSTANTS model
+    server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback_closure, config, REQUEST_CONSTANTS),
                                                         host=str(config.host), port=config.port)
     async with server:
         await server.serve_forever()
