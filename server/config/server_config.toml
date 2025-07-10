@@ -26,7 +26,6 @@ user_max_files = 256
 max_attempts = 5
 lock_timeouts = [3600, 7200, 42600, 8400]
 session_lifespan = 10800
-digest_length = 128
 
 [logging]
 log_batch_size = 100

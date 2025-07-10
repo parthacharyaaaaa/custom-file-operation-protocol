@@ -39,7 +39,6 @@ class ServerConfig(BaseModel):
                          Annotated[float, Field(ge=0)],
                          Annotated[float, Field(ge=0)]]
     session_lifespan: Annotated[float, Field(ge=0, le=86400)]   # 86400 seconds = 1 day
-    digest_length: Annotated[int, Field(frozen=True, ge=0)]
 
     # Logging
     log_batch_size: Annotated[int, Field(ge=1)]
