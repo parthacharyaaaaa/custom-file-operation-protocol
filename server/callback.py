@@ -33,7 +33,7 @@ async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -
             response_header, response_body = await handler(reader, header_component)
             body_stream: bytes = None
             if response_body:
-                body_stream: bytes = orjson.dumps(response_body.model_dump())
+                body_stream: bytes = response_body.model_dump_json().encode('utf-8')
                 response_header.body_size = len(body_stream)
             
             await send_response(writer=writer, header=response_header, body=body_stream)
@@ -45,25 +45,26 @@ async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -
                 return
 
         except Exception as e:
-            print(format_exc())
+            print(format_exc(), flush=True)
             connection_end: bool = False if not header_component else header_component.finish
-            is_uncaught: bool = isinstance(e, ProtocolException)
-            response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=InternalServerError if is_uncaught else e,
-                                                                            version=config.version if not header_component else header_component.version,
-                                                                            end_conn=connection_end,
-                                                                            host=str(SERVER_CONFIG.host),
-                                                                            port=SERVER_CONFIG.port)
+            is_caught: bool = isinstance(e, ProtocolException)
+            response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=InternalServerError if is_caught else e,
+                                                                              version=config.version if not header_component else header_component.version,
+                                                                              end_conn=connection_end,
+                                                                              host=str(SERVER_CONFIG.host),
+                                                                              port=SERVER_CONFIG.port)
             # Log uncaught exceptions
-            asyncio.create_task(
-                enqueue_log(
-                    ActivityLog(
-                        severity=Severity.CRITICAL_FAILURE.value,
-                        log_category=LogType.INTERNAL.value,
-                        logged_by=LogAuthor.EXCEPTION_FALLBACK.value,
-                        log_details=format_exception_only(e)[0]
+            if is_caught:
+                asyncio.create_task(
+                    enqueue_log(
+                        ActivityLog(
+                            severity=Severity.CRITICAL_FAILURE.value,
+                            log_category=LogType.INTERNAL.value,
+                            logged_by=LogAuthor.EXCEPTION_FALLBACK.value,
+                            log_details=format_exception_only(e)[0]
+                        )
                     )
                 )
-            )
             await send_response(writer=writer, header=response)
             if connection_end:
                 writer.write_eof()

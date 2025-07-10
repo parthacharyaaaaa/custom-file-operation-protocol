@@ -183,8 +183,7 @@ class UserManager(metaclass=MetaUserManager):
 
         if not pw_data:
             raise UserAuthenticationError(f'No username with {username} exists')
-
-        print(compare_digest(pw_data[0], UserManager.generate_password_hash(password, pw_data[1])[0]))   
+ 
         if not UserManager.verify_password_hash(password, *pw_data):
             await self.enqueue_activity(ActivityLog(severity=Severity.ERROR,
                                                     log_details=f'Incorrect password: {UserAuthenticationError.__name__}',
