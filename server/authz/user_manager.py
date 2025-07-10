@@ -2,7 +2,7 @@ import os
 import re
 import time
 from datetime import datetime
-from secrets import token_bytes
+from secrets import token_hex
 from hmac import compare_digest
 from hashlib import pbkdf2_hmac
 from typing import Optional, Union, Any
@@ -138,11 +138,11 @@ class UserManager(metaclass=MetaUserManager):
     # Token and refresh digest generation logic kept as static methods in case we ever need to add any more logic to it
     @staticmethod
     def generate_session_token() -> bytes:
-        return token_bytes(UserManager.TOKEN_LENGTH)
+        return token_hex(UserManager.TOKEN_LENGTH // 2).encode('utf-8')
     
     @staticmethod
     def generate_session_refresh_digest() -> bytes:
-        return token_bytes(UserManager.DIGEST_LENGTH)
+        return token_hex(UserManager.DIGEST_LENGTH // 2).encode('utf-8')
 
     async def authenticate_session(self, username: str, token: bytes, raise_on_exc: bool = False) -> Optional[SessionMetadata]:
         auth_data: SessionMetadata = self.session.get(username)
