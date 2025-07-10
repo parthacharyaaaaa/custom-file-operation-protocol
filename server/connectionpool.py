@@ -80,10 +80,11 @@ class LeasedConnection:
     async def begin_lease_timer(self):
         await asyncio.sleep(self.lease_duration)
         self._lease_expired = True
-        await self.return_to_pool()
+        if self._usage_token:
+            await self.return_to_pool()
 
     async def return_to_pool(self):
-        await self.manager.reclaim_connection(self)
+        self._reset_usage()
     
     def __getattr__(self, name):
         attr = getattr(self._pgconn, name)
