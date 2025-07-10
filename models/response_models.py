@@ -5,8 +5,8 @@ from typing import Annotated, Optional, Union
 from server.errors import ProtocolException
 
 from models.constants import REQUEST_CONSTANTS, RESPONSE_CONSTANTS
-from models.request_model import BaseHeaderComponent
 from models.response_codes import CODES
+from server.config.server_config import ServerConfig
 
 from pydantic import BaseModel, IPvAnyAddress, Field
 
@@ -46,6 +46,13 @@ class ResponseHeader(BaseModel):
                 return True
         return False
     
+    @classmethod
+    def from_server(cls, config: ServerConfig, code: int, version: Optional[str] = None, description: Optional[str] = None, responder_timestamp: Optional[float] = None, body_size: int = 0, ended_connection: bool = False, **kwargs) -> 'ResponseHeader':
+        return cls(version=version or config.version, code=code, description=description,
+                   responder_timestamp = responder_timestamp or time(), responder_hostname=config.host, responder_port=config.port,
+                   body_size=body_size,
+                   ended_connection=ended_connection, kwargs=kwargs)
+
     @classmethod
     def make_response_header(cls, version: Optional[str], code: int, description: str, host: str, port: int, responder_timestamp: Optional[float] = None, body_size: int = 0, end_conn: bool = False, **kwargs) -> 'ResponseHeader':
         return cls(version=version,

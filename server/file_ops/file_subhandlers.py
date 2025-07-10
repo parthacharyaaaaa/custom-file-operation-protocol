@@ -30,7 +30,7 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     if not file_deleted:
         raise FileConflict(f'Failed to delete file {file_component.subject_file}')
     
-    return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_DELETION.value, ended_connection=header_component.finish),
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_DELETION.value, ended_connection=header_component.finish),
             None)
 
 async def handle_amendment(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, ResponseBody]:
@@ -68,7 +68,7 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     if not keepalive_accepted:
         file_locks.pop(fpath)
     
-    return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_AMEND, ended_connection=header_component.finish),
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_AMEND, ended_connection=header_component.finish),
             ResponseBody(cursor_position=cursor_position, keepalive_accepted=keepalive_accepted))
 
 async def handle_read(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, ResponseBody]:    
@@ -84,7 +84,7 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
     
     ongoing_amendment: bool = bool(file_locks.get(fpath))
 
-    return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_READ, ended_connection=header_component.finish),
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_READ, ended_connection=header_component.finish),
             ResponseBody(contents=orjson.dumps({'read' : read_data, 'ongoing_amendment' : ongoing_amendment}), return_partial=not eof_reached, chunk_number=file_component.chunk_number+1, cursor_position=cursor_position, keepalive_accepted=bool(get_reader(read_cache, fpath, auth_component.identity)))) 
 
 async def handle_creation(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, None]:
@@ -94,7 +94,6 @@ async def handle_creation(header_component: BaseHeaderComponent, auth_component:
     fpath, epoch = await create_file(root=SERVER_CONFIG.root_directory, owner=auth_component.identity, filename=file_component.subject_file)
     if not fpath:
         raise FileConflict(f'Failed to create file {fpath}')
-    os.path.getctime
     
-    return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_CREATION, ended_connection=header_component.finish),
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_CREATION, ended_connection=header_component.finish),
             ResponseBody(return_partial=False, keepalive_accepted=False, contents=orjson.dumps({'path' : fpath, 'iso_epoch' : datetime.fromtimestamp(epoch).isoformat()})))

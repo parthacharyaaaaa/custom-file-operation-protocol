@@ -69,7 +69,7 @@ async def publicise_file(header_component: BaseHeaderComponent, auth_component: 
     finally:
         connection_master.reclaim_connection(proxy)
 
-    return ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value, ended_connection=header_component.finish), None
+    return ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value, ended_connection=header_component.finish), None
 
 async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, ResponseBody]:
     proxy: ConnectionProxy = connection_master.request_connection(level=1)
@@ -105,7 +105,7 @@ async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseA
     finally:
         connection_master.reclaim_connection(proxy)
 
-    return ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_HIDE.value, ended_connection=header_component.finish), ResponseBody(contents=orjson.dumps({'revoked_grantee_info' : revoked_grantees}))
+    return ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_HIDE.value, ended_connection=header_component.finish), ResponseBody(contents=orjson.dumps({'revoked_grantee_info' : revoked_grantees}))
 
 async def grant_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, None]:
     allowed_roles: list[role_types] = ['manager', 'owner']
@@ -148,7 +148,7 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
     finally:
         await connection_master.reclaim_connection(proxy)
     
-    return ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_GRANT, ended_connection=header_component.finish), None
+    return ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_GRANT, ended_connection=header_component.finish), None
 
 async def revoke_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, ResponseBody]:
     allowed_roles: list[role_types] = ['manager', 'owner']
@@ -186,7 +186,7 @@ async def revoke_permission(header_component: BaseHeaderComponent, auth_componen
     finally:
         await connection_master.reclaim_connection(proxy)
     
-    return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_REVOKE, ended_connection=header_component.finish),
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_REVOKE, ended_connection=header_component.finish),
             ResponseBody(contents=orjson.dumps({'revoked_role_data' : permission_mapping})))
 
 async def transfer_ownership(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, ResponseBody]:
@@ -254,7 +254,7 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
     finally:
         await connection_master.reclaim_connection(proxy)
 
-    return (ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_OWNERSHIP_TRANSFER, ended_connection=header_component.finish),
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_OWNERSHIP_TRANSFER, ended_connection=header_component.finish),
             ResponseBody(contents=orjson.dumps({'old_filepath' : os.path.join(permission_component.subject_file_owner, permission_component.subject_file),
                                                 'new_filepath' : os.path.join(permission_component.subject_user, new_fname),
                                                 'transfer_datetime' : transfer_datetime_iso})))

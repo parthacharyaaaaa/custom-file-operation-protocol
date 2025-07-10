@@ -17,8 +17,8 @@ async def handle_registration(header_component: BaseHeaderComponent, auth_compon
     if not auth_component.auth_logical_check('authorization'):
         raise InvalidAuthSemantic('Account creation requires only the following fields: identity, password')
     
-    await user_master.create_user(username=auth_component.identity, password=auth_component.password, make_dir=True)
-    header: ResponseHeader = ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_CREATION.value)
+    await user_master.create_user(username=auth_component.identity, password=auth_component.password, make_dir=True, root=SERVER_CONFIG.root_directory)
+    header: ResponseHeader = ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_CREATION.value, responder_hostname=SERVER_CONFIG.host, responder_port=SERVER_CONFIG.port)
 
     return header, None
 
@@ -27,7 +27,7 @@ async def handle_login(header_component: BaseHeaderComponent, auth_component: Ba
         raise InvalidAuthSemantic('Login requires only the following fields: identity, password')
     
     session_metadata: SessionMetadata = await user_master.authorize_session(username=auth_component.identity, password=auth_component.password)
-    header: ResponseHeader = ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_AUTHENTICATION.value)
+    header: ResponseHeader = ResponseHeader.from_server(config=SERVER_CONFIG, code=SuccessFlags.SUCCESSFUL_AUTHENTICATION.value)
     body: ResponseBody = ResponseBody(contents=orjson.dumps({**session_metadata.dict_repr}))
 
     return header, body
@@ -42,7 +42,7 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     files_deleted = await asyncio.wait_for(asyncio.to_thread(delete_directory, root=SERVER_CONFIG.root_directory, dirname=auth_component.identity),
                                            timeout=SERVER_CONFIG.file_transfer_timeout)
     
-    header: ResponseHeader = ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_DELETION)
+    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_DELETION)
     body = ResponseBody(contents=orjson.dumps({'deleted_count' : len(files_deleted),
                                                'deleted_files' : files_deleted}))
 
@@ -55,7 +55,7 @@ async def handle_password_change(header_component: BaseHeaderComponent, auth_com
     # Terminate session and require reauthentication
     user_master.session.pop(auth_component.identity, None)
     user_master.previous_digests_mapping.pop(auth_component.identity, None)
-    header: ResponseHeader = ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_PASSWORD_CHANGE.value)
+    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_PASSWORD_CHANGE.value)
     body = ResponseBody(contents=f'Reauthentication required')
 
     return header, body
@@ -66,7 +66,7 @@ async def handle_session_refresh(header_component: BaseHeaderComponent, auth_com
     
     # UserManager.refresh_session() implictly authenticates session
     new_digest, iteration = await user_master.refresh_session(username=auth_component.identity, token=auth_component.token, digest=auth_component.refresh_digest)
-    header: ResponseHeader = ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_SESSION_REFRESH.value)
+    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_SESSION_REFRESH.value)
     body = ResponseBody(contents=orjson.dumps({'digest' : new_digest, 'iteration' : iteration}))
 
     return header, body
@@ -79,7 +79,7 @@ async def handle_session_termination(header_component: BaseHeaderComponent, auth
     terminated_session: SessionMetadata = await user_master.terminate_session(username=auth_component.identity, token=auth_component.token)
 
     termination_time: float = time.time()
-    header: ResponseHeader = ResponseHeader(version=header_component.version, code=SuccessFlags.SUCCESSFUL_SESSION_TERMINATION.value)
+    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_SESSION_TERMINATION.value)
     body: ResponseBody = ResponseBody(contents=orjson.dumps({'time_of_logout' : termination_time, 'user' : auth_component.identity,
                                                              'last_token' : terminated_session.token,
                                                              'session_iterations' : terminated_session.iteration,

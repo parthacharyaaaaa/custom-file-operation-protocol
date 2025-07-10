@@ -3,12 +3,11 @@ import asyncio
 from models.request_model import BaseHeaderComponent
 from models.response_models import ResponseHeader, ResponseBody
 from typing import Optional, Union
-from server.config.server_config import SERVER_CONFIG
 
 async def send_heartbeat(header: BaseHeaderComponent) -> tuple[ResponseHeader, None]:
     '''Send a heartbeat signal back to the client'''
     return (
-        ResponseHeader(version=header.version, code='1:hb', description='Doki Doki', ended_connection=header.finish, responder_hostname=SERVER_CONFIG.host, responder_port=SERVER_CONFIG.port),
+        ResponseHeader.from_server(version=header.version, code='1:hb', description='Doki Doki', ended_connection=header.finish),
         None
     )
 
