@@ -19,7 +19,7 @@ from psycopg.rows import Row
 
 from server.authz.singleton import MetaUserManager
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
-from server.database.models import ActivityLog
+from server.database.models import ActivityLog, LogAuthor, Severity
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned, InvalidAuthData, OperationContested
 
 class SessionMetadata:
@@ -89,10 +89,10 @@ class UserManager(metaclass=MetaUserManager):
     PBKDF_ITERATIONS: int = 100_000
     SALT_LENGTH: int = 16
     USERNAME_REGEX: str = REQUEST_CONSTANTS.auth.username_regex
-    TOKEN_LENGTH: int = 32
-    REFRESH_DIGEST_LENGTH: int = 128
-    LOG_DUMP_INTERVAL: float = 180
-    LOG_ALIAS: str = 'user_master'
+    TOKEN_LENGTH: int = REQUEST_CONSTANTS.auth.token_length
+    DIGEST_LENGTH: int = REQUEST_CONSTANTS.auth.digest_length
+    LOG_ALIAS: str = LogAuthor.USER_MASTER.value
+    LOG_TIMEOUT: float = 2.0
 
     def __init__(self, connection_master: ConnectionPoolManager, log_queue: asyncio.PriorityQueue[ActivityLog], session_lifespan: float):
         self.connection_master: ConnectionPoolManager = connection_master
@@ -134,7 +134,7 @@ class UserManager(metaclass=MetaUserManager):
     
     @staticmethod
     def generate_session_refresh_digest() -> bytes:
-        return token_bytes(UserManager.REFRESH_DIGEST_LENGTH)
+        return token_bytes(UserManager.DIGEST_LENGTH)
 
     async def authenticate_session(self, username: str, token: bytes, raise_on_exc: bool = False) -> Optional[SessionMetadata]:
         auth_data: SessionMetadata = self.session.get(username)
@@ -147,7 +147,7 @@ class UserManager(metaclass=MetaUserManager):
             if compare_digest(auth_data.token, token):
                 return auth_data
         except Exception as e:
-            await self.enqueue_activity(ActivityLog(severity=2,
+            await self.enqueue_activity(ActivityLog(severity=Severity.ERROR,
                                                     log_details=f'Failed in digest comparison: {e.__class__.__name__}',
                                                     user_concerned=username,
                                                     log_category='user'))
@@ -176,7 +176,7 @@ class UserManager(metaclass=MetaUserManager):
         if not pw_data:
             raise UserAuthenticationError(f'No username with {username} exists')
         if not UserManager.verify_password_hash(password, *pw_data):
-            await self.enqueue_activity(ActivityLog(severity=3,
+            await self.enqueue_activity(ActivityLog(severity=Severity.ERROR,
                                                     log_details=f'Incorrect password: {UserAuthenticationError.__name__}',
                                                     user_concerned=username,
                                                     log_category='user'))
@@ -312,7 +312,7 @@ class UserManager(metaclass=MetaUserManager):
             raise UserAuthenticationError('Invalid token')
         except Exception as e:
             self.enqueue_activity(ActivityLog(user_concerned=username,
-                                              severity=3,
+                                              severity=Severity.ERROR,
                                               log_details=f'Failed in digest comparison: {e.__class__.__name__}',
                                               log_category='user'))
             raise UserAuthenticationError('Failed to log out (Possibly corrupted token)')
@@ -322,7 +322,7 @@ class UserManager(metaclass=MetaUserManager):
         if not auth_data:
             raise UserAuthenticationError('No such session exists')
         
-        if time.time() < auth_data.last_refresh + UserManager.self.session_refresh_nbf:    # Premature refresh attempt
+        if time.time() < auth_data.last_refresh + self.session_refresh_nbf:    # Premature refresh attempt
             raise UserAuthenticationError('Session not old enough to refresh yet')
         
         # session exists, token matches, and refresh attempt is mature. Proceed to check refresh digest
@@ -357,7 +357,7 @@ class UserManager(metaclass=MetaUserManager):
             self.session.pop(username, None)
             self.previous_digests_mapping.pop(username, None)
             await self.enqueue_activity(ActivityLog(user_concerned=username,
-                                                    severity=3,
+                                                    severity=Severity.ERROR,
                                                     log_details=f'Failed to refresh session: {e.__class__.__name__}',
                                                     log_category='user' if isinstance(e, UserAuthenticationError) else 'session'))
             if isinstance(e, UserAuthenticationError):
@@ -389,7 +389,7 @@ class UserManager(metaclass=MetaUserManager):
             return True
         except Exception as e:
             await self.enqueue_activity(ActivityLog(user_concerned=username,
-                                                    severity=3,
+                                                    severity=Severity.NON_CRITICAL_FAILURE,
                                                     log_details=f'Failed in check ban status: {e.__class__.__name__}',
                                                     log_category='database'))
             if reclaim_on_exc:
@@ -407,7 +407,7 @@ class UserManager(metaclass=MetaUserManager):
         try:
             if await self.check_banned(username, proxy):
                 await self.enqueue_activity(ActivityLog(user_concerned=username,
-                                                        severity=3,
+                                                        severity=Severity.NON_CRITICAL_FAILURE,
                                                         log_details=f'Duplicate ban attempt: {DatabaseFailure.__name__}',
                                                         log_category='user'))
                 return
@@ -419,7 +419,7 @@ class UserManager(metaclass=MetaUserManager):
                 await proxy.commit()
         except pg_errors.Error as e:
             await self.enqueue_activity(ActivityLog(user_concerned=username,
-                                                    severity=3,
+                                                    severity=Severity.CRITICAL_FAILURE,
                                                     log_details=f'Failed to ban user: {e.__name__}',
                                                     log_category='database'))
             
@@ -441,7 +441,7 @@ class UserManager(metaclass=MetaUserManager):
         try:
             if not await self.check_banned(username, proxy, lock_row=True):
                 await self.enqueue_activity(ActivityLog(user_concerned=username,
-                                                        severity=3,
+                                                        severity=Severity.NON_CRITICAL_FAILURE,
                                                         log_details=f'Duplicate unban attempt: {DatabaseFailure.__name__}',
                                                         log_category='user'))
                 return
@@ -469,4 +469,4 @@ class UserManager(metaclass=MetaUserManager):
 
     async def enqueue_activity(self, log: ActivityLog) -> None:
         log.logged_by = UserManager.LOG_ALIAS
-        await asyncio.wait_for(self._log_queue.put(log), timeout=10)
+        await asyncio.wait_for(self._log_queue.put(log), timeout=UserManager.LOG_TIMEOUT)
