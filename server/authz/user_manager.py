@@ -19,7 +19,7 @@ from psycopg.rows import Row
 
 from server.authz.singleton import MetaUserManager
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
-from server.database.models import ActivityLog, LogAuthor, Severity
+from server.database.models import ActivityLog, LogAuthor, Severity, LogType
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned, InvalidAuthData, OperationContested
 
 class SessionMetadata:
@@ -59,6 +59,14 @@ class SessionMetadata:
     def dict_repr(self) -> dict[str, Any]:
         return {'token' : self.token,
                 'refresh_digest' : self.refresh_digest,
+                'lifespan' : self.lifespan,
+                'valid_until' : self.valid_until,
+                'iteration' : self.iteration}
+    
+    @property
+    def json_repr(self) -> dict[str, Any]:
+        return {'token' : self.token.hex(),
+                'refresh_digest' : self.refresh_digest.hex(),
                 'lifespan' : self.lifespan,
                 'valid_until' : self.valid_until,
                 'iteration' : self.iteration}
@@ -115,7 +123,7 @@ class UserManager(metaclass=MetaUserManager):
     def verify_password_hash(password: str, password_hash: bytes, salt: bytes) -> bool:
         try:
             return compare_digest(
-                pbkdf2_hmac(UserManager.HASHING_ALGORITHM, password, salt, iterations=UserManager.PBKDF_ITERATIONS),
+                pbkdf2_hmac(UserManager.HASHING_ALGORITHM, password.encode('utf-8'), salt, iterations=UserManager.PBKDF_ITERATIONS),
                 password_hash)
         except:
             return False
@@ -150,7 +158,7 @@ class UserManager(metaclass=MetaUserManager):
             await self.enqueue_activity(ActivityLog(severity=Severity.ERROR,
                                                     log_details=f'Failed in digest comparison: {e.__class__.__name__}',
                                                     user_concerned=username,
-                                                    log_category='user'))
+                                                    log_category=LogType.USER.value))
             if raise_on_exc:
                 raise UserAuthenticationError('Invalid authentication token. Please login again')
 
@@ -165,26 +173,28 @@ class UserManager(metaclass=MetaUserManager):
                 raise Banned(username)
             
             async with proxy.cursor() as cursor:
-                await cursor.execute('''SELECT pw_hash, pw_salt
+                await cursor.execute('''SELECT password_hash, password_salt
                                      FROM users
                                      WHERE username = %s;''',
                                      (username,))
                 pw_data: tuple[memoryview, memoryview] = await cursor.fetchone()
         finally:
-            self.connection_master.reclaim_connection(proxy)
+            await self.connection_master.reclaim_connection(proxy)
 
         if not pw_data:
             raise UserAuthenticationError(f'No username with {username} exists')
+
+        print(compare_digest(pw_data[0], UserManager.generate_password_hash(password, pw_data[1])[0]))   
         if not UserManager.verify_password_hash(password, *pw_data):
             await self.enqueue_activity(ActivityLog(severity=Severity.ERROR,
                                                     log_details=f'Incorrect password: {UserAuthenticationError.__name__}',
                                                     user_concerned=username,
-                                                    log_category='user'))
+                                                    log_category=LogType.USER.value))
             
             raise UserAuthenticationError(f'Invalid password for user {username}')
                 
         # Set new session
-        auth_data: SessionMetadata = SessionMetadata(UserManager.generate_session_token(), UserManager.generate_session_refresh_digest())
+        auth_data: SessionMetadata = SessionMetadata(UserManager.generate_session_token(), UserManager.generate_session_refresh_digest(), lifespan=self.session_lifespan)
         self.session[username] = auth_data
 
         return auth_data
@@ -219,7 +229,7 @@ class UserManager(metaclass=MetaUserManager):
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)   # Action concerning account statuses have highest priority
         try:
             async with proxy.cursor() as cursor:
-                await cursor.execute('''SELECT pw_hash, pw_salt
+                await cursor.execute('''SELECT password_hash, password_salt
                                      FROM users
                                      WHERE users.username = %s
                                      FOR UPDATE NOWAIT READ;''',
@@ -249,7 +259,7 @@ class UserManager(metaclass=MetaUserManager):
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=3)
         try:
             async with proxy.cursor() as cursor:
-                await cursor.execute('''SELECT pw_hash, pw_salt
+                await cursor.execute('''SELECT password_hash, password_salt
                                         FROM users
                                         WHERE username = %s
                                         FOR UPDATE NOWAIT;''',
@@ -314,7 +324,7 @@ class UserManager(metaclass=MetaUserManager):
             self.enqueue_activity(ActivityLog(user_concerned=username,
                                               severity=Severity.ERROR,
                                               log_details=f'Failed in digest comparison: {e.__class__.__name__}',
-                                              log_category='user'))
+                                              log_category=LogType.USER.value))
             raise UserAuthenticationError('Failed to log out (Possibly corrupted token)')
 
     async def refresh_session(self, username: str, token: bytes, digest: bytes) -> tuple[bytes, int]:
@@ -341,7 +351,7 @@ class UserManager(metaclass=MetaUserManager):
             new_digest: bytes = UserManager.generate_session_refresh_digest()
             # Optimistic check
             self.session.pop(username, None)
-            set_pair: SessionMetadata = self.session.setdefault(username, SessionMetadata(token, new_digest))
+            set_pair: SessionMetadata = self.session.setdefault(username, SessionMetadata(token, new_digest, lifespan=self.session_lifespan))
             if not compare_digest(set_pair.refresh_digest, new_digest):
                 raise UserAuthenticationError('Failed to reauthenticate session due to repeated request')
             
@@ -359,7 +369,7 @@ class UserManager(metaclass=MetaUserManager):
             await self.enqueue_activity(ActivityLog(user_concerned=username,
                                                     severity=Severity.ERROR,
                                                     log_details=f'Failed to refresh session: {e.__class__.__name__}',
-                                                    log_category='user' if isinstance(e, UserAuthenticationError) else 'session'))
+                                                    log_category=LogType.USER.value if isinstance(e, UserAuthenticationError) else 'session'))
             if isinstance(e, UserAuthenticationError):
                 raise e
             # Generic handler for exceptions rising from hmac.compare_digest()
@@ -375,7 +385,8 @@ class UserManager(metaclass=MetaUserManager):
             proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
         query: str = '''SELECT username
                         FROM ban_logs
-                        WHERE username = %s AND lifted_at IS FALSE
+                        WHERE username = %s AND lifted_at IS NOT NULL and lifted_at < %s
+                        ORDER BY lifted_at DESC
                         LIMIT 1'''
         if lock_row:
             query += '\nFOR UPDATE NOWAIT'
@@ -383,7 +394,7 @@ class UserManager(metaclass=MetaUserManager):
         
         try:
             async with proxy.cursor() as cursor:
-                await cursor.execute(query, (username,))
+                await cursor.execute(query, (username, datetime.now()))
                 return bool(await cursor.fetchone())
         except pg_errors.LockNotAvailable:
             return True
@@ -391,7 +402,7 @@ class UserManager(metaclass=MetaUserManager):
             await self.enqueue_activity(ActivityLog(user_concerned=username,
                                                     severity=Severity.NON_CRITICAL_FAILURE,
                                                     log_details=f'Failed in check ban status: {e.__class__.__name__}',
-                                                    log_category='database'))
+                                                    log_category=LogType.DATABASE.value))
             if reclaim_on_exc:
                 self.connection_master.reclaim_connection(proxy)
             return True
@@ -409,7 +420,7 @@ class UserManager(metaclass=MetaUserManager):
                 await self.enqueue_activity(ActivityLog(user_concerned=username,
                                                         severity=Severity.NON_CRITICAL_FAILURE,
                                                         log_details=f'Duplicate ban attempt: {DatabaseFailure.__name__}',
-                                                        log_category='user'))
+                                                        log_category=LogType.USER.value))
                 return
             
             async with proxy.cursor() as cursor:
@@ -421,7 +432,7 @@ class UserManager(metaclass=MetaUserManager):
             await self.enqueue_activity(ActivityLog(user_concerned=username,
                                                     severity=Severity.CRITICAL_FAILURE,
                                                     log_details=f'Failed to ban user: {e.__name__}',
-                                                    log_category='database'))
+                                                    log_category=LogType.DATABASE.value))
             
             raise DatabaseFailure(f'Failed to ban user {username}')
         finally:
@@ -443,7 +454,7 @@ class UserManager(metaclass=MetaUserManager):
                 await self.enqueue_activity(ActivityLog(user_concerned=username,
                                                         severity=Severity.NON_CRITICAL_FAILURE,
                                                         log_details=f'Duplicate unban attempt: {DatabaseFailure.__name__}',
-                                                        log_category='user'))
+                                                        log_category=LogType.USER.value))
                 return
             async with proxy.cursor() as cursor:
                 await cursor.execute('''UPDATE ban_logs
