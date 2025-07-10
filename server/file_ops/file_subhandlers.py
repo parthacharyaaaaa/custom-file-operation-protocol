@@ -8,7 +8,7 @@ from models.response_models import ResponseHeader, ResponseBody
 from models.response_codes import SuccessFlags
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent
 
-from server.bootup import user_master, file_locks, delete_cache, read_cache, write_cache, append_cache
+from server.bootup import file_locks, delete_cache, read_cache, write_cache, append_cache, log_queue
 from server.config.server_config import SERVER_CONFIG
 from server.database.models import role_types, ActivityLog, LogAuthor, LogType, Severity
 from server.file_ops.base_operations import create_file, read_file, write_file, append_file, delete_file, acquire_file_lock
@@ -24,16 +24,13 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     if file_component.subject_file_owner != auth_component.identity:
         err_str: str = f'Missing permission to delete file {file_component.subject_file} owned by {file_component.subject_file_owner}'
         asyncio.create_task(
-            enqueue_log(
-                ActivityLog(
-                    logged_by=LogAuthor.FILE_HANDLER.value,
-                    log_category=LogType.PERMISSION.value,
-                    log_details=err_str,
-                    severity=Severity.TRACE.value,
-                    user_concerned=auth_component.identity
-                    )
-                )
-            )
+            enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
+                log=ActivityLog(logged_by=LogAuthor.FILE_HANDLER.value,
+                                log_category=LogType.PERMISSION.value,
+                                log_details=err_str,
+                                severity=Severity.TRACE.value,
+                                user_concerned=auth_component.identity)))
+        
         raise InsufficientPermissions(err_str)
     
     # Request validated. No need to acquire lock since owner's deletion request is more important than any concurrent file amendment locks
@@ -44,16 +41,13 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     if not file_deleted:
         err_str: str = f'Failed to delete file {file_component.subject_file}'
         asyncio.create_task(
-            enqueue_log(
-                ActivityLog(
-                    logged_by=LogAuthor.FILE_HANDLER.value,
-                    log_category=LogType.INTERNAL.value,
-                    log_details=err_str,
-                    severity=Severity.NON_CRITICAL_FAILURE.value,
-                    user_concerned=auth_component.identity
-                    )
-                )
-            )
+            enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
+                        log=ActivityLog(logged_by=LogAuthor.FILE_HANDLER.value,
+                                        log_category=LogType.INTERNAL.value,
+                                        log_details=err_str,
+                                        severity=Severity.NON_CRITICAL_FAILURE.value,
+                                        user_concerned=auth_component.identity)))
+        
         raise InsufficientPermissions(err_str)
     
     return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_DELETION.value, ended_connection=header_component.finish),
@@ -64,16 +58,13 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     if not check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner, grantee=auth_component.identity, check_for=role_types - ['reader']):
         err_str: str = f'User {auth_component.identity} does not have write permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
         asyncio.create_task(
-            enqueue_log(
-                ActivityLog(
-                    logged_by=LogAuthor.FILE_HANDLER.value,
-                    log_category=LogType.PERMISSION.value,
-                    log_details=err_str,
-                    severity=Severity.TRACE.value,
-                    user_concerned=auth_component.identity
-                    )
-                )
-            )
+            enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
+                        log=ActivityLog(logged_by=LogAuthor.FILE_HANDLER.value,
+                                        log_category=LogType.PERMISSION.value,
+                                        log_details=err_str,
+                                        severity=Severity.TRACE.value,
+                                        user_concerned=auth_component.identity)))
+        
         raise InsufficientPermissions(err_str)
     
     fpath: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
@@ -113,16 +104,12 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
     if not check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner, grantee=auth_component.identity, check_for=role_types):
         err_str: str = f'User {auth_component.identity} does not have read permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
         asyncio.create_task(
-            enqueue_log(
-                ActivityLog(
-                    logged_by=LogAuthor.FILE_HANDLER.value,
-                    log_category=LogType.PERMISSION.value,
-                    log_details=err_str,
-                    severity=Severity.TRACE.value,
-                    user_concerned=auth_component.identity
-                    )
-                )
-            )
+            enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
+                        log=ActivityLog(logged_by=LogAuthor.FILE_HANDLER.value,
+                                        log_category=LogType.PERMISSION.value,log_details=err_str,
+                                        severity=Severity.TRACE.value,
+                                        user_concerned=auth_component.identity)))
+        
         raise InsufficientPermissions(err_str)
     
     fpath: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
@@ -139,32 +126,24 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
 async def handle_creation(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, None]:
     if file_component.subject_file_owner != auth_component.identity:
         asyncio.create_task(
-            enqueue_log(
-                ActivityLog(
-                    logged_by=LogAuthor.FILE_HANDLER.value,
-                    log_category=LogType.PERMISSION.value,
-                    log_details=f'User {auth_component.identity} attempted to cretae files in /{file_component.subject_file_owner}',
-                    severity=Severity.TRACE.value
-                    )
-                )
-            )
+            enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
+                        log=ActivityLog(logged_by=LogAuthor.FILE_HANDLER.value,
+                                        log_category=LogType.PERMISSION.value,
+                                        log_details=f'User {auth_component.identity} attempted to cretae files in /{file_component.subject_file_owner}',
+                                        severity=Severity.TRACE.value)))
+        
         raise InvalidFileData(f'As user {auth_component.identity}, you only have permission to create new files in your own directory and not /{file_component.subject_file_owner}')
     
     fpath, epoch = await create_file(root=SERVER_CONFIG.root_directory, owner=auth_component.identity, filename=file_component.subject_file)
     if not fpath:
-        err_str: str = f'Failed to create file {fpath}'
-        asyncio.create_task(
-            enqueue_log(
-                ActivityLog(
-                    logged_by=LogAuthor.FILE_HANDLER.value,
-                    log_category=LogType.INTERNAL.value,
-                    log_details=err_str,
-                    severity=Severity.TRACE.value,
-                    user_concerned=auth_component.identity
-                    )
-                )
-            )
-        raise FileConflict(err_str)
+        asyncio.create_task(enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
+                                        log=ActivityLog(logged_by=LogAuthor.FILE_HANDLER.value,
+                                                        log_category=LogType.INTERNAL.value,
+                                                        log_details=f'Failed to create file {fpath}',
+                                                        severity=Severity.TRACE.value,
+                                                        user_concerned=auth_component.identity)))
+        
+        raise FileConflict(file_component.subject_file, username=auth_component.identity)
     
-    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_CREATION, ended_connection=header_component.finish),
-            ResponseBody(return_partial=False, keepalive_accepted=False, contents=orjson.dumps({'path' : fpath, 'iso_epoch' : datetime.fromtimestamp(epoch).isoformat()})))
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_CREATION.value, ended_connection=header_component.finish, config=SERVER_CONFIG),
+            ResponseBody(return_partial=False, keepalive_accepted=False, contents={'path' : fpath, 'iso_epoch' : datetime.fromtimestamp(epoch).isoformat()}))

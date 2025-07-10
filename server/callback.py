@@ -1,5 +1,4 @@
 import asyncio
-import orjson
 from typing import Optional, Any, Coroutine, Callable
 from traceback import format_exc, format_exception_only
 
@@ -8,6 +7,7 @@ from models.request_model import BaseHeaderComponent
 from models.response_models import ResponseHeader, ResponseBody
 from models.constants import REQUEST_CONSTANTS
 
+from server.bootup import log_queue
 from server.comms_utils.incoming import process_component
 from server.comms_utils.outgoing import send_response
 from server.config.server_config import SERVER_CONFIG
@@ -56,15 +56,12 @@ async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -
             # Log uncaught exceptions
             if is_caught:
                 asyncio.create_task(
-                    enqueue_log(
-                        ActivityLog(
-                            severity=Severity.CRITICAL_FAILURE.value,
-                            log_category=LogType.INTERNAL.value,
-                            logged_by=LogAuthor.EXCEPTION_FALLBACK.value,
-                            log_details=format_exception_only(e)[0]
-                        )
-                    )
-                )
+                    enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
+                                log=ActivityLog(severity=Severity.CRITICAL_FAILURE.value,
+                                                log_category=LogType.INTERNAL.value,
+                                                logged_by=LogAuthor.EXCEPTION_FALLBACK.value,
+                                                log_details=format_exception_only(e)[0])))
+                
             await send_response(writer=writer, header=response)
             if connection_end:
                 writer.write_eof()
