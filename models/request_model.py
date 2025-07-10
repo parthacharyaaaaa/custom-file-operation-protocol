@@ -9,7 +9,7 @@ RequestComponentType: TypeAlias = Union['BaseHeaderComponent', 'BaseAuthComponen
 class BaseAuthComponent(BaseModel):
     identity: Annotated[str, Field(min_length=REQUEST_CONSTANTS.auth.username_range[0], max_length=REQUEST_CONSTANTS.auth.username_range[1], pattern=REQUEST_CONSTANTS.auth.username_regex)]
     password: Annotated[Optional[str], Field(min_length=REQUEST_CONSTANTS.auth.password_range[0], max_length=REQUEST_CONSTANTS.auth.password_range[1], default=None)]
-    token: Annotated[Optional[str], Field(min_length=16, max_length=1024, default=None)]
+    token: Annotated[Optional[str], Field(min_length=REQUEST_CONSTANTS.auth.token_length, max_length=REQUEST_CONSTANTS.auth.token_length, default=None)]
     refresh_digest: Annotated[Optional[str], Field(min_length=REQUEST_CONSTANTS.auth.digest_length, max_length=REQUEST_CONSTANTS.auth.digest_length, frozen=True, default=None)]
 
     @model_validator(mode='after')
@@ -34,23 +34,14 @@ class BaseFileComponent(BaseModel):
     subject_file_owner: Annotated[str, Field(max_length=1024)]
 
     # Sequencing logic
-    cursor_position: Annotated[int, Field(ge=0, frozen=True)]
-    chunk_number: Optional[Annotated[int, Field(ge=0, frozen=True, default=None)]]  # Chunk numbering is 0 indexed
+    cursor_position: Annotated[Optional[int], Field(ge=0, frozen=True, default=None)]
+    chunk_number: Annotated[Optional[int], Field(ge=0, frozen=True, default=None)]  # Chunk numbering is 0 indexed
     chunk_size: Annotated[Optional[int], Field(ge=1, le=REQUEST_CONSTANTS.file.chunk_max_size, default=None)]  # For read operations. If specified, must be atleast 1 byte
     write_data: Annotated[Optional[str], Field(min_length=1, max_length=REQUEST_CONSTANTS.file.chunk_max_size, frozen=True, default=None)]    # For write operations, must be atleast 1 character if specified
     
     # Attributes exclusive to file reads
     return_partial: Annotated[Optional[bool], Field(default=True)]
     cursor_keepalive: Annotated[Optional[bool], Field(default=False)]
-
-    @model_validator(mode='after')
-    def file_op_semantic_check(self) -> 'BaseFileComponent':
-        if not (self.chunk_size or self.write_data):
-            raise ValidationError('Missing any operational data')
-        
-        if not (self.cursor_position > self.chunk_number):
-            raise ValueError('Invalid sequencing logic for reading chunks')
-        return self
 
 class BasePermissionComponent(BaseModel):
     # Request subjects
