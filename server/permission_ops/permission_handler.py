@@ -10,7 +10,7 @@ from server.bootup import user_master
 from server.comms_utils.incoming import process_component
 from server.config.server_config import SERVER_CONFIG
 from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, SlowStreamRate, UnsupportedOperation
-from server.permission_ops.permission_operations import grant_permission, revoke_permission, hide_file, publicise_file, transfer_ownership
+from server.permission_ops.permission_subhandlers import grant_permission, revoke_permission, hide_file, publicise_file, transfer_ownership
 
 import orjson
 from pydantic import ValidationError
@@ -22,12 +22,11 @@ PERMISSION_SUBHABDLER: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthCompon
 _PERMISSION_SUBHANDLER_MAPPING: MappingProxyType[int, PERMISSION_SUBHABDLER] = MappingProxyType(
     dict(
         zip(
-            PermissionFlags._member_names_[:-3],
+            list(PermissionFlags._member_map_.values())[:5],
             [grant_permission, revoke_permission, hide_file, publicise_file, transfer_ownership]
         )
     )
 )
-
 
 async def top_permission_handler(reader: asyncio.StreamReader, header_component: BaseHeaderComponent) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     # Permission operations require authentication
