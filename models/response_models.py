@@ -1,5 +1,4 @@
 '''Module for defining schema of outgoing responses'''
-from datetime import datetime
 from time import time
 from typing import Annotated, Optional, Union
 
@@ -22,7 +21,7 @@ class ResponseHeader(BaseModel):
     # Responder metadata
     responder_hostname: Annotated[IPvAnyAddress, Field(frozen=True)]
     responder_port: Annotated[int, Field(frozen=True)]
-    responder_timestamp: Annotated[float, Field(frozen=True, default_factory=datetime.now)]
+    responder_timestamp: Annotated[float, Field(frozen=True, default_factory=time)]
 
     # Response contents
     body_size: Annotated[int, Field(frozen=True, default=0)]
