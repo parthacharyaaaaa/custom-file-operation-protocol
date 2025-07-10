@@ -1,6 +1,6 @@
 '''Module for defining schema of outgoing responses'''
 from time import time
-from typing import Annotated, Optional, Union
+from typing import Annotated, Optional, Any
 
 from server.errors import ProtocolException
 
@@ -86,7 +86,7 @@ class ResponseHeader(BaseModel):
         return self.model_dump_json().encode('utf-8')
 
 class ResponseBody(BaseModel):
-    contents: Union[bytes, str]
+    contents: dict[str, Any]
 
     chunk_number: Annotated[Optional[int], Field(ge=0, frozen=True, default=None)]
     return_partial: Annotated[Optional[bool], Field(default=True)]
