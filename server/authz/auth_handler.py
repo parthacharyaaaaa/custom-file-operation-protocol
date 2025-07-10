@@ -6,6 +6,7 @@ from models.request_model import BaseHeaderComponent, BaseAuthComponent
 
 from server.authz.auth_operations import handle_registration, handle_login, handle_session_refresh, handle_password_change, handle_deletion, handle_session_termination
 from server.comms_utils.incoming import process_component
+from server.config.server_config import SERVER_CONFIG
 from server.errors import InvalidAuthSemantic, UnsupportedOperation
 
 from typing import Optional, Coroutine, Any, Callable, TypeAlias
@@ -27,7 +28,7 @@ async def top_auth_handler(reader: asyncio.StreamReader, header_component: BaseH
     if not header_component.auth_size:
         raise InvalidAuthSemantic('Missing auth component in header, and no unauthenticated operation requested')
 
-    auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size, reader=reader, component_type='auth')
+    auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size, reader=reader, component_type='auth', timeout=SERVER_CONFIG.read_timeout)
 
     if header_component.subcategory not in AuthFlags._value2member_map_:    # R level function name, absolutely vile.
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.AUTH._name_}')

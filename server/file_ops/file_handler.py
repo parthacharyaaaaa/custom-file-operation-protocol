@@ -8,6 +8,7 @@ from models.response_models import ResponseHeader, ResponseBody
 
 from server.bootup import user_master
 from server.comms_utils.incoming import process_component
+from server.config.server_config import SERVER_CONFIG
 from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, SlowStreamRate, UnsupportedOperation
 from server.file_ops.file_subhandlers import handle_read, handle_amendment, handle_deletion, handle_creation
 
@@ -34,7 +35,7 @@ async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseH
         raise InvalidHeaderSemantic('Headers for permission operations require BOTH auth component and permission (body) component')
 
     try:
-        auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size, reader=reader, component_type='auth')
+        auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size, reader=reader, component_type='auth', timeout=SERVER_CONFIG.read_timeout)
     except asyncio.TimeoutError:
         raise SlowStreamRate
     except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
@@ -48,8 +49,8 @@ async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseH
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.FILE_OP._name_}')
     
     # All checks at the component level passed, read and process file component
-    file_component: BaseFileComponent = await process_component(n_bytes=header_component.body_size, reader=reader, component_type='file')
-    subhandler = _FILE_SUBHANDLER_MAPPING[header_component.subcategory]
+    file_component: BaseFileComponent = await process_component(n_bytes=header_component.body_size, reader=reader, component_type='file', timeout=SERVER_CONFIG.read_timeout)
+    subhandler = _FILE_SUBHANDLER_MAPPING[header_component.subcategory], 
     header, body = await subhandler(header_component, auth_component, file_component)
 
     return header, body
