@@ -109,7 +109,7 @@ class UserManager(metaclass=MetaUserManager):
         password = password.strip()
         if not salt:
             salt: bytes = os.urandom(UserManager.SALT_LENGTH)
-        return pbkdf2_hmac(UserManager.HASHING_ALGORITHM, password, salt, iterations=UserManager.PBKDF_ITERATIONS), salt
+        return pbkdf2_hmac(UserManager.HASHING_ALGORITHM, password.encode('utf-8'), salt, iterations=UserManager.PBKDF_ITERATIONS), salt
     
     @staticmethod
     def verify_password_hash(password: str, password_hash: bytes, salt: bytes) -> bool:
@@ -207,7 +207,7 @@ class UserManager(metaclass=MetaUserManager):
                                      (username, pw_hash, pw_salt,))
                 await proxy.commit()
         finally:
-            await self.connection_master.reclaim_connection(proxy._conn)    # Always return leased connection to connection master
+            await self.connection_master.reclaim_connection(proxy)    # Always return leased connection to connection master
 
         if make_dir:
             os.makedirs(os.path.join(root, username))
