@@ -22,12 +22,11 @@ FILE_SUBHANDLERS: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent, 
 _FILE_SUBHANDLER_MAPPING: MappingProxyType[int, FILE_SUBHANDLERS] = MappingProxyType(
     dict(
         zip(
-            FileFlags._member_names_,
+            FileFlags._member_map_.values(),
             [handle_creation, handle_read, handle_amendment, handle_amendment, handle_deletion]
         )
     )
 )
-
 
 async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseHeaderComponent) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     # File operations require authentication

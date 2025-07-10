@@ -13,7 +13,7 @@ from server.database.models import role_types
 from server.file_ops.base_operations import create_file, read_file, write_file, append_file, delete_file, acquire_file_lock
 from server.file_ops.cache_ops import get_reader
 from server.errors import InsufficientPermissions, FileConflict, FileContested, InvalidFileData
-from server.permission_ops.permission_operations import check_file_permission
+from server.permission_ops.permission_subhandlers import check_file_permission
 
 import orjson
 
