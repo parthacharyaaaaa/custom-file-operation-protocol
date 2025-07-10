@@ -13,6 +13,12 @@ LOG_INSERTION_SQL: sql.SQL = (sql.SQL('''INSERT INTO {tablename} ({columns_templ
                                                 columns_template=sql.SQL(', ').join([sql.Identifier(key) for key in list(ActivityLog.model_fields.keys())]),
                                                 placeholder_template=sql.SQL(', ').join([sql.Placeholder() for _ in range(len(ActivityLog.model_fields))])))
 
+async def enqueue_log(log: ActivityLog, queue: asyncio.PriorityQueue[ActivityLog], waiting_period: float = None) -> None:
+    try:
+        await asyncio.wait_for(queue.put(log), timeout=waiting_period)
+    except asyncio.TimeoutError:
+        return
+    
 async def flush_logs(connection_master: ConnectionPoolManager, queue: asyncio.PriorityQueue[ActivityLog], batch_size: int, waiting_period: float, flush_interval: float) -> None:
     log_entries: list[ActivityLog] = []
     while True:
