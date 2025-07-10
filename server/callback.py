@@ -1,7 +1,7 @@
 import asyncio
 import orjson
 from typing import Optional, Any, Coroutine, Callable
-from traceback import format_exc
+from traceback import format_exc, format_exception_only
 
 from models.flags import CategoryFlag
 from models.request_model import BaseHeaderComponent
@@ -11,8 +11,10 @@ from models.constants import REQUEST_CONSTANTS
 from server.comms_utils.incoming import process_component
 from server.comms_utils.outgoing import send_response
 from server.config.server_config import SERVER_CONFIG
+from server.database.models import ActivityLog, LogAuthor, LogType, Severity
 from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
 from server.errors import ProtocolException, UnsupportedOperation, InternalServerError, SlowStreamRate
+from server.logging import enqueue_log
 
 async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     while not reader.at_eof():
@@ -45,11 +47,23 @@ async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -
         except Exception as e:
             print(format_exc())
             connection_end: bool = False if not header_component else header_component.finish
-            response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=e if isinstance(e, ProtocolException) else InternalServerError,
+            is_uncaught: bool = isinstance(e, ProtocolException)
+            response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=InternalServerError if is_uncaught else e,
                                                                             version=config.version if not header_component else header_component.version,
                                                                             end_conn=connection_end,
                                                                             host=str(SERVER_CONFIG.host),
                                                                             port=SERVER_CONFIG.port)
+            # Log uncaught exceptions
+            asyncio.create_task(
+                enqueue_log(
+                    ActivityLog(
+                        severity=Severity.CRITICAL_FAILURE.value,
+                        log_category=LogType.INTERNAL.value,
+                        logged_by=LogAuthor.EXCEPTION_FALLBACK.value,
+                        log_details=format_exception_only(e)[0]
+                    )
+                )
+            )
             await send_response(writer=writer, header=response)
             if connection_end:
                 writer.write_eof()
