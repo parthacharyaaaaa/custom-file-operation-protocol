@@ -35,6 +35,7 @@ class LogAuthor(Enum):
     STREAM_PARSER       = 'stream_parser'
     ADMIN               = 'admin'
     CRONJOB             = 'cronjob'
+    EXCEPTION_FALLBACK  = 'exception_fallbacl'
 
 
 class ActivityLog(BaseModel):
