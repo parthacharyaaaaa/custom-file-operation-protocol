@@ -8,10 +8,10 @@ from psycopg.conninfo import make_conninfo
 
 async def main() -> None:
     await init_connection_master(conninfo=make_conninfo(user=os.environ['PG_USERNAME'], password=os.environ['PG_PASSWORD'], host=os.environ['PG_HOST'], port=os.environ['PG_PORT'], dbname=os.environ['PG_DBNAME']))
+    init_logger()
     init_user_master()
     init_file_lock()
     init_caches()
-    init_logger()
     from server.callback import callback    # TEMPFIX: Imports callback after all global singletons are initialized to avoid referencing None at runtime
 
     server: asyncio.Server = await asyncio.start_server(client_connected_cb=callback,
