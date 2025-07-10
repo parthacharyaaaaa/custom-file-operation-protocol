@@ -9,8 +9,8 @@ RequestComponentType: TypeAlias = Union['BaseHeaderComponent', 'BaseAuthComponen
 class BaseAuthComponent(BaseModel):
     identity: Annotated[str, Field(min_length=REQUEST_CONSTANTS.auth.username_range[0], max_length=REQUEST_CONSTANTS.auth.username_range[1], pattern=REQUEST_CONSTANTS.auth.username_regex)]
     password: Annotated[Optional[str], Field(min_length=REQUEST_CONSTANTS.auth.password_range[0], max_length=REQUEST_CONSTANTS.auth.password_range[1], default=None)]
-    token: Annotated[Optional[str], Field(min_length=REQUEST_CONSTANTS.auth.token_length, max_length=REQUEST_CONSTANTS.auth.token_length, default=None)]
-    refresh_digest: Annotated[Optional[str], Field(min_length=REQUEST_CONSTANTS.auth.digest_length, max_length=REQUEST_CONSTANTS.auth.digest_length, frozen=True, default=None)]
+    token: Annotated[Optional[bytes], Field(min_length=REQUEST_CONSTANTS.auth.token_length, max_length=REQUEST_CONSTANTS.auth.token_length, default=None)]
+    refresh_digest: Annotated[Optional[bytes], Field(min_length=REQUEST_CONSTANTS.auth.digest_length, max_length=REQUEST_CONSTANTS.auth.digest_length, frozen=True, default=None)]
 
     @model_validator(mode='after')
     def auth_semantic_check(self) -> 'BaseAuthComponent':
