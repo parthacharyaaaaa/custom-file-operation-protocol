@@ -4,7 +4,7 @@ from models.flags import AuthFlags, CategoryFlag
 from models.response_models import ResponseHeader, ResponseBody
 from models.request_model import BaseHeaderComponent, BaseAuthComponent
 
-from server.authz.auth_operations import handle_registration, handle_login, handle_session_refresh, handle_password_change, handle_deletion, handle_session_termination
+from server.authz.auth_subhandlers import handle_registration, handle_login, handle_session_refresh, handle_password_change, handle_deletion, handle_session_termination
 from server.comms_utils.incoming import process_component
 from server.config.server_config import SERVER_CONFIG
 from server.errors import InvalidAuthSemantic, UnsupportedOperation
@@ -18,7 +18,7 @@ AUTH_SUBHABDLER: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent],
 _AUTH_SUBHANDLER_MAPPING: MappingProxyType[int, AUTH_SUBHABDLER] = MappingProxyType(
     dict(
         zip(
-            AuthFlags._member_names_,
+            AuthFlags._member_map_.values(),
             [handle_registration, handle_login, handle_session_refresh, handle_password_change, handle_deletion, handle_session_termination]
         )
     )
