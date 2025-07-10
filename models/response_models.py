@@ -21,10 +21,10 @@ class ResponseHeader(BaseModel):
     # Responder metadata
     responder_hostname: Annotated[IPvAnyAddress, Field(frozen=True)]
     responder_port: Annotated[int, Field(frozen=True)]
-    responder_timestamp: Annotated[float, Field(frozen=True, default_factory=time)]
+    responder_timestamp: Annotated[float, Field(default_factory=time)]
 
     # Response contents
-    body_size: Annotated[int, Field(frozen=True, default=0)]
+    body_size: Annotated[int, Field(default=0)]
     
     # Connection status
     ended_connection: Annotated[bool, Field(default=False)]
@@ -88,13 +88,11 @@ class ResponseHeader(BaseModel):
 class ResponseBody(BaseModel):
     contents: Union[bytes, str]
 
-    chunk_number: Optional[Annotated[int, Field(ge=0, frozen=True, default=None)]]
-    return_partial: Optional[Annotated[bool, Field(default=True)]]
-    cursor_position: Optional[Annotated[int, Field(le=0, default=0, frozen=True)]]
-
+    chunk_number: Annotated[Optional[int], Field(ge=0, frozen=True, default=None)]
+    return_partial: Annotated[Optional[bool], Field(default=True)]
+    cursor_position: Annotated[Optional[int], Field(le=0, default=0, frozen=True)]
+    cursor_keepalive_accepted: Annotated[bool, Field(default=False)]
     
-    keepalive_accepted: Optional[bool]
-
     
     def as_bytes(self) -> bytes:
         return self.model_dump_json().encode('utf-8')
