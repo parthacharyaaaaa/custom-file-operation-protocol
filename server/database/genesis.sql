@@ -46,7 +46,6 @@ CREATE TABLE IF NOT EXISTS FILE_PERMISSIONS(
 
     PRIMARY KEY (file_owner, filename, grantee),
     FOREIGN KEY (file_owner, filename) REFERENCES FILE(owner, filename),
-    CONSTRAINT check_ownership_consistency CHECK (role <> 'owner'),
     CONSTRAINT check_granter_consistency CHECK (granted_by <> grantee)
 );
 
@@ -79,7 +78,7 @@ CREATE TABLE IF NOT EXISTS ACTIVITY_LOGS(
     CONSTRAINT check_activity_log_severity CHECK(severity BETWEEN 1 AND 5)
 );
 
-CREATE INDEX ix_activity_logs_type ON ACTIVITY_LOGS(log_data);
+CREATE INDEX ix_activity_logs_type ON ACTIVITY_LOGS(log_category);
 CREATE INDEX ix_activity_logs_logger ON ACTIVITY_LOGS(logged_by);
 CREATE INDEX ix_activity_logs_host ON ACTIVITY_LOGS(host_concerned);
 CREATE INDEX ix_activity_logs_severity ON ACTIVITY_LOGS(severity);
