@@ -16,20 +16,22 @@ from server.errors import FileNotFound, InternalServerError
 from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries, rename_file_entries
 
 
-async def acquire_file_lock(filename: str, requestor: str, ttl: Optional[int] = None, max_attempts: Optional[int] = None) -> Literal[True]:
+async def acquire_file_lock(filename: str, requestor: str, ttl: Optional[int] = None, max_attempts: Optional[int] = inf) -> Literal[True]:
     '''Indefinitely start a coroutine to wait for a lock on a file to be acquired. It is best to use this with `asyncio.wait_for` to prevent the caller from being stalled indefinitely.  
     '''
     
     global file_locks
     ttl = min(SERVER_CONFIG.file_lock_ttl, (ttl or SERVER_CONFIG.file_lock_ttl))
     holder_checksum = adler32(requestor.encode('utf-8'))
+    attempt: int = 0
 
-    for attempt in range(max_attempts or inf):
+    while attempt < max_attempts:
         lock_checksum = file_locks.setdefault(filename, holder_checksum)
         if not lock_checksum:
             raise FileNotFound(f'File {filename} deleted') 
         if lock_checksum == holder_checksum:
             return True
+        attempt += 1
         asyncio.sleep(0.1)
 
 async def preemptive_eof_check(reader: AsyncBufferedReader) -> bool:
