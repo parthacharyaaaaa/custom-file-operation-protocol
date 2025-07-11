@@ -69,11 +69,11 @@ class ResponseHeader(BaseModel):
         return self.model_dump_json().encode('utf-8')
 
 class ResponseBody(BaseModel):
-    contents: dict[str, Any]
+    contents: Annotated[Optional[dict[str, Any]], Field(default=None)]
 
     chunk_number: Annotated[Optional[int], Field(ge=0, frozen=True, default=None)]
     return_partial: Annotated[Optional[bool], Field(default=True)]
-    cursor_position: Annotated[Optional[int], Field(le=0, default=0, frozen=True)]
+    cursor_position: Annotated[Optional[int], Field(ge=0, default=0, frozen=True)]
     cursor_keepalive_accepted: Annotated[bool, Field(default=False)]
     
     
