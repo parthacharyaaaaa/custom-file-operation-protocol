@@ -2,7 +2,8 @@ import asyncio
 from datetime import datetime
 import orjson
 import os
-from typing import Any, Optional, Literal, Sequence
+import time
+from typing import Any, Optional, Literal
 from traceback import format_exception_only
 
 from models.flags import PermissionFlags
@@ -11,34 +12,39 @@ from models.response_codes import SuccessFlags
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent
 
 import psycopg.errors as pg_exc
-from psycopg.rows import Row, dict_row
+from psycopg.rows import dict_row
 
 from server.bootup import connection_master
 from server.bootup import read_cache, write_cache, append_cache, delete_cache, log_queue
 from server.config.server_config import SERVER_CONFIG
 from server.connectionpool import ConnectionProxy
-from server.database.models import role_types, ActivityLog, LogType, LogAuthor, Severity
+from server.database.models import FilePermissions, ActivityLog, LogType, LogAuthor, Severity, RoleTypes
 from server.errors import OperationContested, DatabaseFailure, FileNotFound, FileConflict, InsufficientPermissions, OperationalConflict
 from server.file_ops.base_operations import transfer_file
+from server.permission_ops import ROLE_MAPPING
 from server.logging import enqueue_log
 
-async def check_file_permission(filename: str, owner: str, grantee: str, check_for: Sequence[role_types], proxy: Optional[ConnectionProxy] = None, level: Optional[Literal[1,2,3]] = 1) -> bool:
+async def check_file_permission(filename: str, owner: str, grantee: str, check_for: FilePermissions, proxy: Optional[ConnectionProxy] = None, level: Optional[Literal[1,2,3]] = 1, check_until: Optional[datetime] = None) -> bool:
     reclaim_after: bool = proxy is None
     if not proxy:
         proxy: ConnectionProxy = await connection_master.request_connection(level=level)
     try:
         async with proxy.cursor(row_factory=dict_row) as cursor:
-            await cursor.execute(''''SELECT role
-                                 FROM file_permissions
-                                 WHERE file_owner = %s AND filename = %s AND grantee = %s AND granted_until > %s;''',
-                                 (owner, filename, grantee, datetime.now(),))
-            role_mapping: dict[str, role_types] = await cursor.fetchone()
-            if not role_mapping:
-                return False
-            return role_mapping['role'] in check_for
+            await cursor.execute('''SELECT roles.permission
+                                 FROM file_permissions fp
+                                 INNER JOIN roles
+                                 ON roles.role = fp.role
+                                 WHERE fp.file_owner = %s AND fp.filename = %s AND fp.grantee = %s AND (fp.granted_until > %s OR fp.granted_until IS NULL)
+                                 AND roles.permission = %s;''',
+                                 (owner, filename, grantee, check_until or datetime.now(), check_for,))
+            role_mapping: dict[str, FilePermissions] = await cursor.fetchone()
     finally:
         if reclaim_after:
             await connection_master.reclaim_connection(proxy)
+    
+    if not role_mapping:
+        return False
+    return True
 
 async def publicise_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, None]:
     proxy: ConnectionProxy = connection_master.request_connection(level=1)
@@ -122,13 +128,13 @@ async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseA
     return ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_HIDE.value, ended_connection=header_component.finish), ResponseBody(contents=orjson.dumps({'revoked_grantee_info' : revoked_grantees}))
 
 async def grant_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, None]:
-    allowed_roles: list[role_types] = ['manager', 'owner']
+    allowed_permission: FilePermissions = FilePermissions.MANAGE_RW
     if (permission_component.permission_flags & PermissionFlags.MANAGER.value): # If request is to grant manager role to a user, then only the owner of this file is allowed
-        allowed_roles.remove('manager')
+        allowed_permission = FilePermissions.MANAGE_SUPER
     
     proxy: ConnectionProxy = await connection_master.request_connection(level=2)
     try:
-        if not await check_file_permission(permission_component.subject_file, permission_component.subject_file_owner, permission_component.subject_user, check_for=allowed_roles, proxy=proxy):
+        if not await check_file_permission(permission_component.subject_file, permission_component.subject_file_owner, permission_component.subject_user, check_for=allowed_permission.value, check_until=datetime.fromtimestamp(header_component.sender_timestamp) , proxy=proxy):
             raise InsufficientPermissions
         
         async with proxy.cursor(row_factory=dict_row) as cursor:
@@ -139,9 +145,12 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
                                  (permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user, datetime.now()))
             
             permission_mapping: dict[str, str] = await cursor.fetchone()
-            requested_role: role_types = PermissionFlags._value2member_map_[permission_component.permission_flags & 0b11100000] # Most significant 3 bits reserved for role
+            # Extract the grantee's role
+            requested_role: RoleTypes = ROLE_MAPPING[PermissionFlags._value2member_map_[permission_component.permission_flags & PermissionFlags.ROLE_EXTRACTION_BITMASK.value]]
+
+            granted_until: datetime = None if not permission_component.effect_duration else datetime.fromtimestamp(time.time() + permission_component.effect_duration)
             if permission_mapping:
-                if requested_role == permission_mapping['role']:
+                if requested_role.value == permission_mapping['role']:
                     raise OperationalConflict(f'User {permission_component.subject_user} already has permission {requested_role} on file {permission_component.subject_file} owned by {permission_component.subject_file_owner}')
                 
                 # Overriding a role must require new granter to have same or higher permissions than previous granter.
@@ -149,11 +158,18 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
                 # However, if file owner is the granter, then only the owner themselves are allowed   
                 elif (permission_mapping['granted_by'] == permission_component.subject_file_owner) and (auth_component.identity != permission_component.subject_file_owner):
                     raise InsufficientPermissions(f'Insufficient permission to override role of user {permission_component.subject_user} on file {permission_component.subject_file} owned by {permission_component.subject_file_owner} (role previosuly granted by {permission_component["granted_by"]})')
-            await cursor.execute('''UPDATE file_permissions
-                                 SET role = %s, granted_at = %s, granted_by = %s, granted_until = %s,
-                                 WHERE file_owner = %s AND filename = %s AND grantee = %s''',
-                                 (requested_role, datetime.now(), auth_component.identity, permission_component.effect_duration,
-                                  permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user,))
+                await cursor.execute('''UPDATE file_permissions
+                                    SET role = %s, granted_at = %s, granted_by = %s, granted_until = %s,
+                                    WHERE file_owner = %s AND filename = %s AND grantee = %s''',
+                                    (requested_role, datetime.now(), auth_component.identity, granted_until,
+                                    permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user,))
+            else:
+                # Adding a new role
+                await cursor.execute('''INSERT INTO file_permissions (file_owner, filename, grantee, role, granted_at, granted_by, granted_until)
+                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s);''',
+                                     (permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user,
+                                      datetime.fromtimestamp(header_component.sender_timestamp), auth_component.identity, granted_until))
+        
         await proxy.commit()
     except pg_exc.LockNotAvailable:
         raise OperationContested
@@ -172,13 +188,14 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
     return ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_GRANT, ended_connection=header_component.finish), None
 
 async def revoke_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, ResponseBody]:
-    allowed_roles: list[role_types] = ['manager', 'owner']
+    allowed_permission: FilePermissions = FilePermissions.MANAGE_RW
     if (permission_component.permission_flags & PermissionFlags.MANAGER.value): # If request is to revoke a user's manager role, then only the owner of this file is allowed
-        allowed_roles.remove('manager')
+        allowed_permission = FilePermissions.MANAGE_SUPER
     
     proxy: ConnectionProxy = await connection_master.request_connection(level=2)
     try:
-        if not await check_file_permission(permission_component.subject_file, permission_component.subject_file_owner, permission_component.subject_user, check_for=allowed_roles, proxy=proxy):
+        if not await check_file_permission(permission_component.subject_file, permission_component.subject_file_owner, permission_component.subject_user,
+                                           check_for=allowed_permission, check_until=datetime.fromtimestamp(header_component.sender_timestamp) , proxy=proxy):
             raise InsufficientPermissions
         
         async with proxy.cursor(row_factory=dict_row) as cursor:

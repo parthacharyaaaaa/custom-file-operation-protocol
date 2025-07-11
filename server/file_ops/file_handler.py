@@ -49,7 +49,7 @@ async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseH
     
     # All checks at the component level passed, read and process file component
     file_component: BaseFileComponent = await process_component(n_bytes=header_component.body_size, reader=reader, component_type='file', timeout=SERVER_CONFIG.read_timeout)
-    subhandler = _FILE_SUBHANDLER_MAPPING[header_component.subcategory], 
+    subhandler = _FILE_SUBHANDLER_MAPPING[header_component.subcategory]
     header, body = await subhandler(header_component, auth_component, file_component)
 
     return header, body

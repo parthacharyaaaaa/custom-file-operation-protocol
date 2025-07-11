@@ -8,9 +8,10 @@ from models.response_models import ResponseHeader, ResponseBody
 from models.response_codes import SuccessFlags
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent
 
-from server.bootup import file_locks, delete_cache, read_cache, write_cache, append_cache, log_queue
+from server.bootup import file_locks, delete_cache, read_cache, write_cache, append_cache, log_queue, connection_master
 from server.config.server_config import SERVER_CONFIG
-from server.database.models import role_types, ActivityLog, LogAuthor, LogType, Severity
+from server.connectionpool import ConnectionProxy
+from server.database.models import FilePermissions, ActivityLog, LogAuthor, LogType, Severity, RoleTypes
 from server.file_ops.base_operations import create_file, read_file, write_file, append_file, delete_file, acquire_file_lock
 from server.file_ops.cache_ops import get_reader
 from server.errors import InsufficientPermissions, FileConflict, FileContested, InvalidFileData
@@ -50,12 +51,13 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
         
         raise InsufficientPermissions(err_str)
     
-    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_DELETION.value, ended_connection=header_component.finish),
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_DELETION.value, ended_connection=header_component.finish, config=SERVER_CONFIG),
             None)
 
 async def handle_amendment(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, ResponseBody]:
     # Check permissions
-    if not check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner, grantee=auth_component.identity, check_for=role_types - ['reader']):
+    if not await check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner, grantee=auth_component.identity,
+                                       check_for=FilePermissions.WRITE.value, check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
         err_str: str = f'User {auth_component.identity} does not have write permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
         asyncio.create_task(
             enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
@@ -80,14 +82,14 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
 
     if header_component.subcategory & FileFlags.WRITE:
         cursor_position = await write_file(root=SERVER_CONFIG.root_directory, fpath=fpath,
-                                           data=file_component.write_data,
+                                           data=file_component.write_data.encode('utf-8'),
                                            deleted_cache=delete_cache, write_cache=write_cache,
-                                           cursor_position=file_component.cursor_position, writer_keepalive=file_component.cursor_keepalive, purge_writer=header_component.finish,
+                                           cursor_position=file_component.cursor_position or 0, writer_keepalive=file_component.cursor_keepalive, purge_writer=header_component.finish,
                                            identifier=auth_component.identity, cached=True)
         keepalive_accepted = get_reader(write_cache, fpath, auth_component.identity) 
     else:
         cursor_position = await append_file(root=SERVER_CONFIG.root_directory, fpath=fpath,
-                                           data=file_component.write_data,
+                                           data=file_component.write_data.encode('utf-8'),
                                            deleted_cache=delete_cache, append_cache=append_cache,
                                            append_writer_keepalive=file_component.cursor_keepalive, purge_append_writer=header_component.finish,
                                            identifier=auth_component.identity, cached=True)
@@ -96,12 +98,13 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     if not keepalive_accepted:
         file_locks.pop(fpath)
     
-    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_AMEND, ended_connection=header_component.finish),
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_AMEND, ended_connection=header_component.finish, config=SERVER_CONFIG),
             ResponseBody(cursor_position=cursor_position, keepalive_accepted=keepalive_accepted))
 
 async def handle_read(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, ResponseBody]:    
     # Check permissions
-    if not check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner, grantee=auth_component.identity, check_for=role_types):
+    if not await check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner, grantee=auth_component.identity,
+                                       check_for=FilePermissions.READ.value, check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
         err_str: str = f'User {auth_component.identity} does not have read permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
         asyncio.create_task(
             enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
@@ -120,7 +123,7 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
     
     ongoing_amendment: bool = bool(file_locks.get(fpath))
 
-    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_READ, ended_connection=header_component.finish),
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_READ, ended_connection=header_component.finish, config=SERVER_CONFIG),
             ResponseBody(contents=orjson.dumps({'read' : read_data, 'ongoing_amendment' : ongoing_amendment}), return_partial=not eof_reached, chunk_number=file_component.chunk_number+1, cursor_position=cursor_position, keepalive_accepted=bool(get_reader(read_cache, fpath, auth_component.identity)))) 
 
 async def handle_creation(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, None]:
@@ -129,13 +132,27 @@ async def handle_creation(header_component: BaseHeaderComponent, auth_component:
             enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
                         log=ActivityLog(logged_by=LogAuthor.FILE_HANDLER.value,
                                         log_category=LogType.PERMISSION.value,
-                                        log_details=f'User {auth_component.identity} attempted to cretae files in /{file_component.subject_file_owner}',
+                                        log_details=f'User {auth_component.identity} attempted to create files in /{file_component.subject_file_owner}',
                                         severity=Severity.TRACE.value)))
         
         raise InvalidFileData(f'As user {auth_component.identity}, you only have permission to create new files in your own directory and not /{file_component.subject_file_owner}')
     
     fpath, epoch = await create_file(root=SERVER_CONFIG.root_directory, owner=auth_component.identity, filename=file_component.subject_file)
-    if not fpath:
+    proxy: ConnectionProxy = await connection_master.request_connection(level=1)
+
+    if fpath:
+        # Add record for this file
+        try:
+            await proxy.execute('''INSERT INTO files (filename, owner, created_at)
+                                VALUES (%s, %s, %s);''',
+                                (file_component.subject_file, auth_component.identity, datetime.fromtimestamp(epoch), ))
+            await proxy.execute('''INSERT INTO file_permissions (file_owner, filename, grantee, role, granted_by, granted_at)
+                                VALUES (%s, %s, %s, %s, %s, %s);''',
+                                (auth_component.identity, file_component.subject_file, auth_component.identity,
+                                RoleTypes.OWNER.value, auth_component.identity, datetime.fromtimestamp(header_component.sender_timestamp),))
+        finally:
+            await connection_master.reclaim_connection(proxy)
+    else:
         asyncio.create_task(enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
                                         log=ActivityLog(logged_by=LogAuthor.FILE_HANDLER.value,
                                                         log_category=LogType.INTERNAL.value,
