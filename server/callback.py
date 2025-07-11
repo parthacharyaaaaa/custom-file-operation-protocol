@@ -48,13 +48,13 @@ async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -
             print(format_exc(), flush=True)
             connection_end: bool = False if not header_component else header_component.finish
             is_caught: bool = isinstance(e, ProtocolException)
-            response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=InternalServerError if is_caught else e,
+            response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=e if is_caught else InternalServerError,
                                                                               version=config.version if not header_component else header_component.version,
                                                                               end_conn=connection_end,
                                                                               host=str(SERVER_CONFIG.host),
                                                                               port=SERVER_CONFIG.port)
             # Log uncaught exceptions
-            if is_caught:
+            if not is_caught:
                 asyncio.create_task(
                     enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
                                 log=ActivityLog(severity=Severity.CRITICAL_FAILURE.value,

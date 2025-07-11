@@ -11,11 +11,11 @@ async def send_heartbeat(header: BaseHeaderComponent) -> tuple[ResponseHeader, N
         None
     )
 
-async def send_response(writer: asyncio.StreamWriter, header: Union[ResponseHeader, bytes], body: Optional[Union[ResponseBody, bytes]] = None, seperator: bytes = b'\n') -> None:
+async def send_response(writer: asyncio.StreamWriter, header: Union[ResponseHeader, bytes], body: Optional[Union[ResponseBody, bytes]] = None, seperator: Optional[bytes] = b'') -> None:
     header_stream: bytes = header if isinstance(header, bytes) else header.as_bytes()
-    writer.write(header_stream+seperator)
+    writer.write(header_stream + seperator)
     if body:
         body_stream: bytes = body if isinstance(body, bytes) else body.as_bytes()
-        writer.write(body_stream+seperator)
+        writer.write(body_stream + seperator)
     
     await writer.drain()
