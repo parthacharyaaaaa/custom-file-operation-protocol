@@ -19,7 +19,7 @@ async def handle_registration(header_component: BaseHeaderComponent, auth_compon
         raise InvalidAuthSemantic('Account creation requires only the following fields: identity, password')
     
     await user_master.create_user(username=auth_component.identity, password=auth_component.password, make_dir=True, root=SERVER_CONFIG.root_directory)
-    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_CREATION.value, ended_connection=header_component.finish)
+    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_CREATION.value, ended_connection=header_component.finish, config=SERVER_CONFIG)
 
     return header, None
 
@@ -29,7 +29,7 @@ async def handle_login(header_component: BaseHeaderComponent, auth_component: Ba
     
     session_metadata: SessionMetadata = await user_master.authorize_session(username=auth_component.identity, password=auth_component.password)
     header: ResponseHeader = ResponseHeader.from_server(config=SERVER_CONFIG, code=SuccessFlags.SUCCESSFUL_AUTHENTICATION.value, ended_connection=header_component.finish)
-    body: ResponseBody = ResponseBody(contents=orjson.dumps(session_metadata.json_repr))
+    body: ResponseBody = ResponseBody(contents=session_metadata.dict_repr)
 
     return header, body
 
@@ -43,7 +43,7 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     files_deleted = await asyncio.wait_for(asyncio.to_thread(delete_directory, root=SERVER_CONFIG.root_directory, dirname=auth_component.identity),
                                            timeout=SERVER_CONFIG.file_transfer_timeout)
     
-    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_DELETION, ended_connection=header_component.finish)
+    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_DELETION, ended_connection=header_component.finish, config=SERVER_CONFIG)
     body = ResponseBody(contents=orjson.dumps({'deleted_count' : len(files_deleted),
                                                'deleted_files' : files_deleted}))
 
@@ -67,7 +67,7 @@ async def handle_session_refresh(header_component: BaseHeaderComponent, auth_com
     
     # UserManager.refresh_session() implictly authenticates session
     new_digest, iteration = await user_master.refresh_session(username=auth_component.identity, token=auth_component.token, digest=auth_component.refresh_digest)
-    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_SESSION_REFRESH.value, ended_connection=header_component.finish)
+    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_SESSION_REFRESH.value, ended_connection=header_component.finish, config=SERVER_CONFIG)
     body = ResponseBody(contents=orjson.dumps({'digest' : new_digest, 'iteration' : iteration}))
 
     return header, body
@@ -80,7 +80,7 @@ async def handle_session_termination(header_component: BaseHeaderComponent, auth
     terminated_session: SessionMetadata = await user_master.terminate_session(username=auth_component.identity, token=auth_component.token)
 
     termination_time: float = time.time()
-    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_SESSION_TERMINATION.value, ended_connection=header_component.finish)
+    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_SESSION_TERMINATION.value, ended_connection=header_component.finish, config=SERVER_CONFIG)
     body: ResponseBody = ResponseBody(contents=orjson.dumps({'time_of_logout' : termination_time, 'user' : auth_component.identity,
                                                              'last_token' : terminated_session.token,
                                                              'session_iterations' : terminated_session.iteration,
