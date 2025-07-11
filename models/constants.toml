@@ -21,4 +21,3 @@ effect_duration_range = [0, 2_678_400]
 
 [components.response.header]
 code_regex = '^3\:\*|[0-9]\:[a-z]{1,6}$'
-description_max_length = 256

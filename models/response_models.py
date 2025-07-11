@@ -16,7 +16,6 @@ class ResponseHeader(BaseModel):
     
     # Response metadata
     code: Annotated[str, Field(min_length=3, pattern=RESPONSE_CONSTANTS.header.code_regex)]
-    description: Annotated[Optional[str], Field(max_length=RESPONSE_CONSTANTS.header.description_max_length, default=None)]
 
     # Responder metadata
     responder_hostname: Annotated[IPvAnyAddress, Field(frozen=True)]
@@ -36,16 +35,16 @@ class ResponseHeader(BaseModel):
         return False
     
     @classmethod
-    def from_server(cls, config: ServerConfig, code: int, version: Optional[str] = None, description: Optional[str] = None, responder_timestamp: Optional[float] = None, body_size: int = 0, ended_connection: bool = False) -> 'ResponseHeader':
-        return cls(version=version or config.version, code=code, description=description,
+    def from_server(cls, config: ServerConfig, code: int, version: Optional[str] = None, responder_timestamp: Optional[float] = None, body_size: int = 0, ended_connection: bool = False) -> 'ResponseHeader':
+        return cls(version=version or config.version, code=code,
                    responder_timestamp = responder_timestamp or time(), responder_hostname=config.host, responder_port=config.port,
                    body_size=body_size,
                    ended_connection=ended_connection)
 
     @classmethod
-    def make_response_header(cls, version: Optional[str], code: int, description: str, host: str, port: int, responder_timestamp: Optional[float] = None, body_size: int = 0, end_conn: bool = False) -> 'ResponseHeader':
+    def make_response_header(cls, version: Optional[str], code: int, host: str, port: int, responder_timestamp: Optional[float] = None, body_size: int = 0, end_conn: bool = False) -> 'ResponseHeader':
         return cls(version=version,
-                   code=code, description=description,
+                   code=code,
                    responder_hostname=host, responder_port=port, responder_timestamp=responder_timestamp or time(),
                    body_size=body_size, ended_connection=end_conn)
     
@@ -53,7 +52,6 @@ class ResponseHeader(BaseModel):
     def from_protocol_exception(cls, exc: type[ProtocolException], version: str, host: str, port: int, responder_timestamp: Optional[float] = None, end_conn: bool = False) -> 'ResponseHeader':
         return cls(version=version,
                    code=exc.code,
-                   description=exc.description,
                    responder_hostname=host, responder_port=port, responder_timestamp=responder_timestamp or time(),
                    body_size=0,
                    end_connection=end_conn)
@@ -62,7 +60,6 @@ class ResponseHeader(BaseModel):
     def from_unverifiable_data(cls, exc: type[ProtocolException], version: str, host: str, port: int, responder_timestamp: Optional[float] = None, end_conn: bool = False) -> 'ResponseHeader':
         return cls(version=version,
                    code=exc.code,
-                   description=exc.description,
                    responder_hostname=host, responder_port=port, responder_timestamp=responder_timestamp or time(),
                    body_size=0,
                    end_connection=end_conn)
