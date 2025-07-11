@@ -1,9 +1,20 @@
 from pydantic import BaseModel, Field, IPvAnyAddress
-from typing import Literal, Annotated, Optional
+from typing import Annotated, Optional
 from datetime import datetime
 from enum import Enum, IntFlag
 
-role_types = Literal['owner', 'manager', 'reader', 'editor']
+class RoleTypes(Enum):
+    OWNER       = 'owner'
+    MANAGER     = 'manager'
+    READER      = 'reader'
+    EDITOR      = 'editor'
+
+class FilePermissions(Enum):
+    WRITE           = 'write'
+    READ            = 'read'
+    DELETE          = 'delete'
+    MANAGE_SUPER    = 'manage_super'
+    MANAGE_RW       = 'manage_rw'
 
 class Severity(IntFlag):
     INFO                    = 1
