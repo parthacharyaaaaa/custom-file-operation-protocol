@@ -38,15 +38,6 @@ class PermissionRequestConstants(BaseModel):
 class HeaderResponseConstants(BaseModel):
     code_regex: str
     description_max_length: Annotated[int, Field(frozen=True, ge=0)]
-    kwarg_key_range: tuple[
-        Annotated[int, Field(frozen=True, ge=0)],
-        Annotated[int, Field(frozen=True, ge=0)]
-        ]
-    
-    kwarg_value_range: tuple[
-        Annotated[int, Field(frozen=True, ge=0)],
-        Annotated[int, Field(frozen=True, ge=0)]
-        ]
 
 class RequestConstants(BaseModel):
     header: HeaderRequestConstants

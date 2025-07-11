@@ -22,5 +22,3 @@ effect_duration_range = [0, 2_678_400]
 [components.response.header]
 code_regex = '^3\:\*|[0-9]\:[a-z]{1,6}$'
 description_max_length = 256
-kwarg_key_range = [4, 16]
-kwarg_value_range = [1, 128]
