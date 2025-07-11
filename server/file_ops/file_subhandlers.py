@@ -8,6 +8,8 @@ from models.response_models import ResponseHeader, ResponseBody
 from models.response_codes import SuccessFlags
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent
 
+from psycopg.rows import dict_row
+
 from server.bootup import file_locks, delete_cache, read_cache, write_cache, append_cache, log_queue, connection_master
 from server.config.server_config import SERVER_CONFIG
 from server.connectionpool import ConnectionProxy
@@ -36,7 +38,6 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     
     # Request validated. No need to acquire lock since owner's deletion request is more important than any concurrent file amendment locks
     file: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
-    file_locks[file] = None
 
     file_deleted: bool = await delete_file(SERVER_CONFIG.root_directory, file, delete_cache, append_cache, read_cache, write_cache)
     if not file_deleted:
@@ -50,6 +51,25 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
                                         user_concerned=auth_component.identity)))
         
         raise InsufficientPermissions(err_str)
+    
+    # Update database to delete all file info pertaining to this file
+    file_locks[file] = None
+    proxy: ConnectionProxy = await connection_master.request_connection(level=1)
+    try:
+        async with proxy.cursor(row_factory=dict_row) as cursor:
+            await cursor.execute('''DELETE FROM files
+                                 WHERE filename = %s AND owner = %s;''',
+                                 (file_component.subject_file, auth_component.identity,))
+        await proxy.commit()
+    finally:
+        await connection_master.reclaim_connection(proxy)
+    
+    asyncio.create_task(
+        enqueue_log(queue=log_queue, waiting_period=SERVER_CONFIG.log_waiting_period,
+                    log=ActivityLog(severity=Severity.INFO.value,
+                                    logged_by=LogAuthor.FILE_HANDLER.value,
+                                    log_category=LogType.REQUEST.value,
+                                    user_concerned=auth_component.identity)))
     
     return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_DELETION.value, ended_connection=header_component.finish, config=SERVER_CONFIG),
             None)
