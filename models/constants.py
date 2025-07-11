@@ -37,6 +37,7 @@ class PermissionRequestConstants(BaseModel):
 
 class HeaderResponseConstants(BaseModel):
     code_regex: str
+    bytesize: Annotated[int, Field(frozen=True, ge=1)]
 
 class RequestConstants(BaseModel):
     header: HeaderRequestConstants
