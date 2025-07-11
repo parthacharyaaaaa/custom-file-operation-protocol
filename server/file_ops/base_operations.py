@@ -101,7 +101,7 @@ async def write_file(root: os.PathLike, fpath: str, data: Union[bytes, str], del
         writer_found: bool = writer is not None
 
         if not writer_found:
-            writer: AsyncBufferedIOBase = await aiofiles.open(fpath, '+wb')
+            writer: AsyncBufferedIOBase = await aiofiles.open(abs_fpath, '+wb')
 
         if await writer.tell() != cursor_position:
             await writer.seek(cursor_position)
@@ -144,11 +144,11 @@ async def append_file(root: os.PathLike, fpath: str, data: Union[bytes, str], de
         append_writer_found: bool = append_writer is not None
 
         if not append_writer_found:
-            append_writer: AsyncBufferedIOBase = await aiofiles.open(fpath, '+ab')
+            append_writer: AsyncBufferedIOBase = await aiofiles.open(abs_fpath, '+ab')
 
         # Writer is ready now
         await append_writer.write(data)
-
+        cursor: int = await append_writer.tell()
         if not (append_writer_found or purge_append_writer):
             append_cache.setdefault(fpath, {}).update({identifier:append_writer})
         
@@ -156,7 +156,7 @@ async def append_file(root: os.PathLike, fpath: str, data: Union[bytes, str], de
             remove_reader(append_cache, fpath, identifier)
             await append_writer.close()
         
-        return len(data)
+        return cursor
         
     append_writer: AsyncBufferedReader = await aiofiles.open(fpath, mode='+qb')
     try:
