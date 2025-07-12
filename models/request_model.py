@@ -75,7 +75,6 @@ class BaseHeaderComponent(BaseModel):
 
     # Connection status
     finish: Annotated[bool, Field(frozen=True, default=True)]
-    connection_keepalive: Annotated[bool, Field(default=False)]
 
     # Message category
     category: Annotated[CategoryFlag, Field(frozen=True, ge=1)]

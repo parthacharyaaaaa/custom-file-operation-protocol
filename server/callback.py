@@ -37,7 +37,7 @@ async def callback(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -
                 response_header.body_size = len(body_stream)
             
             await send_response(writer=writer, header=response_header, body=body_stream)
-            if response_header.ended_connection or not header_component.connection_keepalive:
+            if response_header.ended_connection:
                 writer.write_eof()
                 await writer.drain()
                 writer.close()
