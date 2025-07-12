@@ -58,3 +58,7 @@ class ActivityLog(BaseModel):
     log_details: Annotated[Optional[str], Field(max_length=512, default=None)]
     user_concerned: Annotated[Optional[str], Field(max_length=128, default=None)]
     host_concerned: Annotated[Optional[IPvAnyAddress], Field(frozen=True, default=None)]
+
+    model_config = {
+        'use_enum_values' : True
+    }
