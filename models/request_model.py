@@ -1,5 +1,5 @@
 '''Module for defining schema of incoming requests'''
-from pydantic import BaseModel, Field, model_validator, IPvAnyAddress, ValidationError
+from pydantic import BaseModel, Field, model_validator, IPvAnyAddress
 from typing import Annotated, Optional, Literal, Union, TypeAlias
 from models.constants import REQUEST_CONSTANTS
 from models.flags import CategoryFlag, PermissionFlags, AuthFlags, FileFlags
@@ -55,11 +55,10 @@ class BasePermissionComponent(BaseModel):
     # Permission data
     effect_duration: Annotated[Optional[int], Field(le=REQUEST_CONSTANTS.permission.effect_duration_range[0], ge=REQUEST_CONSTANTS.permission.effect_duration_range[1], frozen=True, default=0)]
 
-    @model_validator(mode='after')
-    def permission_logic_check(self) -> 'BasePermissionComponent':
-        if (self.permission_flags & (PermissionFlags.TRANSFER.value | PermissionFlags.MANAGER.value)) and self.effect_duration:   # managerial and ownership permissions are high level and cannot be given globally at once
-            raise ValueError('Cannot set duration for managerial/ownership roles of a file')
-        return self
+    @staticmethod
+    def check_higher_role(permission_bits: int) -> bool:
+        # managerial and ownership permissions are high level and cannot be given globally at once
+        return (permission_bits & (PermissionFlags.TRANSFER.value | PermissionFlags.MANAGER.value))
 
 class BaseHeaderComponent(BaseModel):
     version: Annotated[str, Field(min_length=5, max_length=12, pattern=REQUEST_CONSTANTS.header.version_regex)]
@@ -79,3 +78,8 @@ class BaseHeaderComponent(BaseModel):
     # Message category
     category: Annotated[CategoryFlag, Field(frozen=True, ge=1)]
     subcategory: Annotated[Union[AuthFlags, PermissionFlags, FileFlags], Field(frozen=True, ge=1)]
+
+
+    model_config = {
+        'use_enum_values' : True
+    }
