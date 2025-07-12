@@ -4,7 +4,7 @@ from typing import Optional
 from models.flags import CategoryFlag
 from models.response_codes import ClientErrorFlags, ServerErrorFlags
 
-class ProtocolException(ABC, BaseException):
+class ProtocolException(ABC, Exception):
     '''Abstract base exception class for all protocol specific exceptions. Contains all the bare minimum data required to construct and send a response to an erroneous request'''
     code: str
     description: str
