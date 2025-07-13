@@ -7,6 +7,8 @@ from typing import Any, Optional, Literal
 from traceback import format_exception_only
 
 from models.flags import PermissionFlags
+from models.permissions import ROLE_MAPPING
+from models.permissions import RoleTypes, FilePermissions
 from models.response_models import ResponseHeader, ResponseBody
 from models.response_codes import SuccessFlags
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent
@@ -18,10 +20,9 @@ from server.bootup import connection_master
 from server.bootup import read_cache, write_cache, append_cache, delete_cache, log_queue
 from server.config.server_config import SERVER_CONFIG
 from server.connectionpool import ConnectionProxy
-from server.database.models import FilePermissions, ActivityLog, LogType, LogAuthor, Severity, RoleTypes
+from server.database.models import ActivityLog, LogType, LogAuthor, Severity
 from server.errors import OperationContested, DatabaseFailure, FileNotFound, FileConflict, InsufficientPermissions, OperationalConflict
 from server.file_ops.base_operations import transfer_file
-from server.permission_ops import ROLE_MAPPING
 from server.logging import enqueue_log
 
 async def check_file_permission(filename: str, owner: str, grantee: str, check_for: FilePermissions, proxy: Optional[ConnectionProxy] = None, level: Optional[Literal[1,2,3]] = 1, check_until: Optional[datetime] = None) -> bool:

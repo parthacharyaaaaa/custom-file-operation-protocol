@@ -3,19 +3,6 @@ from typing import Annotated, Optional
 from datetime import datetime
 from enum import Enum, IntFlag
 
-class RoleTypes(Enum):
-    OWNER       = 'owner'
-    MANAGER     = 'manager'
-    READER      = 'reader'
-    EDITOR      = 'editor'
-
-class FilePermissions(Enum):
-    WRITE           = 'write'
-    READ            = 'read'
-    DELETE          = 'delete'
-    MANAGE_SUPER    = 'manage_super'
-    MANAGE_RW       = 'manage_rw'
-
 class Severity(IntFlag):
     INFO                    = 1
     TRACE                   = 2

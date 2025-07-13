@@ -7,13 +7,14 @@ from models.flags import FileFlags
 from models.response_models import ResponseHeader, ResponseBody
 from models.response_codes import SuccessFlags
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent
+from models.permissions import RoleTypes, FilePermissions
 
 from psycopg.rows import dict_row
 
 from server.bootup import file_locks, delete_cache, read_cache, write_cache, append_cache, log_queue, connection_master
 from server.config.server_config import SERVER_CONFIG
 from server.connectionpool import ConnectionProxy
-from server.database.models import FilePermissions, ActivityLog, LogAuthor, LogType, Severity, RoleTypes
+from server.database.models import ActivityLog, LogAuthor, LogType, Severity
 from server.file_ops.base_operations import create_file, read_file, write_file, append_file, delete_file, acquire_file_lock
 from server.file_ops.cache_ops import get_reader
 from server.errors import InsufficientPermissions, FileConflict, FileContested, InvalidFileData
