@@ -35,7 +35,7 @@ async def grant_permission(reader: asyncio.StreamReader, writer: asyncio.StreamW
         raise Exception
 
 async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_user: str, remote_directory: str, remote_file: str) -> None:
-    header_component: BaseHeaderComponent = BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.REVOKE.value)
+    header_component: BaseHeaderComponent = BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.REVOKE)
     file_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory, subject_user=remote_user)
 
     await send_request(writer, header_component, session_manager.auth_component, file_component)
@@ -49,8 +49,18 @@ async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.Stream
 async def transfer_ownership():
     ...
 
-async def publicise_remote_file():
-    ...
+async def publicise_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_directory: str, remote_file: str) -> None:
+    header_component: BaseHeaderComponent = BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.PUBLICISE)
+    file_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory)
+
+    await send_request(writer, header_component, session_manager.auth_component, file_component)
+    response_header, _ = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+    if response_header.code != SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value:
+        await display(f'Failed to publicise file {remote_directory}/{remote_file}.\n Code: {response_header.code}')
+        return
+    
+    await display(f'{response_header.code}: Publicised file {remote_directory}/{remote_file}, all remote users now have read access')
+
 
 async def hide_remote_file():
     ...
