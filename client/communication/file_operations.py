@@ -1,7 +1,8 @@
 import asyncio
 import aiofiles
 import os
-from typing import Optional, Union
+import math
+from typing import Optional, Union, AsyncIterator
 
 from client.bootup import session_manager
 from client.config.constants import CLIENT_CONFIG
@@ -60,3 +61,36 @@ async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
         response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
         if response_header.code not in valid_responses:
             raise Exception
+        
+
+async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_directory: str, remote_filename: str, chunk_size: Optional[int] = None, read_limit: Optional[int] = None) -> bytearray:
+    read_data: bytearray = b''
+
+    if not chunk_size:
+        chunk_size = REQUEST_CONSTANTS.file.chunk_max_size
+    else:
+        chunk_size = min(REQUEST_CONSTANTS.file.chunk_max_size, abs(chunk_size))
+    
+    remote_cursor_position: int = 0
+    valid_responses: tuple[str, str] = (IntermediaryFlags.PARTIAL_READ.value, SuccessFlags.SUCCESSFUL_READ.value)
+    
+    if not read_limit:
+        read_limit = math.inf
+    while len(read_data) < read_limit:
+        file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=remote_directory,
+                                                        chunk_size=chunk_size, cursor_position=remote_cursor_position,
+                                                        cursor_keepalive=True)
+        await send_request(writer, header_component=BaseHeaderComponent(CLIENT_CONFIG.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.APPEND),
+                           auth_component=session_manager.auth_component,
+                           body_component=file_component)
+        response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+
+        if response_header.code not in valid_responses:
+            raise Exception
+        
+        read_data.append(response_body.contents['read'])
+        # TODO: Add notice/suspension for ongoing amendments
+
+        if response_header.code == SuccessFlags.SUCCESSFUL_READ.value:  # File read complete
+            break
+    return read_data
