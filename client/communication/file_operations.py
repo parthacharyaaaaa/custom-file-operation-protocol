@@ -107,3 +107,14 @@ async def create_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         raise Exception
     
     return response_body['contents']
+
+async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_directory: str, remote_filename: str) -> None:
+    file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=remote_directory)
+
+    await send_request(writer, header_component=BaseHeaderComponent(CLIENT_CONFIG.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.DELETE),
+                    auth_component=session_manager.auth_component,
+                    body_component=file_component)
+    
+    response_header, _ = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+    if response_header.code != SuccessFlags.SUCCESSFUL_FILE_DELETION:
+        raise Exception
