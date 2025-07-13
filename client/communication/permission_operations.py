@@ -1,7 +1,9 @@
 import asyncio
+import aiofiles
 from typing import Optional
 
 from client.bootup import session_manager
+from client.cmd_utils import display
 from client.communication.incoming import process_response
 from client.communication.outgoing import send_request
 from client.config.constants import CLIENT_CONFIG
@@ -32,8 +34,17 @@ async def grant_permission(reader: asyncio.StreamReader, writer: asyncio.StreamW
     if response_header.code != SuccessFlags.SUCCESSFUL_GRANT.value:
         raise Exception
 
-async def revoke_permission():
-    ...
+async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_user: str, remote_directory: str, remote_file: str) -> None:
+    header_component: BaseHeaderComponent = BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.REVOKE.value)
+    file_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory, subject_user=remote_user)
+
+    await send_request(writer, header_component, session_manager.auth_component, file_component)
+    response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout, REQUEST_CONSTANTS.header.max_bytesize)
+
+    if response_header.code != SuccessFlags.SUCCESSFUL_REVOKE.value:
+        raise Exception
+    
+    await display(f'Revoked role data: {response_body["revoked_role_data"]}')
 
 async def transfer_ownership():
     ...
