@@ -62,6 +62,15 @@ async def publicise_remote_file(reader: asyncio.StreamReader, writer: asyncio.St
     await display(f'{response_header.code}: Publicised file {remote_directory}/{remote_file}, all remote users now have read access')
 
 
-async def hide_remote_file():
-    ...
+async def hide_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_directory: str, remote_file: str):
+    header_component: BaseHeaderComponent = BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.PUBLICISE)
+    file_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory)
+
+    await send_request(writer, header_component, session_manager.auth_component, file_component)
+    response_header, _ = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+    if response_header.code != SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value:
+        await display(f'Failed to hide file {remote_directory}/{remote_file}.\n Code: {response_header.code}')
+        return
+    
+    await display(f'{response_header.code}: Hid file {remote_directory}/{remote_file}, all remote users with public read access have had their permissions revoked.\nNote that remote users with permissions granted outside of publicity have not been affected')
 
