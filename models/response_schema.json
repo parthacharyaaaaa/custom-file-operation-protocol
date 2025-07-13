@@ -1,0 +1,34 @@
+{
+    "title": "Session Token Schema",
+    "description": "Describes the structure of a session token used in server-side authentication.",
+    "type" : "object",
+    "required" : ["token", "refresh_digest", "lifespan", "valid_until", "iteration"],
+    "additionalProperties": false,
+    "properties" : {
+        "token" : {
+            "type" : "string",
+            "description" : "Access token for server-side sessions",
+            "minlength" : 512, "maxlength" : 512
+        },
+        "refresh_digest" : {
+            "type" : "string",
+            "description" : "Refresh digest for refreshing server-side sessions",
+            "minlength" : 128, "maxlength" : 128
+        },
+        "lifespan" : {
+            "type" : "number",
+            "description" : "Lifespan of the token expressed as a timestamp",
+            "minimum" : 0
+        },
+        "valid_until" : {
+            "type" : "number",
+            "description" : "Timestamp until which the access token will be accepted by the server",
+            "minimum" : 0
+        },
+        "iteration" : {
+            "type" : "integer",
+            "description" : "Number of times a session has been refreshed",
+            "minimum" : 0
+        }
+    }
+}
