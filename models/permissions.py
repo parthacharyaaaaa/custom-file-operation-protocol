@@ -1,7 +1,6 @@
 from enum import Enum
 from types import MappingProxyType
 from models.flags import PermissionFlags
-from models.permissions import RoleTypes
 
 __all__ = ('RoleTypes', 'FilePermissions', 'ROLE_MAPPING',)
 
