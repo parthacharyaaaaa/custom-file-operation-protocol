@@ -2,7 +2,7 @@ import asyncio
 import aiofiles
 import os
 import math
-from typing import Optional, Union, AsyncIterator
+from typing import Optional, Union, Any
 
 from client.bootup import session_manager
 from client.config.constants import CLIENT_CONFIG
@@ -73,14 +73,14 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
     
     remote_cursor_position: int = 0
     valid_responses: tuple[str, str] = (IntermediaryFlags.PARTIAL_READ.value, SuccessFlags.SUCCESSFUL_READ.value)
-    
+
     if not read_limit:
         read_limit = math.inf
     while len(read_data) < read_limit:
         file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=remote_directory,
                                                         chunk_size=chunk_size, cursor_position=remote_cursor_position,
                                                         cursor_keepalive=True)
-        await send_request(writer, header_component=BaseHeaderComponent(CLIENT_CONFIG.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.APPEND),
+        await send_request(writer, header_component=BaseHeaderComponent(CLIENT_CONFIG.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.READ),
                            auth_component=session_manager.auth_component,
                            body_component=file_component)
         response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
@@ -94,3 +94,16 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
         if response_header.code == SuccessFlags.SUCCESSFUL_READ.value:  # File read complete
             break
     return read_data
+
+async def create_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_directory: str, remote_filename: str) -> dict[str, Any]:
+    file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=remote_directory)
+
+    await send_request(writer, header_component=BaseHeaderComponent(CLIENT_CONFIG.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.CREATE),
+                    auth_component=session_manager.auth_component,
+                    body_component=file_component)
+    
+    response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+    if response_header.code != SuccessFlags.SUCCESSFUL_FILE_CREATION:
+        raise Exception
+    
+    return response_body['contents']
