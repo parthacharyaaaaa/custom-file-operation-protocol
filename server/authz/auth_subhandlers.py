@@ -4,8 +4,7 @@ import time
 from models.request_model import BaseHeaderComponent, BaseAuthComponent
 from models.response_codes import SuccessFlags
 from models.response_models import ResponseHeader, ResponseBody
-
-from server.authz.user_manager import SessionMetadata
+from models.session_metadata import SessionMetadata
 from server.bootup import user_master, read_cache, write_cache, append_cache
 from server.config.server_config import SERVER_CONFIG
 from server.errors import InvalidAuthSemantic
