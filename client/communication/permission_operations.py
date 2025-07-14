@@ -46,8 +46,17 @@ async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.Stream
     
     await display(f'Revoked role data: {response_body["revoked_role_data"]}')
 
-async def transfer_ownership():
-    ...
+async def transfer_ownership(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_user: str, remote_directory: str, remote_file: str) -> str:
+    header_component: BaseHeaderComponent = BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.TRANSFER)
+    permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory, subject_user=remote_user)
+
+    await send_request(writer, header_component, session_manager.auth_component, permission_component)
+    response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+    if response_header.code == SuccessFlags.SUCCESSFUL_OWNERSHIP_TRANSFER.value:
+        await display(f'Failed to transfer ownership of file {remote_directory}/{remote_file}.\nCode: {response_header.code}')
+        return
+
+    await display(f'Transferred ownership of file {remote_file} to {remote_directory}. You now have manager rights to this file.\nNew Filepath: {response_body["new_filepath"]}, transferred at: {response_body["transfer_datetime"]}')
 
 async def publicise_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_directory: str, remote_file: str) -> None:
     header_component: BaseHeaderComponent = BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.PUBLICISE)
