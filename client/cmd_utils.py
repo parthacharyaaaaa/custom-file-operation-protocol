@@ -1,8 +1,20 @@
 import sys
 import aiofiles
+import itertools
+import asyncio
+from typing import Sequence
 
 async def display(*args, sep=b' ', end=b'\n'):
     write_buffer: bytes = sep.join(bytes(arg) for arg in args)
     async with aiofiles.open(sys.stdout.fileno(), mode='wb') as stdout:
         await stdout.write(write_buffer)
         await stdout.write(end)
+
+async def display_spinner(sequence: Sequence[bytes] = [b'|', b'/', b'-', b'\\'], interval: float = 0.075):
+    cycle = itertools.cycle(sequence)
+    async with aiofiles.open(sys.stdout.fileno(), mode='wb') as stdout:
+        for char in cycle:
+            await stdout.write(char)
+            await stdout.flush()
+            await stdout.write(b'\r')
+            await asyncio.sleep(interval)
