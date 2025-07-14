@@ -64,7 +64,7 @@ async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
         
 
 async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_directory: str, remote_filename: str, chunk_size: Optional[int] = None, read_limit: Optional[int] = None) -> bytearray:
-    read_data: bytearray = b''
+    read_data: bytearray = bytearray()
 
     if not chunk_size:
         chunk_size = REQUEST_CONSTANTS.file.chunk_max_size
