@@ -71,6 +71,8 @@ class ClientErrorFlags(Flag):
     # Permissions
     INSUFFICIENT_PERMISSIONS = "2:perm"
 
+    UNKNOWN_EXCEPTION = "2:?"
+
 class ServerErrorFlags(Flag):
     # Umbrella codes
     INTERNAL_SERVER_ERROR = "3:*"
