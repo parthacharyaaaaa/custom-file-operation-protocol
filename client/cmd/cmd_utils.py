@@ -2,7 +2,7 @@ import sys
 import aiofiles
 import itertools
 import asyncio
-from typing import Sequence, Union
+from typing import Sequence, Union, Any
 
 async def display(*args: Union[str, bytes], sep=b' ', end=b'\n'):
     write_buffer: bytes = sep.join(arg.encode('utf-8') if isinstance(arg, str) else arg for arg in args)
@@ -18,3 +18,6 @@ async def display_spinner(sequence: Sequence[bytes] = [b'|', b'/', b'-', b'\\'],
             await stdout.flush()
             await stdout.write(b'\r')
             await asyncio.sleep(interval)
+
+def format_dict(d: dict[str, Any]) -> str:
+    return '\n'.join(f"{key.replace('_', ' ')} : {value}" for key, value in d.items())
