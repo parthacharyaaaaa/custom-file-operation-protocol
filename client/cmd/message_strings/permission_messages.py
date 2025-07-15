@@ -30,6 +30,6 @@ def successful_granted_role(remote_directory: str, remote_file: str, remote_user
     return f'Granted permission {permission} to user {remote_user} on file {remote_directory}/{remote_file}'
 
 def failed_permission_operation(remote_directory: str, remote_file: str, remote_user: Optional[str] = None, code: Optional[Union[ClientErrorFlags, ServerErrorFlags]] = None, exc: Optional[Exception] = None) -> str:
-    return '\n'.join((f'Code: {code or ClientErrorFlags.UNKNOWN_EXCEPTION} Failed to perform permission operation on file {remote_directory}/{remote_file}',
+    return '\n'.join((f'Code: {code or ClientErrorFlags.UNKNOWN_EXCEPTION.value} Failed to perform permission operation on file {remote_directory}/{remote_file}',
                      f'Concerned user: {remote_user}' if remote_user else '',
                      f'Traceback: {"\n\t".join(format_exception(exc))}' if exc else ''))
