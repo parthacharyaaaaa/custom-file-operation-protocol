@@ -3,7 +3,7 @@ import aiofiles
 from typing import Optional
 
 from client.bootup import session_manager
-from client.cmd_utils import display
+from client.cmd.cmd_utils import display
 from client.communication.incoming import process_response
 from client.communication.outgoing import send_request
 from client.config.constants import CLIENT_CONFIG
