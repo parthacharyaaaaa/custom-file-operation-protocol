@@ -1,9 +1,9 @@
 import asyncio
-import aiofiles
-from typing import Optional
+from typing import Optional, Sequence
 
 from client.bootup import session_manager
 from client.cmd.cmd_utils import display
+from client.cmd.message_strings import permission_messages, general_messages
 from client.communication.incoming import process_response
 from client.communication.outgoing import send_request
 from client.config.constants import CLIENT_CONFIG
@@ -32,7 +32,10 @@ async def grant_permission(reader: asyncio.StreamReader, writer: asyncio.StreamW
     response_header, _ = await process_response(reader, writer, CLIENT_CONFIG.read_timeout, REQUEST_CONSTANTS.header.max_bytesize)
 
     if response_header.code != SuccessFlags.SUCCESSFUL_GRANT.value:
-        raise Exception
+        await display(permission_messages.failed_permission_operation(remote_directory, remote_file, remote_user, response_header.code))
+        return
+    
+    await display(permission_messages.successful_granted_role(remote_directory, remote_file, remote_user, granted_role.value))
 
 async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_user: str, remote_directory: str, remote_file: str) -> None:
     header_component: BaseHeaderComponent = BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.REVOKE)
@@ -42,9 +45,10 @@ async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.Stream
     response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout, REQUEST_CONSTANTS.header.max_bytesize)
 
     if response_header.code != SuccessFlags.SUCCESSFUL_REVOKE.value:
-        raise Exception
+        await display(permission_messages.failed_permission_operation(remote_directory, remote_file, remote_user, response_body.code))
+        return
     
-    await display(f'Revoked role data: {response_body["revoked_role_data"]}')
+    await display(permission_messages.successful_revoked_role(remote_directory, remote_file, response_body))
 
 async def transfer_ownership(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_user: str, remote_directory: str, remote_file: str) -> str:
     header_component: BaseHeaderComponent = BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.TRANSFER)
@@ -52,11 +56,19 @@ async def transfer_ownership(reader: asyncio.StreamReader, writer: asyncio.Strea
 
     await send_request(writer, header_component, session_manager.auth_component, permission_component)
     response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
-    if response_header.code == SuccessFlags.SUCCESSFUL_OWNERSHIP_TRANSFER.value:
-        await display(f'Failed to transfer ownership of file {remote_directory}/{remote_file}.\nCode: {response_header.code}')
+    if response_header.code != SuccessFlags.SUCCESSFUL_OWNERSHIP_TRANSFER.value:
+        await display(permission_messages.failed_permission_operation(remote_directory, remote_file, remote_user, response_body.code))
         return
-
-    await display(f'Transferred ownership of file {remote_file} to {remote_directory}. You now have manager rights to this file.\nNew Filepath: {response_body["new_filepath"]}, transferred at: {response_body["transfer_datetime"]}')
+    
+    new_fpath: str = response_body.contents.get('new_filepath')
+    if not new_fpath:
+        await display(general_messages.missing_response_claim('new_filepath'))
+    
+    transfer_iso_datetime: str = response_body.contents.get('transfer_datetime')
+    if not transfer_iso_datetime:
+        await display(general_messages.missing_response_claim('transfer_datetime'))
+    
+    await display(permission_messages.successful_ownership_trasnfer(remote_directory, remote_file, new_fpath, transfer_iso_datetime, response_header.code))
 
 async def publicise_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_directory: str, remote_file: str) -> None:
     header_component: BaseHeaderComponent = BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.PUBLICISE)
@@ -65,21 +77,29 @@ async def publicise_remote_file(reader: asyncio.StreamReader, writer: asyncio.St
     await send_request(writer, header_component, session_manager.auth_component, permission_component)
     response_header, _ = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value:
-        await display(f'Failed to publicise file {remote_directory}/{remote_file}.\n Code: {response_header.code}')
+        await display(permission_messages.failed_permission_operation(remote_directory, remote_file, code=response_header.code))
         return
     
-    await display(f'{response_header.code}: Publicised file {remote_directory}/{remote_file}, all remote users now have read access')
-
+    await display(permission_messages.successful_file_publicise(remote_directory, remote_file, response_header.code))
 
 async def hide_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_directory: str, remote_file: str):
-    header_component: BaseHeaderComponent = BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.PUBLICISE)
+    header_component: BaseHeaderComponent = BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.HIDE)
     permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory)
 
     await send_request(writer, header_component, session_manager.auth_component, permission_component)
     response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value:
-        await display(f'Failed to hide file {remote_directory}/{remote_file}.\n Code: {response_header.code}')
+        await display(permission_messages.failed_permission_operation(remote_directory, remote_file, code=response_header.code))
         return
     
-    await display(f'{response_header.code}: Hid file {remote_directory}/{remote_file}, all remote users with public read access have had their permissions revoked.\nRevoked data: {response_body["revoked_grantee_info"]}\nNote that remote users with permissions granted outside of publicity have not been affected')
+    revoked_info: list[dict[str, str]] = response_body.get('revoked_grantee_info')
+    if not revoked_info:
+        await display(general_messages.malformed_response_body('revoked_grantee_info'))
+    
+    # No need to check inner types, anything over a byte stream can be used in f-strings anyways.
+    # Although hinted as a list, any Sequence subclass passes as we only need to iterate over it
+    elif not (isinstance(revoked_info, Sequence) and all(isinstance(i, dict) for i in revoked_info)):
+        await display(general_messages.malformed_response_body("Mismatched data types in response body sent by server"))
+        return
 
+    await display(permission_messages.successful_file_hide(remote_directory, remote_file, revoked_info))
