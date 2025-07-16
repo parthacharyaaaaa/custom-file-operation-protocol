@@ -1,10 +1,3 @@
--- DDL
---- Basic enum types
-CREATE TYPE permission_type AS ENUM ('write', 'read', 'delete', 'manage_super', 'manage_rw');
-CREATE TYPE role_type as ENUM ('owner', 'manager', 'reader', 'editor');
-CREATE TYPE log_type AS ENUM ('user', 'database', 'session', 'request', 'network', 'internal', 'permission', 'audit', 'unknown');
-CREATE TYPE logger_type AS ENUM ('exception_fallback', 'user_master', 'connection_master', 'file_handler', 'socket_handler', 'bootup_handler', 'permission_handler', 'stream_parser', 'admin', 'cronjob');
-
 --- Tables
 CREATE TABLE IF NOT EXISTS users(
     username            VARCHAR(128) PRIMARY KEY,
@@ -90,22 +83,3 @@ INSERT INTO permissions VALUES ('manage_super');
 INSERT INTO permissions VALUES ('delete');
 INSERT INTO permissions VALUES ('write');
 INSERT INTO permissions VALUES ('read');
-
--- Owner
-INSERT INTO ROLES VALUES ('owner', 'read');
-INSERT INTO ROLES VALUES ('owner', 'write');
-INSERT INTO ROLES VALUES ('owner', 'manage_rw');
-INSERT INTO ROLES VALUES ('owner', 'manage_super'); -- Allow granting manager roles
-INSERT INTO ROLES VALUES ('owner', 'delete');   -- Sole holder of delete permission
-
--- Manager
-INSERT INTO ROLES VALUES ('manager', 'read');
-INSERT INTO ROLES VALUES ('manager', 'write');
-INSERT INTO ROLES VALUES ('manager', 'manage_rw');  -- Allow granting editor and reader roles
-
--- Editor
-INSERT INTO ROLES VALUES ('editor', 'read');
-INSERT INTO ROLES VALUES ('editor', 'write');
-
--- Reader
-INSERT INTO ROLES VALUES ('reader', 'read')
