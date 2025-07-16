@@ -1,4 +1,3 @@
---- Tables
 CREATE TABLE IF NOT EXISTS users(
     username            VARCHAR(128) PRIMARY KEY,
     password_hash       BYTEA NOT NULL,
@@ -74,12 +73,3 @@ CREATE INDEX ix_activity_logs_type ON activity_logs(log_category);
 CREATE INDEX ix_activity_logs_logger ON activity_logs(logged_by);
 CREATE INDEX ix_activity_logs_host ON activity_logs(host_concerned);
 CREATE INDEX ix_activity_logs_severity ON activity_logs(severity);
-
--- DML
-
--- Populate ROLES and permissions
-INSERT INTO permissions VALUES ('manage_rw');
-INSERT INTO permissions VALUES ('manage_super');
-INSERT INTO permissions VALUES ('delete');
-INSERT INTO permissions VALUES ('write');
-INSERT INTO permissions VALUES ('read');
