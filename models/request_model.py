@@ -35,7 +35,6 @@ class BaseFileComponent(BaseModel):
 
     # Sequencing logic
     cursor_position: Annotated[Optional[int], Field(ge=0, frozen=True, default=None)]
-    chunk_number: Annotated[Optional[int], Field(ge=0, frozen=True, default=None)]  # Chunk numbering is 0 indexed
     chunk_size: Annotated[Optional[int], Field(ge=1, le=REQUEST_CONSTANTS.file.chunk_max_size, default=None)]  # For read operations. If specified, must be atleast 1 byte
     write_data: Annotated[Optional[str], Field(min_length=1, max_length=REQUEST_CONSTANTS.file.chunk_max_size, frozen=True, default=None)]    # For write operations, must be atleast 1 character if specified
     

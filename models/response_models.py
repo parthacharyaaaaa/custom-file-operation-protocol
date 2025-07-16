@@ -71,7 +71,6 @@ class ResponseHeader(BaseModel):
 class ResponseBody(BaseModel):
     contents: Annotated[Optional[dict[str, Any]], Field(default=None)]
 
-    chunk_number: Annotated[Optional[int], Field(ge=0, frozen=True, default=None)]
     return_partial: Annotated[Optional[bool], Field(default=True)]
     cursor_position: Annotated[Optional[int], Field(ge=0, default=0, frozen=True)]
     cursor_keepalive_accepted: Annotated[bool, Field(default=False)]

@@ -145,7 +145,7 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
     ongoing_amendment: bool = bool(file_locks.get(fpath))
 
     return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_READ, ended_connection=header_component.finish, config=SERVER_CONFIG),
-            ResponseBody(contents=orjson.dumps({'read' : read_data, 'ongoing_amendment' : ongoing_amendment}), return_partial=not eof_reached, chunk_number=file_component.chunk_number+1, cursor_position=cursor_position, keepalive_accepted=bool(get_reader(read_cache, fpath, auth_component.identity)))) 
+            ResponseBody(contents=orjson.dumps({'read' : read_data, 'ongoing_amendment' : ongoing_amendment}), return_partial=not eof_reached, cursor_position=cursor_position, keepalive_accepted=bool(get_reader(read_cache, fpath, auth_component.identity)))) 
 
 async def handle_creation(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, None]:
     if file_component.subject_file_owner != auth_component.identity:
