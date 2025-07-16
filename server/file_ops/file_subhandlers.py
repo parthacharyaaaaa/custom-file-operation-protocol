@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime
 import os
 from traceback import format_exception_only
+from typing import Any
 
 from models.flags import FileFlags
 from models.response_models import ResponseHeader, ResponseBody
@@ -23,7 +24,7 @@ from server.permission_ops.permission_subhandlers import check_file_permission
 
 import orjson
 
-async def handle_deletion(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, None]:
+async def handle_deletion(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, ResponseBody]:
     # Make sure request is coming from file owner
     if file_component.subject_file_owner != auth_component.identity:
         err_str: str = f'Missing permission to delete file {file_component.subject_file} owned by {file_component.subject_file_owner}'
@@ -56,8 +57,14 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     # Update database to delete all file info pertaining to this file
     file_locks[file] = None
     proxy: ConnectionProxy = await connection_master.request_connection(level=1)
+    revoked_info: list[dict[str, Any]] = []
     try:
         async with proxy.cursor(row_factory=dict_row) as cursor:
+            await cursor.execute('''SELECT FROM FILE_PERMISSIONS
+                                 WHERE file_owner = %s AND filename = %s;''',
+                                 (file_component.subject_file, auth_component.identity,))
+            revoked_info = await cursor.fetchall()
+
             await cursor.execute('''DELETE FROM files
                                  WHERE filename = %s AND owner = %s;''',
                                  (file_component.subject_file, auth_component.identity,))
@@ -65,15 +72,17 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     finally:
         await connection_master.reclaim_connection(proxy)
     
+    deletion_time: datetime = datetime.now()
     asyncio.create_task(
         enqueue_log(queue=log_queue, waiting_period=SERVER_CONFIG.log_waiting_period,
-                    log=ActivityLog(severity=Severity.INFO.value,
+                    log=ActivityLog(occurance_time=deletion_time,
+                                    severity=Severity.INFO.value,
                                     logged_by=LogAuthor.FILE_HANDLER.value,
                                     log_category=LogType.REQUEST.value,
                                     user_concerned=auth_component.identity)))
     
     return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_DELETION.value, ended_connection=header_component.finish, config=SERVER_CONFIG),
-            None)
+            ResponseBody(contents={'revoked_info' : revoked_info, 'deletion_time' : deletion_time.isoformat()}, return_partial=False))
 
 async def handle_amendment(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent) -> tuple[ResponseHeader, ResponseBody]:
     # Check permissions
