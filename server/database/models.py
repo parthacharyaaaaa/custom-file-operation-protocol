@@ -1,14 +1,24 @@
 from pydantic import BaseModel, Field, IPvAnyAddress
 from typing import Annotated, Optional
+from types import MappingProxyType
 from datetime import datetime
-from enum import Enum, IntFlag
+from enum import Enum
 
-class Severity(IntFlag):
-    INFO                    = 1
-    TRACE                   = 2
-    ERROR                   = 3
-    NON_CRITICAL_FAILURE    = 4
-    CRITICAL_FAILURE        = 5
+from models.permissions import RoleTypes, FilePermissions
+
+ROLE_PERMISSION_MAPPING: MappingProxyType[RoleTypes, tuple[FilePermissions]] = MappingProxyType({
+    RoleTypes.READER : (FilePermissions.READ,),
+    RoleTypes.EDITOR : (FilePermissions.READ, FilePermissions.WRITE),
+    RoleTypes.MANAGER : (FilePermissions.READ, FilePermissions.WRITE, FilePermissions.MANAGE_RW),
+    RoleTypes.OWNER : (FilePermissions.READ, FilePermissions.WRITE, FilePermissions.MANAGE_RW, FilePermissions.MANAGE_SUPER, FilePermissions.DELETE)
+})
+
+class Severity(Enum):
+    INFO                    = 'info'
+    TRACE                   = 'trace'
+    ERROR                   = 'error'
+    NON_CRITICAL_FAILURE    = 'non_critical_failure'
+    CRITICAL_FAILURE        = 'critical_failure'
 
 class LogType(Enum):
     '''Python enum mapping to log_type enum in postgres'''
