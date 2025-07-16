@@ -5,6 +5,8 @@ import math
 from typing import Optional, Union, Any
 
 from client.bootup import session_manager
+from client.cmd.cmd_utils import display
+from client.cmd.message_strings import file_messages, general_messages
 from client.config.constants import CLIENT_CONFIG
 from client.communication.outgoing import send_request
 from client.communication.incoming import process_response
@@ -60,7 +62,7 @@ async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
             raise Exception
         
 
-async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_directory: str, remote_filename: str, chunk_size: Optional[int] = None, read_limit: Optional[int] = None) -> bytearray:
+async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_directory: str, remote_filename: str, chunk_size: Optional[int] = None, read_limit: Optional[int] = None, chunked_display: bool = True) -> bytearray:
     read_data: bytearray = bytearray()
 
     if not chunk_size:
@@ -81,16 +83,22 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
                            auth_component=session_manager.auth_component,
                            body_component=file_component)
         response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+        # TODO: Add notice/suspension for ongoing amendments
 
         if response_header.code not in valid_responses:
-            raise Exception
+            await display(file_messages.failed_file_operation(remote_directory, remote_filename, FileFlags.READ, code=response_header.code))
+            return
         
-        read_data.append(response_body.contents['read'])
-        # TODO: Add notice/suspension for ongoing amendments
+        if not chunked_display:
+            read_data.append(response_body.contents['read'])
+        else:
+            await display(read_data)
 
         if response_header.code == SuccessFlags.SUCCESSFUL_READ.value:  # File read complete
             break
-    return read_data
+    
+    if not chunked_display:
+        await display(read_data)
 
 async def create_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_directory: str, remote_filename: str) -> dict[str, Any]:
     file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=remote_directory)
