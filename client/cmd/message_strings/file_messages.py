@@ -1,3 +1,4 @@
+import os
 from traceback import format_exception
 from typing import Optional, Sequence, Any
 
@@ -6,7 +7,7 @@ from client.cmd.cmd_utils import format_dict
 from models.response_codes import SuccessFlags, ClientErrorFlags
 from models.flags import FileFlags
 
-__all__ = ('succesful_file_creation', 'succesful_file_deletion', 'successful_file_amendment', 'failed_file_operation',)
+__all__ = ('succesful_file_creation', 'succesful_file_deletion', 'successful_file_amendment', 'failed_file_operation', 'file_not_found',)
 
 def succesful_file_creation(remote_directory: str, remote_file: str, iso_epoch: str, code: Optional[SuccessFlags] = None) -> str:
     return f'Code {code or SuccessFlags.SUCCESSFUL_FILE_CREATION.value}: Created file {remote_directory}/{remote_file} at {iso_epoch}'
@@ -22,3 +23,6 @@ def failed_file_operation(remote_directory: str, remote_file: str, operation: Fi
     return '\n'.join((f'Code: {code or ClientErrorFlags.UNKNOWN_EXCEPTION.value} Failed to perform operation on file {remote_directory}/{remote_file}',
                       f'Operation: {operation._name_}',
                       f'Traceback: {"\n\t".join(format_exception(exc))}' if exc else ''))
+
+def file_not_found(fpath: os.PathLike) -> str:
+    return f'File {fpath} not found'

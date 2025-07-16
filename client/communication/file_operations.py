@@ -16,28 +16,6 @@ from models.flags import CategoryFlag, FileFlags
 from models.response_codes import SuccessFlags, IntermediaryFlags
 from models.request_model import BaseHeaderComponent, BaseFileComponent
 
-async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, fpath: str, remote_directory: str, remote_filename: Optional[str] = None, chunk_size: Optional[int] = None) -> None:
-    if not os.path.isfile(fpath):
-        raise FileNotFoundError(f'File {fpath} not found')
-    
-    if not remote_filename:
-        remote_filename = os.path.basename(fpath)
-    
-    chunk_size = max(REQUEST_CONSTANTS.file.max_bytesize, (chunk_size or -1))
-    valid_responses: tuple[str] = (SuccessFlags.SUCCESSFUL_AMEND.value, IntermediaryFlags.PARTIAL_AMEND.value)
-    async with aiofiles.open(fpath, 'rb') as src_file:
-        while contents := await src_file.read(chunk_size):
-            eof_reached: bool = len(contents) < chunk_size
-            file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=remote_directory,
-                                                                  chunk_size=chunk_size, write_data=contents,
-                                                                  return_partial=True, cursor_keepalive=eof_reached)
-
-            await send_request(writer, BaseHeaderComponent(CLIENT_CONFIG.version, finish=eof_reached, category=CategoryFlag.FILE_OP, subcategory=FileFlags.APPEND), session_manager.auth_component, file_component)
-
-            response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
-            if response_header.code not in valid_responses:
-                raise Exception
-
 async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, write_data: Union[str, bytes, bytearray, memoryview], remote_directory: str, remote_filename, chunk_size: Optional[int] = None) -> None:
     if isinstance(write_data, str):
         write_data = write_data.encode('utf-8')
@@ -59,8 +37,10 @@ async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
 
         response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
         if response_header.code not in valid_responses:
-            raise Exception
-        
+            await display(file_messages.failed_file_operation(remote_directory, remote_filename, FileFlags.APPEND, response_header.code))
+            return
+    
+    await display(file_messages.successful_file_amendment(remote_directory, remote_filename, SuccessFlags.SUCCESSFUL_AMEND.value))
 
 async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, remote_directory: str, remote_filename: str, chunk_size: Optional[int] = None, read_limit: Optional[int] = None, chunked_display: bool = True) -> bytearray:
     read_data: bytearray = bytearray()
@@ -89,12 +69,18 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
             await display(file_messages.failed_file_operation(remote_directory, remote_filename, FileFlags.READ, code=response_header.code))
             return
         
-        if not chunked_display:
-            read_data.append(response_body.contents['read'])
-        else:
-            await display(read_data)
+        read_finished: bool = response_header.code == SuccessFlags.SUCCESSFUL_READ.value
+        remote_read_data: bytes = response_body.get('read')
+        
+        if remote_read_data is None and not read_finished:
+            await display(general_messages.missing_response_claim('read'))
 
-        if response_header.code == SuccessFlags.SUCCESSFUL_READ.value:  # File read complete
+        if not chunked_display:
+            read_data.append(remote_read_data)
+        else:
+            await display(remote_read_data)
+
+        if read_finished:
             break
     
     if not chunked_display:
@@ -123,3 +109,26 @@ async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     response_header, _ = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_FILE_DELETION:
         raise Exception
+    
+
+async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, fpath: str, remote_directory: str, remote_filename: Optional[str] = None, chunk_size: Optional[int] = None) -> None:
+    if not os.path.isfile(fpath):
+        raise FileNotFoundError(f'File {fpath} not found')
+    
+    if not remote_filename:
+        remote_filename = os.path.basename(fpath)
+    
+    chunk_size = max(REQUEST_CONSTANTS.file.max_bytesize, (chunk_size or -1))
+    valid_responses: tuple[str] = (SuccessFlags.SUCCESSFUL_AMEND.value, IntermediaryFlags.PARTIAL_AMEND.value)
+    async with aiofiles.open(fpath, 'rb') as src_file:
+        while contents := await src_file.read(chunk_size):
+            eof_reached: bool = len(contents) < chunk_size
+            file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=remote_directory,
+                                                                  chunk_size=chunk_size, write_data=contents,
+                                                                  return_partial=True, cursor_keepalive=eof_reached)
+
+            await send_request(writer, BaseHeaderComponent(CLIENT_CONFIG.version, finish=eof_reached, category=CategoryFlag.FILE_OP, subcategory=FileFlags.APPEND), session_manager.auth_component, file_component)
+
+            response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+            if response_header.code not in valid_responses:
+                raise Exception
