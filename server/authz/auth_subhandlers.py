@@ -43,8 +43,8 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
                                            timeout=SERVER_CONFIG.file_transfer_timeout)
     
     header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_DELETION, ended_connection=header_component.finish, config=SERVER_CONFIG)
-    body = ResponseBody(contents=orjson.dumps({'deleted_count' : len(files_deleted),
-                                               'deleted_files' : files_deleted}))
+    body = ResponseBody(contents={'deleted_count' : len(files_deleted),
+                                  'deleted_files' : files_deleted})
 
     return header, body
 
@@ -67,7 +67,7 @@ async def handle_session_refresh(header_component: BaseHeaderComponent, auth_com
     # UserManager.refresh_session() implictly authenticates session
     new_digest, iteration = await user_master.refresh_session(username=auth_component.identity, token=auth_component.token, digest=auth_component.refresh_digest)
     header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_SESSION_REFRESH.value, ended_connection=header_component.finish, config=SERVER_CONFIG)
-    body = ResponseBody(contents=orjson.dumps({'digest' : new_digest, 'iteration' : iteration}))
+    body = ResponseBody(contents={'digest' : new_digest, 'iteration' : iteration})
 
     return header, body
 
@@ -80,9 +80,10 @@ async def handle_session_termination(header_component: BaseHeaderComponent, auth
 
     termination_time: float = time.time()
     header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_SESSION_TERMINATION.value, ended_connection=header_component.finish, config=SERVER_CONFIG)
-    body: ResponseBody = ResponseBody(contents=orjson.dumps({'time_of_logout' : termination_time, 'user' : auth_component.identity,
-                                                             'last_token' : terminated_session.token,
-                                                             'session_iterations' : terminated_session.iteration,
-                                                             'session_lifespan' : terminated_session.lifespan,
-                                                             'forgone_validity' : terminated_session.valid_until - termination_time}))
+    body: ResponseBody = ResponseBody(contents={'time_of_logout' : termination_time,
+                                                'user' : auth_component.identity,
+                                                'last_token' : terminated_session.token,
+                                                'session_iterations' : terminated_session.iteration,
+                                                'session_lifespan' : terminated_session.lifespan,
+                                                'forgone_validity' : terminated_session.valid_until - termination_time})
     return header, body
