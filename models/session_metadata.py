@@ -71,6 +71,14 @@ class SessionMetadata:
         self._lifespan = lifespan
         self._valid_until = self._last_refresh + lifespan
         self._iteration = 1
+
+    @classmethod
+    def from_response(cls, token: bytes, digest: bytes, lifespan: float, last_refresh: float, valid_until: float, iteration: int) -> 'SessionMetadata':
+        instance: 'SessionMetadata' = cls(token, digest, lifespan)
+        instance._last_refresh = last_refresh
+        instance._valid_until = valid_until
+        instance.iteration = iteration
+        return instance
     
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({self.token}, {self.refresh_digest}, {self.lifespan}) at location {id(self)}>'
