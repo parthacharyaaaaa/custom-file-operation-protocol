@@ -1,7 +1,10 @@
-from typing import Optional, Sequence
-from models.flags import AuthFlags
-from pydantic import ValidationError
 from traceback import format_exception_only
+from typing import Optional, Sequence
+
+from models.flags import AuthFlags
+from models.response_codes import SuccessFlags
+
+from pydantic import ValidationError
 
 def invalid_user_data(exception: Optional[ValidationError] = None) -> str:
     return ':'.join(['Invalid user data', format_exception_only[exception][0] if exception else ''])
@@ -15,3 +18,6 @@ def filecount_mismatch(reported_fcount: int, actual_fcount: int) -> str:
 
 def successful_user_deletion(remote_user: str, deleted_count: int, deleted_files: Sequence[str]) -> str:
     return f'Deleted remote user {remote_user}, deleted files: {deleted_count}. Files:\n{"\n".join(deleted_files)}'
+
+def successful_authorization(remote_user: str, code: str = SuccessFlags.SUCCESSFUL_AUTHENTICATION.value) -> str:
+    return f'Code {code}: Authorization successful, remote session created with identity {remote_user}'
