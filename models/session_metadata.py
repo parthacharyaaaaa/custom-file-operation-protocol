@@ -1,5 +1,6 @@
 import time
-from typing import Any
+from typing import Any, Optional, Sequence
+from types import FunctionType
 
 class SessionMetadata:
     __slots__ = '_token', '_refresh_digest', '_last_refresh', '_iteration', '_lifespan', '_valid_until'
@@ -14,6 +15,12 @@ class SessionMetadata:
 
     # Additional
     _iteration: int
+
+    AUTHENTICATION_RESPONSE_TYPES: dict[str, type] = {'token' : bytes,
+                                                      'refresh_digest' : bytes,
+                                                      'lifespan' : float,
+                                                      'valid_until' : float,
+                                                      'iteration' : int}
 
     @property
     def token(self) -> bytes:
@@ -49,6 +56,13 @@ class SessionMetadata:
                 'lifespan' : self.lifespan,
                 'valid_until' : self.valid_until,
                 'iteration' : self.iteration}
+    
+    @staticmethod
+    def check_authentication_response_validity(session_dict: dict[str, Any], validate_timestamp: bool = False, ref_timestamp: Optional[float] = None, timestamp_claims: Sequence[str] = ['lifespan', 'valid_until']) -> bool:
+        timestamp_validator: FunctionType = (lambda tmstmp : tmstmp <= (ref_timestamp or time.time())) if validate_timestamp else (lambda tmstmp : True)
+
+        return all((isinstance(claim:=session_dict.get(validator_key), validator_type) and timestamp_validator(claim) if validator_key in timestamp_claims else True)
+                   for validator_key, validator_type in SessionMetadata.AUTHENTICATION_RESPONSE_TYPES.items())
 
     def __init__(self, token: bytes, refresh_digest: bytes, lifespan: float):
         self._token = token

@@ -28,7 +28,7 @@ async def handle_login(header_component: BaseHeaderComponent, auth_component: Ba
     
     session_metadata: SessionMetadata = await user_master.authorize_session(username=auth_component.identity, password=auth_component.password)
     header: ResponseHeader = ResponseHeader.from_server(config=SERVER_CONFIG, code=SuccessFlags.SUCCESSFUL_AUTHENTICATION.value, ended_connection=header_component.finish)
-    body: ResponseBody = ResponseBody(contents=session_metadata.dict_repr)
+    body: ResponseBody = ResponseBody(contents={'session' : session_metadata.dict_repr})
 
     return header, body
 
