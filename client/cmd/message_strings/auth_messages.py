@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Sequence
 from models.flags import AuthFlags
 from pydantic import ValidationError
 from traceback import format_exception_only
@@ -9,3 +9,9 @@ def invalid_user_data(exception: Optional[ValidationError] = None) -> str:
 def failed_auth_operation(operation: AuthFlags, code: str) -> str:
     return '\n'.join([f'Code {code}: Failed auth operation',
                       f'Operation: {operation}'])
+
+def filecount_mismatch(reported_fcount: int, actual_fcount: int) -> str:
+    return f"Count of deleted files sent by server do not match actual number of deleted filenames sent. Reported: {reported_fcount}, got: {actual_fcount}"
+
+def successful_user_deletion(remote_user: str, deleted_count: int, deleted_files: Sequence[str]) -> str:
+    return f'Deleted remote user {remote_user}, deleted files: {deleted_count}. Files:\n{"\n".join(deleted_files)}'
