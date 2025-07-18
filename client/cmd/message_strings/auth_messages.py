@@ -1,6 +1,8 @@
 from traceback import format_exception_only
 from typing import Optional, Sequence
 
+from client.cmd.cmd_utils import format_dict
+
 from models.flags import AuthFlags
 from models.response_codes import SuccessFlags
 
@@ -27,3 +29,6 @@ def session_iteration_mismatch(local_iteration: int, remote_iteration: int) -> s
 
 def successful_reauthorization(remote_user: str, iteration: int, code: str = SuccessFlags.SUCCESSFUL_SESSION_REFRESH.value) -> str:
     return f'Code {code}: Refreshed remote session for user {remote_user}, session iterations: {iteration}'
+
+def successful_logout(remote_user: str, code: str = SuccessFlags.SUCCESSFUL_SESSION_TERMINATION.value, **kwargs) -> str:
+    return f'Code: {code}: Terminated remote session for {remote_user}.\n{format_dict(**kwargs)}'

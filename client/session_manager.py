@@ -18,3 +18,8 @@ class SessionManager:
     def update_authentication_component(self, digest: bytes) -> None:
         self.session_metadata.update_digest(new_digest=bytes)
         self.auth_component.refresh_digest = self.session_metadata.refresh_digest
+
+    def clear_auth_data(self) -> None:
+        self.session_metadata = None
+        self.auth_component = None
+        self.identity = None

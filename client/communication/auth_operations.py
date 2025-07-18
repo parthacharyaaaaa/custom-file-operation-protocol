@@ -121,4 +121,18 @@ async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     await display(auth_messages.successful_reauthorization(remote_user=session_manager.identity, iteration=iteration),
                   format_dict(session_manager.session_metadata.dict_repr) if display_credentials else b'',
                   sep=b'\n')
+
+async def end_remote_session(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    await send_request(writer=writer,
+                       header_component=BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.LOGOUT),
+                       auth_component=session_manager.auth_component)
+    response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
     
+    if response_header.code != SuccessFlags.SUCCESSFUL_SESSION_TERMINATION:
+        await display(auth_messages.failed_auth_operation(AuthFlags.LOGOUT, response_header.code))
+        return
+    
+    remote_user: str = session_manager.identity
+    session_manager.clear_auth_data()
+
+    await display(auth_messages.successful_logout(remote_user=remote_user, **response_body.contents))
