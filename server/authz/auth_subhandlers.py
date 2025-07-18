@@ -56,7 +56,7 @@ async def handle_password_change(header_component: BaseHeaderComponent, auth_com
     user_master.session.pop(auth_component.identity, None)
     user_master.previous_digests_mapping.pop(auth_component.identity, None)
     header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_PASSWORD_CHANGE.value)
-    body = ResponseBody(contents=f'Reauthentication required')
+    body = ResponseBody(contents={'message' : f'Reauthentication required'})
 
     return header, body
 
