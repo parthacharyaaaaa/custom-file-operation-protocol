@@ -136,3 +136,28 @@ async def end_remote_session(reader: asyncio.StreamReader, writer: asyncio.Strea
     session_manager.clear_auth_data()
 
     await display(auth_messages.successful_logout(remote_user=remote_user, **response_body.contents))
+
+async def change_password(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, new_password: str) -> None:
+    if not (session_manager.auth_component.token and session_manager.auth_component.refresh_digest):
+        await display(auth_messages.invalid_user_data(ValidationError("Token and refresh digest required")))
+        return
+    try:
+        auth_component: BaseAuthComponent = BaseAuthComponent(identity=session_manager.identity, password=new_password,
+                                                              token=session_manager.auth_component.token, refresh_digest=session_manager.auth_component.refresh_digest)
+    except ValidationError as v:
+        await display(auth_messages.invalid_user_data(v))
+        return
+
+    await send_request(writer,
+                       header_component=BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.CHANGE_PASSWORD),
+                       auth_component=auth_component)
+    
+    response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+
+    if response_header.code != SuccessFlags.SUCCESSFUL_PASSWORD_CHANGE.value:
+        await display(auth_messages.failed_auth_operation(AuthFlags.CHANGE_PASSWORD, response_header.code))
+        return
+
+    # Successful password changes require reauthorization
+    session_manager.clear_auth_data()
+    await display(response_body.contents.get('message', 'Remote session terminated, please reauthorize...'))
