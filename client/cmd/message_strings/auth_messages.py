@@ -21,3 +21,9 @@ def successful_user_deletion(remote_user: str, deleted_count: int, deleted_files
 
 def successful_authorization(remote_user: str, code: str = SuccessFlags.SUCCESSFUL_AUTHENTICATION.value) -> str:
     return f'Code {code}: Authorization successful, remote session created with identity {remote_user}'
+
+def session_iteration_mismatch(local_iteration: int, remote_iteration: int) -> str:
+    return f'Session iteration number sent by server does not match with local iteration number, overriding local iteration number {local_iteration} to {remote_iteration}'
+
+def successful_reauthorization(remote_user: str, iteration: int, code: str = SuccessFlags.SUCCESSFUL_SESSION_REFRESH.value) -> str:
+    return f'Code {code}: Refreshed remote session for user {remote_user}, session iterations: {iteration}'

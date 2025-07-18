@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from models.request_model import BaseHeaderComponent, BaseAuthComponent
 from models.flags import CategoryFlag, AuthFlags
-from models.response_codes import SuccessFlags
+from models.response_codes import SuccessFlags, ServerErrorFlags
 from models.session_metadata import SessionMetadata
 
 async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, username: str, password: str) -> None:
@@ -90,4 +90,35 @@ async def authorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, 
     await display(auth_messages.successful_authorization(remote_user=username))
     if display_credentials:
         await display(format_dict(session_manager.session_metadata.json_repr))
+    
+
+async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, display_credentials: bool = False) -> None:
+    await send_request(writer, BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.REFRESH))
+    response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+
+    if response_header.code != SuccessFlags.SUCCESSFUL_SESSION_REFRESH:
+        await display(auth_messages.failed_auth_operation(AuthFlags.REFRESH, response_header.code))
+        return
+    
+    new_digest: bytes = response_body.contents.get('digest')
+    iteration: int = response_body.contents.get('iteration')
+
+    if not new_digest:
+        await display(auth_messages.failed_auth_operation(AuthFlags.REFRESH, ServerErrorFlags.INTERNAL_SERVER_ERROR.value),
+                      general_messages.missing_response_claim('digest'),
+                      sep=b'\n')
+        return
+    
+    if not iteration:
+        await display(general_messages.missing_response_claim('iteration'))
+
+    session_manager.session_metadata.update_digest(new_digest=new_digest)
+
+    if iteration != session_manager.session_metadata.iteration + 1:
+        await display(auth_messages.session_iteration_mismatch(session_manager.session_metadata.iteration, iteration))
+        session_manager.session_metadata._iteration = iteration
+
+    await display(auth_messages.successful_reauthorization(remote_user=session_manager.identity, iteration=iteration),
+                  format_dict(session_manager.session_metadata.dict_repr) if display_credentials else b'',
+                  sep=b'\n')
     
