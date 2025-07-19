@@ -2,8 +2,12 @@ import asyncio
 from datetime import datetime
 import os
 import time
-from typing import Any, Optional, Literal
+from typing import Any, Optional, Literal, Union
 from traceback import format_exception_only
+
+from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncIndirectBufferedIOBase
+
+from cachetools import TTLCache
 
 from models.flags import PermissionFlags
 from models.permissions import ROLE_MAPPING
@@ -15,14 +19,12 @@ from models.request_model import BaseHeaderComponent, BaseAuthComponent, BasePer
 import psycopg.errors as pg_exc
 from psycopg.rows import dict_row
 
-from server.bootup import connection_master
-from server.bootup import read_cache, write_cache, append_cache, delete_cache, log_queue
-from server.config.server_config import SERVER_CONFIG
+from server import errors
+from server import logging
+from server.config import server_config
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
-from server.database.models import ActivityLog, LogType, LogAuthor, Severity
-from server.errors import OperationContested, DatabaseFailure, FileNotFound, FileConflict, InsufficientPermissions, OperationalConflict
-from server.file_ops.base_operations import transfer_file
-from server.logging import enqueue_log
+from server.database import models as db_models
+from server.file_ops import base_operations as base_ops
 
 async def check_file_permission(filename: str, owner: str, grantee: str, check_for: FilePermissions, connection_master: ConnectionPoolManager, proxy: Optional[ConnectionProxy] = None, level: Optional[Literal[1,2,3]] = 1, check_until: Optional[datetime] = None) -> bool:
     reclaim_after: bool = proxy is None
@@ -46,7 +48,9 @@ async def check_file_permission(filename: str, owner: str, grantee: str, check_f
         return False
     return True
 
-async def publicise_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, None]:
+async def publicise_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
+                         config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.db_models.ActivityLog, int]],
+                         connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
     proxy: ConnectionProxy = connection_master.request_connection(level=1)
     try:
         async with proxy.cursor(row_factory=dict_row) as cursor:
@@ -59,9 +63,9 @@ async def publicise_file(header_component: BaseHeaderComponent, auth_component: 
             
             result: dict[str, bool] = await cursor.fetchone()
             if not result:
-                raise FileNotFound(file=permission_component.subject_file, username=auth_component.identity)
+                raise errors.FileNotFound(file=permission_component.subject_file, username=auth_component.identity)
             if result['public']:   # File already public
-                raise FileConflict(file=permission_component.subject_file, username=auth_component.identity)
+                raise errors.FileConflict(file=permission_component.subject_file, username=auth_component.identity)
             
             await cursor.execute('''UPDATE files
                                  SET public = TRUE
@@ -69,22 +73,25 @@ async def publicise_file(header_component: BaseHeaderComponent, auth_component: 
                                  (auth_component.identity, permission_component.subject_file,))
         await proxy.commit()
     except pg_exc.LockNotAvailable:
-        raise OperationContested
+        raise errors.OperationContested
     except pg_exc.Error as e:
         asyncio.create_task(
-                enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
-                            log=ActivityLog(logged_by=LogAuthor.FILE_HANDLER.value,
-                                            log_category=LogType.DATABASE.value,
+                logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
+                                    log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER.value,
+                                            log_category=db_models.LogType.DATABASE.value,
                                             log_details=format_exception_only(e)[0],
-                                            severity=Severity.NON_CRITICAL_FAILURE.value)))
+                                            severity=db_models.Seveirty.NON_CRITICAL_FAILURE.value)))
         
-        raise DatabaseFailure('Failed to publicise file')
+        raise errors.DatabaseFailure('Failed to publicise file')
     finally:
         connection_master.reclaim_connection(proxy)
 
-    return ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value, ended_connection=header_component.finish), None
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value, ended_connection=header_component.finish),
+            None)
 
-async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, ResponseBody]:
+async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
+                    config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
+                    connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, ResponseBody]:
     proxy: ConnectionProxy = connection_master.request_connection(level=1)
     try:
         async with proxy.cursor(row_factory = dict_row) as cursor:
@@ -97,7 +104,7 @@ async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseA
             
             file_mapping: dict[str, Any] = await cursor.fetchone()
             if not file_mapping:
-                raise FileNotFound(file=permission_component.subject_file, username=auth_component.identity)
+                raise errors.FileNotFound(file=permission_component.subject_file, username=auth_component.identity)
 
             await cursor.execute('''UPDATE files
                                  SET public = FALSE
@@ -112,22 +119,25 @@ async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseA
             revoked_grantees: list[dict[str, str]] = await cursor.fetchall()
         await proxy.commit()
     except pg_exc.LockNotAvailable:
-        raise OperationContested
+        raise errors.OperationContested
     except pg_exc.Error as e:
         asyncio.create_task(
-                enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
-                            log=ActivityLog(logged_by=LogAuthor.FILE_HANDLER.value,
-                                            log_category=LogType.DATABASE.value,
+                logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
+                            log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER.value,
+                                            log_category=db_models.LogType.DATABASE.value,
                                             log_details=format_exception_only(e)[0],
-                                            severity=Severity.NON_CRITICAL_FAILURE.value)))
+                                            severity=db_models.Seveirty.NON_CRITICAL_FAILURE.value)))
         
-        raise DatabaseFailure('Failed to hide file')
+        raise errors.DatabaseFailure('Failed to hide file')
     finally:
         connection_master.reclaim_connection(proxy)
 
-    return ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_HIDE.value, ended_connection=header_component.finish), ResponseBody(contents={'revoked_grantee_info' : revoked_grantees})
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_HIDE.value, ended_connection=header_component.finish),
+            ResponseBody(contents={'revoked_grantee_info' : revoked_grantees}))
 
-async def grant_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, None]:
+async def grant_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
+                           config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
+                           connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
     allowed_permission: FilePermissions = FilePermissions.MANAGE_RW
     if (permission_component.permission_flags & PermissionFlags.MANAGER.value): # If request is to grant manager role to a user, then only the owner of this file is allowed
         allowed_permission = FilePermissions.MANAGE_SUPER
@@ -135,7 +145,7 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
     proxy: ConnectionProxy = await connection_master.request_connection(level=2)
     try:
         if not await check_file_permission(permission_component.subject_file, permission_component.subject_file_owner, permission_component.subject_user, check_for=allowed_permission.value, check_until=datetime.fromtimestamp(header_component.sender_timestamp) , proxy=proxy):
-            raise InsufficientPermissions
+            raise errors.InsufficientPermissions
         
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute('''SELECT role, granted_by
@@ -151,13 +161,13 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
             granted_until: datetime = None if not permission_component.effect_duration else datetime.fromtimestamp(time.time() + permission_component.effect_duration)
             if permission_mapping:
                 if requested_role.value == permission_mapping['role']:
-                    raise OperationalConflict(f'User {permission_component.subject_user} already has permission {requested_role} on file {permission_component.subject_file} owned by {permission_component.subject_file_owner}')
+                    raise errors.OperationalConflict(f'User {permission_component.subject_user} already has permission {requested_role} on file {permission_component.subject_file} owned by {permission_component.subject_file_owner}')
                 
                 # Overriding a role must require new granter to have same or higher permissions than previous granter.
                 # Manager -> manager overrides, including overriding an ex-manager is allowed so no checks needed.
                 # However, if file owner is the granter, then only the owner themselves are allowed   
                 elif (permission_mapping['granted_by'] == permission_component.subject_file_owner) and (auth_component.identity != permission_component.subject_file_owner):
-                    raise InsufficientPermissions(f'Insufficient permission to override role of user {permission_component.subject_user} on file {permission_component.subject_file} owned by {permission_component.subject_file_owner} (role previosuly granted by {permission_component["granted_by"]})')
+                    raise errors.InsufficientPermissions(f'Insufficient permission to override role of user {permission_component.subject_user} on file {permission_component.subject_file} owned by {permission_component.subject_file_owner} (role previosuly granted by {permission_component["granted_by"]})')
                 await cursor.execute('''UPDATE file_permissions
                                     SET role = %s, granted_at = %s, granted_by = %s, granted_until = %s,
                                     WHERE file_owner = %s AND filename = %s AND grantee = %s''',
@@ -172,22 +182,25 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
         
         await proxy.commit()
     except pg_exc.LockNotAvailable:
-        raise OperationContested
+        raise errors.OperationContested
     except pg_exc.Error as e:
         asyncio.create_task(
-                enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
-                            log=ActivityLog(logged_by=LogAuthor.FILE_HANDLER.value,
-                                            log_category=LogType.DATABASE.value,
-                                            log_details=format_exception_only(e)[0],
-                                            severity=Severity.NON_CRITICAL_FAILURE.value)))
+                logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
+                                    log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER.value,
+                                                              log_category=db_models.LogType.DATABASE.value,
+                                                              log_details=format_exception_only(e)[0],
+                                                              severity=db_models.Seveirty.NON_CRITICAL_FAILURE.value)))
         
-        raise DatabaseFailure('Failed to grant permission')
+        raise errors.DatabaseFailure('Failed to grant permission')
     finally:
         await connection_master.reclaim_connection(proxy)
     
-    return ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_GRANT, ended_connection=header_component.finish), None
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_GRANT, ended_connection=header_component.finish),
+            None)
 
-async def revoke_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, ResponseBody]:
+async def revoke_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
+                            config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
+                            connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, ResponseBody]:
     allowed_permission: FilePermissions = FilePermissions.MANAGE_RW
     if (permission_component.permission_flags & PermissionFlags.MANAGER.value): # If request is to revoke a user's manager role, then only the owner of this file is allowed
         allowed_permission = FilePermissions.MANAGE_SUPER
@@ -196,7 +209,7 @@ async def revoke_permission(header_component: BaseHeaderComponent, auth_componen
     try:
         if not await check_file_permission(permission_component.subject_file, permission_component.subject_file_owner, permission_component.subject_user,
                                            check_for=allowed_permission, check_until=datetime.fromtimestamp(header_component.sender_timestamp) , proxy=proxy):
-            raise InsufficientPermissions
+            raise errors.InsufficientPermissions
         
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute('''SELECT role, granted_by, granted_at, grantee
@@ -207,38 +220,41 @@ async def revoke_permission(header_component: BaseHeaderComponent, auth_componen
             permission_mapping: dict[str, str] = await cursor.fetchone()
 
             if not permission_mapping:
-                raise OperationalConflict(f'User {permission_component.subject_user} does not have any permission on file {permission_component.subject_file} owned by {permission_component.subject_file_owner}')
+                raise errors.OperationalConflict(f'User {permission_component.subject_user} does not have any permission on file {permission_component.subject_file} owned by {permission_component.subject_file_owner}')
             
             # Revoking a role also follows same logic as granting one. If the role was granted by the owner, then only the owner is permitted to revoke it.
             if (permission_mapping['granted_by'] == permission_component.subject_file_owner) and (auth_component.identity != permission_component.subject_file_owner):
-                raise InsufficientPermissions
+                raise errors.InsufficientPermissions
 
             await cursor.execute('''DELETE FROM file_permissions
                                  WHERE file_owner = %s AND filename = %s AND grantee = %s''',
                                  (permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user,))
         await proxy.commit()
     except pg_exc.LockNotAvailable:
-        raise OperationContested
+        raise errors.OperationContested
     except pg_exc.Error as e:
         asyncio.create_task(
-            enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
-                        log=ActivityLog(logged_by=LogAuthor.FILE_HANDLER.value,
-                                        log_category=LogType.DATABASE.value,
-                                        log_details=format_exception_only(e)[0],
-                                        severity=Severity.NON_CRITICAL_FAILURE.value)))
+            logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
+                                log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER.value,
+                                                          log_category=db_models.LogType.DATABASE.value,
+                                                          log_details=format_exception_only(e)[0],
+                                                          severity=db_models.Seveirty.NON_CRITICAL_FAILURE.value)))
         
-        raise DatabaseFailure('Failed to revoke permission')
+        raise errors.DatabaseFailure('Failed to revoke permission')
     finally:
         await connection_master.reclaim_connection(proxy)
     
     return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_REVOKE, ended_connection=header_component.finish),
             ResponseBody(contents={'revoked_role_data' : permission_mapping}))
 
-async def transfer_ownership(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent) -> tuple[ResponseHeader, ResponseBody]:
+async def transfer_ownership(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
+                             config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[db_models.ActivityLog, int],
+                             connection_master: ConnectionPoolManager,
+                             deleted_cache: TTLCache[str, True], **cache_mapping: TTLCache[str, Union[AsyncIndirectBufferedIOBase, AsyncBufferedReader]]) -> tuple[ResponseHeader, ResponseBody]:
     if auth_component.identity != permission_component.subject_file_owner:
-        raise InsufficientPermissions(f'Only file owner {permission_component.subject_file_owner} is permitted to transfer ownership of file {permission_component.subject_file}')
+        raise errors.InsufficientPermissions(f'Only file owner {permission_component.subject_file_owner} is permitted to transfer ownership of file {permission_component.subject_file}')
     if permission_component.subject_file_owner == permission_component.subject_user:
-        raise OperationalConflict('Cannot transfer file ownership to owner themselves, what are you trying to accomplish?')
+        raise errors.OperationalConflict('Cannot transfer file ownership to owner themselves, what are you trying to accomplish?')
     
     proxy: ConnectionProxy = await connection_master.request_connection(level=3)
     new_fname: str = None
@@ -248,7 +264,7 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
             # Auth component can easily be tampered to reflect same username as file owner, check against database
             if not await check_file_permission(permission_component.subject_file, permission_component.subject_file_owner, permission_component.subject_user, ['owner'], proxy):
                 # TODO: Log tampered identity claim in auth component
-                raise InsufficientPermissions(f'Only file owner {permission_component.subject_file_owner} is permitted to transfer ownership of file {permission_component.subject_file}')
+                raise errors.InsufficientPermissions(f'Only file owner {permission_component.subject_file_owner} is permitted to transfer ownership of file {permission_component.subject_file}')
             
             # Proceed to transfer ownership 
             await cursor.execute('''SELECT *
@@ -260,13 +276,13 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
             # file_permissions_mapping: list[dict[str, str]] = await cursor.fetchall()  # Do we even need to return this?
             # Before committing, it is important to move this file to the new owner's directory. This way in case of an OSError/PermissionError we won't have inconsistent state
             new_fname = await asyncio.wait_for(
-                asyncio.to_thread(transfer_file,
-                                  root=SERVER_CONFIG.root_directory, file=permission_component.subject_file,
+                asyncio.to_thread(base_ops.transfer_file,
+                                  root=config.root_directory, file=permission_component.subject_file,
                                   previous_owner=permission_component.subject_file_owner, new_owner=permission_component.subject_user,
-                                  deleted_cache=delete_cache, read_cache=read_cache, write_cache=write_cache, append_cache=append_cache),
-                timeout=SERVER_CONFIG.file_transfer_timeout)
+                                  deleted_cache=deleted_cache, **cache_mapping),
+                timeout=config.file_transfer_timeout)
             if not new_fname:   # Failed to transfer file
-                raise FileConflict(f'Failed to perform file transfer from {permission_component.subject_file_owner} to {permission_component.subject_user}')
+                raise errors.FileConflict(f'Failed to perform file transfer from {permission_component.subject_file_owner} to {permission_component.subject_user}')
             
             # It is important to rely on returned filename from transfer_file, because the new owner may have a file with the same name already in their directory. 
             # In such cases, a new filename is determined by prefixing the file with a UUID. Hence, filename must also be updated
@@ -285,23 +301,23 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
         # Before re-raising the same exception or a new corresponding ProtocolException, we need to rollback any file changes
         if new_fname:   # new_fname being not None implies the file was transferred, but an error occured at the database level
             await asyncio.wait_for(
-                asyncio.to_thread(transfer_file,
-                                  root=SERVER_CONFIG.root_directory, file=new_fname, new_name=permission_component.subject_file,
+                asyncio.to_thread(base_ops.transfer_file,
+                                  root=config.root_directory, file=new_fname, new_name=permission_component.subject_file,
                                   previous_owner=permission_component.subject_user, new_owner=permission_component.subject_file_owner,
-                                  deleted_cache=delete_cache, read_cache=read_cache, write_cache=write_cache, append_cache=append_cache),
-                timeout=SERVER_CONFIG.file_transfer_timeout)
+                                  deleted_cache=deleted_cache, **cache_mapping),
+                timeout=config.file_transfer_timeout)
             
         if isinstance(e, pg_exc.LockNotAvailable):
-            raise OperationContested
+            raise errors.OperationContested
         elif isinstance(e, pg_exc.Error):
             asyncio.create_task(
-                enqueue_log(waiting_period=SERVER_CONFIG.log_waiting_period, queue=log_queue,
-                            log=ActivityLog(logged_by=LogAuthor.FILE_HANDLER.value,
-                                            log_category=LogType.DATABASE.value,
+                logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
+                            log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER.value,
+                                            log_category=db_models.LogType.DATABASE.value,
                                             log_details=format_exception_only(e)[0],
-                                            severity=Severity.NON_CRITICAL_FAILURE.value)))
+                                            severity=db_models.Seveirty.NON_CRITICAL_FAILURE.value)))
             
-            raise DatabaseFailure(f'Failed to transfer ownership of file {permission_component.subject_file} to {permission_component.subject_user}')
+            raise errors.DatabaseFailure(f'Failed to transfer ownership of file {permission_component.subject_file} to {permission_component.subject_user}')
         raise e
     finally:
         await connection_master.reclaim_connection(proxy)
