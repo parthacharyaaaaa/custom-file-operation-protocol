@@ -8,7 +8,7 @@ from client.cmd.cmd_utils import display
 from client.cmd.message_strings import file_messages, general_messages
 from client.communication.outgoing import send_request
 from client.communication.incoming import process_response
-from client.config import constants
+from client.config import client_constants as client_constants
 from client import session_manager
 
 from models.constants import REQUEST_CONSTANTS
@@ -19,7 +19,7 @@ from models.request_model import BaseHeaderComponent, BaseFileComponent
 async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              write_data: Union[str, bytes, bytearray, memoryview],
                              remote_directory: str, remote_filename,
-                             client_config: constants.ClientConfig, session_manager: session_manager.SessionManager,
+                             client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                              chunk_size: Optional[int] = None) -> None:
     if isinstance(write_data, str):
         write_data = write_data.encode('utf-8')
@@ -48,7 +48,7 @@ async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
 
 async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                            remote_directory: str, remote_filename: str,
-                           client_config: constants.ClientConfig, session_manager: session_manager.SessionManager,
+                           client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                            chunk_size: Optional[int] = None, read_limit: Optional[int] = None, chunked_display: bool = True) -> bytearray:
     read_data: bytearray = bytearray()
 
@@ -95,7 +95,7 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
 
 async def create_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                       remote_directory: str, remote_filename: str,
-                      client_config: constants.ClientConfig, session_manager: session_manager.SessionManager) -> dict[str, Any]:
+                      client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager) -> dict[str, Any]:
     file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=remote_directory)
 
     await send_request(writer, header_component=BaseHeaderComponent(client_config.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.CREATE),
@@ -115,7 +115,7 @@ async def create_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 
 async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                       remote_directory: str, remote_filename: str,
-                      client_config: constants.ClientConfig, session_manager: session_manager.SessionManager) -> None:
+                      client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager) -> None:
     file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=remote_directory)
 
     await send_request(writer, header_component=BaseHeaderComponent(client_config.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.DELETE),
@@ -144,7 +144,7 @@ async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 
 async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              local_fpath: str, remote_directory: str,
-                             client_config: constants.ClientConfig, session_manager: session_manager.SessionManager,
+                             client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                              remote_filename: Optional[str] = None, chunk_size: Optional[int] = None) -> None:
     if not os.path.isfile(local_fpath):
         await display(file_messages.file_not_found(local_fpath))

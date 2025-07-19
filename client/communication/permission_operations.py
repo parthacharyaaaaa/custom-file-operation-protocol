@@ -1,7 +1,7 @@
 import asyncio
 from typing import Optional, Sequence
 
-from client.config import constants
+from client.config import constants as client_constants
 from client import session_manager
 from client.cmd.cmd_utils import display
 from client.cmd.message_strings import permission_messages, general_messages
@@ -16,7 +16,7 @@ from models.flags import CategoryFlag, PermissionFlags
 
 async def grant_permission(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                            granted_role: RoleTypes, remote_user: str, remote_directory: str, remote_file: str,
-                           client_config: constants.ClientConfig, session_manager: session_manager.SessionManager,
+                           client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                            duration: Optional[float] = None):
     subcategory_bits: int = PermissionFlags.GRANT.value
     # Based on role arg, mask the 3 most significant bits
@@ -42,7 +42,7 @@ async def grant_permission(reader: asyncio.StreamReader, writer: asyncio.StreamW
 
 async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                             remote_user: str, remote_directory: str, remote_file: str,
-                            client_config: constants.ClientConfig, session_manager: session_manager.SessionManager,) -> None:
+                            client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,) -> None:
     header_component: BaseHeaderComponent = BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.REVOKE)
     permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory, subject_user=remote_user)
 
@@ -57,7 +57,7 @@ async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.Stream
 
 async def transfer_ownership(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              remote_user: str, remote_directory: str, remote_file: str,
-                             client_config: constants.ClientConfig, session_manager: session_manager.SessionManager) -> str:
+                             client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager) -> str:
     header_component: BaseHeaderComponent = BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.TRANSFER)
     permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory, subject_user=remote_user)
 
@@ -79,7 +79,7 @@ async def transfer_ownership(reader: asyncio.StreamReader, writer: asyncio.Strea
 
 async def publicise_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                                 remote_directory: str, remote_file: str,
-                                client_config: constants.ClientConfig, session_manager: session_manager.SessionManager) -> None:
+                                client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager) -> None:
     header_component: BaseHeaderComponent = BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.PUBLICISE)
     permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory)
 
@@ -93,7 +93,7 @@ async def publicise_remote_file(reader: asyncio.StreamReader, writer: asyncio.St
 
 async def hide_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                            remote_directory: str, remote_file: str,
-                           client_config: constants.ClientConfig, session_manager: session_manager.SessionManager):
+                           client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager):
     header_component: BaseHeaderComponent = BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.HIDE)
     permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory)
 
