@@ -62,7 +62,7 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     revoked_info: list[dict[str, Any]] = []
     try:
         async with proxy.cursor(row_factory=dict_row) as cursor:
-            await cursor.execute('''SELECT FROM FILE_PERMISSIONS
+            await cursor.execute('''SELECT * FROM FILE_PERMISSIONS
                                  WHERE file_owner = %s AND filename = %s;''',
                                  (file_component.subject_file, auth_component.identity,))
             revoked_info = await cursor.fetchall()
