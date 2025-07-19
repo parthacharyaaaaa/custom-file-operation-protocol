@@ -6,9 +6,9 @@ from models.flags import FileFlags, CategoryFlag
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent
 from models.response_models import ResponseHeader, ResponseBody
 
-from server.bootup import user_master
+from server.authz.user_manager import UserManager
 from server.comms_utils.incoming import process_component
-from server.config.server_config import SERVER_CONFIG
+from server.config.server_config import ServerConfig
 from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, SlowStreamRate, UnsupportedOperation
 from server.file_ops.file_subhandlers import handle_read, handle_amendment, handle_deletion, handle_creation
 
@@ -28,13 +28,14 @@ _FILE_SUBHANDLER_MAPPING: MappingProxyType[int, FILE_SUBHANDLERS] = MappingProxy
     )
 )
 
-async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseHeaderComponent) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseHeaderComponent,
+                           server_config: ServerConfig, user_master: UserManager) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     # File operations require authentication
     if not (header_component.auth_size and header_component.body_size):
         raise InvalidHeaderSemantic('Headers for permission operations require BOTH auth component and permission (body) component')
 
     try:
-        auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size, reader=reader, component_type='auth', timeout=SERVER_CONFIG.read_timeout)
+        auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size, reader=reader, component_type='auth', timeout=server_config.read_timeout)
     except asyncio.TimeoutError:
         raise SlowStreamRate
     except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
@@ -48,7 +49,7 @@ async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseH
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.FILE_OP._name_}')
     
     # All checks at the component level passed, read and process file component
-    file_component: BaseFileComponent = await process_component(n_bytes=header_component.body_size, reader=reader, component_type='file', timeout=SERVER_CONFIG.read_timeout)
+    file_component: BaseFileComponent = await process_component(n_bytes=header_component.body_size, reader=reader, component_type='file', timeout=server_config.read_timeout)
     subhandler = _FILE_SUBHANDLER_MAPPING[header_component.subcategory]
     header, body = await subhandler(header_component, auth_component, file_component)
 
