@@ -88,10 +88,11 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
 
 async def handle_amendment(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
                            config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
-                           file_locks: TTLCache[str, bytes],
+                           file_locks: TTLCache[str, bytes], connection_master: ConnectionPoolManager,
                            delete_cache: TTLCache, amendment_cache: TTLCache) -> tuple[ResponseHeader, ResponseBody]:
     # Check permissions
-    if not await permission_subhandlers.check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner, grantee=auth_component.identity,
+    if not await permission_subhandlers.check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner,
+                                                              grantee=auth_component.identity, connection_master=connection_master,
                                                               check_for=FilePermissions.WRITE.value, check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
         err_str: str = f'User {auth_component.identity} does not have write permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
         asyncio.create_task(

@@ -18,13 +18,13 @@ from psycopg.rows import dict_row
 from server.bootup import connection_master
 from server.bootup import read_cache, write_cache, append_cache, delete_cache, log_queue
 from server.config.server_config import SERVER_CONFIG
-from server.connectionpool import ConnectionProxy
+from server.connectionpool import ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog, LogType, LogAuthor, Severity
 from server.errors import OperationContested, DatabaseFailure, FileNotFound, FileConflict, InsufficientPermissions, OperationalConflict
 from server.file_ops.base_operations import transfer_file
 from server.logging import enqueue_log
 
-async def check_file_permission(filename: str, owner: str, grantee: str, check_for: FilePermissions, proxy: Optional[ConnectionProxy] = None, level: Optional[Literal[1,2,3]] = 1, check_until: Optional[datetime] = None) -> bool:
+async def check_file_permission(filename: str, owner: str, grantee: str, check_for: FilePermissions, connection_master: ConnectionPoolManager, proxy: Optional[ConnectionProxy] = None, level: Optional[Literal[1,2,3]] = 1, check_until: Optional[datetime] = None) -> bool:
     reclaim_after: bool = proxy is None
     if not proxy:
         proxy: ConnectionProxy = await connection_master.request_connection(level=level)
