@@ -1,13 +1,13 @@
 import asyncio
 from typing import Any
 
+from client import session_manager
+from client.config import constants
 from client.communication.outgoing import send_request
 from client.communication.incoming import process_response
-from client.config.constants import ClientConfig
 from client.cmd.cmd_utils import display, format_dict
 from client.cmd.message_strings import auth_messages
 from client.cmd.message_strings import general_messages
-from client.session_manager import SessionManager
 
 from pydantic import ValidationError
 
@@ -18,7 +18,7 @@ from models.session_metadata import SessionMetadata
 
 async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              username: str, password: str,
-                             client_config: ClientConfig) -> None:
+                             client_config: constants.ClientConfig) -> None:
     try:
         auth_component: BaseAuthComponent = BaseAuthComponent(identity=username, password=password)
     except ValidationError as v:
@@ -38,7 +38,7 @@ async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
 
 async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              username: str, password: str,
-                             client_config: ClientConfig) -> None:
+                             client_config: constants.ClientConfig) -> None:
     try:
         auth_component: BaseAuthComponent = BaseAuthComponent(identity=username, password=password)
     except ValidationError as v:
@@ -67,7 +67,7 @@ async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
 
 async def authorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                     username: str, password: str,
-                    client_config: ClientConfig, session_manager: SessionManager,
+                    client_config: constants.ClientConfig, session_manager: session_manager.SessionManager,
                     display_credentials: bool = False) -> None:
     try:
         auth_component: BaseAuthComponent = BaseAuthComponent(identity=username, password=password)
@@ -99,7 +99,7 @@ async def authorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
         await display(format_dict(session_manager.session_metadata.json_repr))
     
 async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                      client_config: ClientConfig, session_manager: SessionManager,
+                      client_config: constants.ClientConfig, session_manager: session_manager.SessionManager,
                       display_credentials: bool = False) -> None:
     await send_request(writer, BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.REFRESH))
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
@@ -131,7 +131,7 @@ async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
                   sep=b'\n')
 
 async def end_remote_session(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                             client_config: ClientConfig, session_manager: SessionManager) -> None:
+                             client_config: constants.ClientConfig, session_manager: session_manager.SessionManager) -> None:
     await send_request(writer=writer,
                        header_component=BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.LOGOUT),
                        auth_component=session_manager.auth_component)
@@ -148,7 +148,7 @@ async def end_remote_session(reader: asyncio.StreamReader, writer: asyncio.Strea
 
 async def change_password(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                           new_password: str,
-                          client_config: ClientConfig, session_manager: SessionManager) -> None:
+                          client_config: constants.ClientConfig, session_manager: session_manager.SessionManager) -> None:
     if not (session_manager.auth_component.token and session_manager.auth_component.refresh_digest):
         await display(auth_messages.invalid_user_data(ValidationError("Token and refresh digest required")))
         return
