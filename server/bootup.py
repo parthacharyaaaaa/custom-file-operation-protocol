@@ -21,8 +21,7 @@ log_queue: asyncio.PriorityQueue = None
 # Caches
 delete_cache: TTLCache[str, True] = None
 read_cache: TTLCache[str, dict[str, AsyncBufferedReader]] = None
-write_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]] = None
-append_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]] = None
+amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]] = None
 
 async def init_connection_master(conninfo: str, ) -> ConnectionPoolManager:
     global connection_master
@@ -46,11 +45,10 @@ def init_file_lock() -> set:
     return file_locks
 
 def init_caches() -> None:
-    global read_cache, write_cache, append_cache, delete_cache
+    global read_cache, amendment_cache, delete_cache
     read_cache = TTLCache(maxsize=SERVER_CONFIG.file_cache_size, ttl=SERVER_CONFIG.file_cache_ttl)
-    write_cache = TTLCache(maxsize=SERVER_CONFIG.file_cache_size, ttl=SERVER_CONFIG.file_cache_ttl)
-    append_cache = TTLCache(maxsize=SERVER_CONFIG.file_cache_size, ttl=SERVER_CONFIG.file_cache_ttl)
-    delete_cache= TTLCache(maxsize=SERVER_CONFIG.file_cache_size, ttl=SERVER_CONFIG.file_cache_ttl)
+    amendment_cache = TTLCache(maxsize=SERVER_CONFIG.file_cache_size, ttl=SERVER_CONFIG.file_cache_ttl)
+    delete_cache = TTLCache(maxsize=SERVER_CONFIG.file_cache_size, ttl=SERVER_CONFIG.file_cache_ttl)
 
 def init_logger() -> None:
     global log_queue

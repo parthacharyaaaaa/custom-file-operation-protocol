@@ -89,7 +89,7 @@ async def read_file(root: os.PathLike, fpath: str, deleted_cache: TTLCache[str],
 
     return data, cursor_position, eof_reached
 
-async def write_file(root: os.PathLike, fpath: str, data: Union[bytes, str], deleted_cache: TTLCache[str], write_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]], cursor_position: int, writer_keepalive: bool = False, purge_writer: bool = False, identifier: Optional[str] = None, cached: bool = False) -> int:
+async def write_file(root: os.PathLike, fpath: str, data: Union[bytes, str], deleted_cache: TTLCache[str], amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]], cursor_position: int, writer_keepalive: bool = False, purge_writer: bool = False, identifier: Optional[str] = None, cached: bool = False) -> int:
     abs_fpath: os.PathLike = os.path.join(root, fpath)
     if deleted_cache.get(fpath) or not os.path.isfile(abs_fpath):
         raise FileNotFoundError()
@@ -97,7 +97,7 @@ async def write_file(root: os.PathLike, fpath: str, data: Union[bytes, str], del
     # Only one coroutine is allowed to write to a file at a given time
     if cached:
         if not identifier: raise ValueError('Cached usage requires identifier for writer')
-        writer: AsyncBufferedIOBase = get_reader(write_cache, fpath, identifier)
+        writer: AsyncBufferedIOBase = get_reader(amendment_cache, fpath, identifier)
         writer_found: bool = writer is not None
 
         if not writer_found:
@@ -110,10 +110,10 @@ async def write_file(root: os.PathLike, fpath: str, data: Union[bytes, str], del
         await writer.write(data)
 
         if not (writer_found or purge_writer):
-            write_cache.setdefault(fpath, {}).update({identifier:writer})
+            amendment_cache.setdefault(fpath, {}).update({identifier:writer})
         
         if purge_writer:
-            remove_reader(write_cache, fpath, identifier)
+            remove_reader(amendment_cache, fpath, identifier)
             await writer.close()
         
         return cursor_position + len(data)
@@ -123,7 +123,7 @@ async def write_file(root: os.PathLike, fpath: str, data: Union[bytes, str], del
     try:
         await writer.write(data)
         if writer_keepalive:
-            write_cache.setdefault(fpath, {}).update({identifier:writer})
+            amendment_cache.setdefault(fpath, {}).update({identifier:writer})
     except IOError:
         await writer.close()
     finally:
@@ -132,7 +132,7 @@ async def write_file(root: os.PathLike, fpath: str, data: Union[bytes, str], del
     
     return cursor_position + len(data)
 
-async def append_file(root: os.PathLike, fpath: str, data: Union[bytes, str], deleted_cache: TTLCache[str], append_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]], append_writer_keepalive: bool = False, purge_append_writer: bool = False, identifier: Optional[str] = None, cached: bool = False) -> int:
+async def append_file(root: os.PathLike, fpath: str, data: Union[bytes, str], deleted_cache: TTLCache[str], amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]], append_writer_keepalive: bool = False, purge_append_writer: bool = False, identifier: Optional[str] = None, cached: bool = False) -> int:
     abs_fpath: os.PathLike = os.path.join(root, fpath)
     if deleted_cache.get(fpath) or not os.path.isfile(abs_fpath):
         raise FileNotFoundError()
@@ -140,7 +140,7 @@ async def append_file(root: os.PathLike, fpath: str, data: Union[bytes, str], de
     # Only one coroutine is allowed to write to a file at a given time
     if cached:
         if not identifier: raise ValueError('Cached usage requires identifier for writer')
-        append_writer: AsyncBufferedIOBase = get_reader(append_cache, fpath, identifier)
+        append_writer: AsyncBufferedIOBase = get_reader(amendment_cache, fpath, identifier)
         append_writer_found: bool = append_writer is not None
 
         if not append_writer_found:
@@ -150,10 +150,10 @@ async def append_file(root: os.PathLike, fpath: str, data: Union[bytes, str], de
         await append_writer.write(data)
         cursor: int = await append_writer.tell()
         if not (append_writer_found or purge_append_writer):
-            append_cache.setdefault(fpath, {}).update({identifier:append_writer})
+            amendment_cache.setdefault(fpath, {}).update({identifier:append_writer})
         
         if purge_append_writer:
-            remove_reader(append_cache, fpath, identifier)
+            remove_reader(amendment_cache, fpath, identifier)
             await append_writer.close()
         
         return cursor
@@ -162,7 +162,7 @@ async def append_file(root: os.PathLike, fpath: str, data: Union[bytes, str], de
     try:
         await append_writer.write(data)
         if append_writer_keepalive:
-            append_cache.setdefault(fpath, {}).update({identifier:append_writer})
+            amendment_cache.setdefault(fpath, {}).update({identifier:append_writer})
     except IOError:
         await append_writer.close()
     finally:

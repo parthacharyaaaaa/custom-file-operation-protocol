@@ -119,14 +119,14 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     if header_component.subcategory & FileFlags.WRITE:
         cursor_position = await base_ops.write_file(root=config.root_directory, fpath=fpath,
                                                     data=file_component.write_data.encode('utf-8'),
-                                                    deleted_cache=delete_cache, write_cache=amendment_cache,
+                                                    deleted_cache=delete_cache, amendment_cache=amendment_cache,
                                                     cursor_position=file_component.cursor_position or 0, writer_keepalive=file_component.cursor_keepalive, purge_writer=header_component.finish,
                                                     identifier=auth_component.identity, cached=True)
         keepalive_accepted = cache_ops.get_reader(amendment_cache, fpath, auth_component.identity) 
     else:
         cursor_position = await base_ops.append_file(root=config.root_directory, fpath=fpath,
                                            data=file_component.write_data.encode('utf-8'),
-                                           deleted_cache=delete_cache, append_cache=amendment_cache,
+                                           deleted_cache=delete_cache, amendment_cache=amendment_cache,
                                            append_writer_keepalive=file_component.cursor_keepalive, purge_append_writer=header_component.finish,
                                            identifier=auth_component.identity, cached=True)
         keepalive_accepted = cache_ops.get_reader(amendment_cache, fpath, auth_component.identity) 
