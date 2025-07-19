@@ -1,13 +1,13 @@
 import asyncio
 from typing import Any
 
-from client.bootup import session_manager
 from client.communication.outgoing import send_request
 from client.communication.incoming import process_response
-from client.config.constants import CLIENT_CONFIG
+from client.config.constants import ClientConfig
 from client.cmd.cmd_utils import display, format_dict
 from client.cmd.message_strings import auth_messages
 from client.cmd.message_strings import general_messages
+from client.session_manager import SessionManager
 
 from pydantic import ValidationError
 
@@ -16,7 +16,9 @@ from models.flags import CategoryFlag, AuthFlags
 from models.response_codes import SuccessFlags, ServerErrorFlags
 from models.session_metadata import SessionMetadata
 
-async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, username: str, password: str) -> None:
+async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                             username: str, password: str,
+                             client_config: ClientConfig) -> None:
     try:
         auth_component: BaseAuthComponent = BaseAuthComponent(identity=username, password=password)
     except ValidationError as v:
@@ -24,16 +26,19 @@ async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
         return
     
     await send_request(writer=writer,
-                       header_component=BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.REGISTER),
+                       header_component=BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.REGISTER),
                        auth_component=auth_component)
-    response_header, _ = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+    
+    response_header, _ = await process_response(reader, writer, client_config.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_USER_CREATION.value:
         await display(auth_messages.failed_auth_operation(operation=AuthFlags.REGISTER, code=response_header.code))
         return
     
     await display()
 
-async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, username: str, password: str) -> None:
+async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                             username: str, password: str,
+                             client_config: ClientConfig) -> None:
     try:
         auth_component: BaseAuthComponent = BaseAuthComponent(identity=username, password=password)
     except ValidationError as v:
@@ -41,10 +46,10 @@ async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
         return
     
     await send_request(writer,
-                       header_component=BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.DELETE),
+                       header_component=BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.DELETE),
                        auth_component=auth_component)
     
-    response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+    response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_USER_DELETION:
         await display(auth_messages.failed_auth_operation(AuthFlags.DELETE, response_header.code))
         return
@@ -60,8 +65,10 @@ async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
 
     await display(auth_messages.successful_user_deletion(username, deleted_count, deleted_files))
 
-
-async def authorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, username: str, password: str, display_credentials: bool = False) -> None:
+async def authorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                    username: str, password: str,
+                    client_config: ClientConfig, session_manager: SessionManager,
+                    display_credentials: bool = False) -> None:
     try:
         auth_component: BaseAuthComponent = BaseAuthComponent(identity=username, password=password)
     except ValidationError as v:
@@ -69,10 +76,10 @@ async def authorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, 
         return
     
     await send_request(writer=writer,
-                       header_component=BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.LOGIN),
+                       header_component=BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.LOGIN),
                        auth_component=auth_component)
     
-    response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+    response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_AUTHENTICATION:
         await display(auth_messages.failed_auth_operation(AuthFlags.LOGIN, response_header.code))
         return
@@ -91,10 +98,11 @@ async def authorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, 
     if display_credentials:
         await display(format_dict(session_manager.session_metadata.json_repr))
     
-
-async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, display_credentials: bool = False) -> None:
-    await send_request(writer, BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.REFRESH))
-    response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                      client_config: ClientConfig, session_manager: SessionManager,
+                      display_credentials: bool = False) -> None:
+    await send_request(writer, BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.REFRESH))
+    response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
 
     if response_header.code != SuccessFlags.SUCCESSFUL_SESSION_REFRESH:
         await display(auth_messages.failed_auth_operation(AuthFlags.REFRESH, response_header.code))
@@ -122,11 +130,12 @@ async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
                   format_dict(session_manager.session_metadata.dict_repr) if display_credentials else b'',
                   sep=b'\n')
 
-async def end_remote_session(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+async def end_remote_session(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                             client_config: ClientConfig, session_manager: SessionManager) -> None:
     await send_request(writer=writer,
-                       header_component=BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.LOGOUT),
+                       header_component=BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.LOGOUT),
                        auth_component=session_manager.auth_component)
-    response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+    response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
     
     if response_header.code != SuccessFlags.SUCCESSFUL_SESSION_TERMINATION:
         await display(auth_messages.failed_auth_operation(AuthFlags.LOGOUT, response_header.code))
@@ -137,7 +146,9 @@ async def end_remote_session(reader: asyncio.StreamReader, writer: asyncio.Strea
 
     await display(auth_messages.successful_logout(remote_user=remote_user, **response_body.contents))
 
-async def change_password(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, new_password: str) -> None:
+async def change_password(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                          new_password: str,
+                          client_config: ClientConfig, session_manager: SessionManager) -> None:
     if not (session_manager.auth_component.token and session_manager.auth_component.refresh_digest):
         await display(auth_messages.invalid_user_data(ValidationError("Token and refresh digest required")))
         return
@@ -149,10 +160,10 @@ async def change_password(reader: asyncio.StreamReader, writer: asyncio.StreamWr
         return
 
     await send_request(writer,
-                       header_component=BaseHeaderComponent(version=CLIENT_CONFIG.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.CHANGE_PASSWORD),
+                       header_component=BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.CHANGE_PASSWORD),
                        auth_component=auth_component)
     
-    response_header, response_body = await process_response(reader, writer, CLIENT_CONFIG.read_timeout)
+    response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
 
     if response_header.code != SuccessFlags.SUCCESSFUL_PASSWORD_CHANGE.value:
         await display(auth_messages.failed_auth_operation(AuthFlags.CHANGE_PASSWORD, response_header.code))
