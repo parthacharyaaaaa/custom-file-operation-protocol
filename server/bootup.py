@@ -1,13 +1,28 @@
 '''Helper module for loading all required instances whenever the server starts'''
+import os
 import asyncio
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
-from cachetools import TTLCache
 from math import inf
-from server.config.server_config import ServerConfig
+from typing import Any, Optional
+
+from cachetools import TTLCache
+
+from server import logging
 from server.authz.user_manager import UserManager
+from server.config.server_config import ServerConfig
 from server.connectionpool import ConnectionPoolManager
-from server.logging import flush_logs
 import server.database.models as db_models
+
+import pytomlpp
+
+def create_server_config(dirname: Optional[str] = None) -> ServerConfig:
+    loaded_constants: dict[str, Any] = pytomlpp.load(dirname or os.path.join(os.path.dirname(__file__), 'server_config.toml'))
+
+    # Laziest code I have ever written
+    SERVER_CONFIG = ServerConfig.model_validate({'version' :loaded_constants['version']} | loaded_constants['network'] | loaded_constants['database'] | loaded_constants['file'] | loaded_constants['auth'] | loaded_constants['logging'])
+    SERVER_CONFIG.root_directory = os.path.join(os.path.dirname(os.path.dirname(__file__)), SERVER_CONFIG.root_directory)
+    
+    return SERVER_CONFIG
 
 async def create_connection_master(conninfo: str, config: ServerConfig) -> ConnectionPoolManager:
     connection_master = ConnectionPoolManager(config.connection_lease_duration, *config.max_connections,
@@ -25,7 +40,7 @@ def create_user_master(connection_master: ConnectionPoolManager, config: ServerC
 def create_file_lock(config: ServerConfig) -> TTLCache[str, bytes]:
     return TTLCache(maxsize=inf, ttl=config.file_lock_ttl)
 
-def create_amendment_cache(config: ServerConfig) -> tuple[TTLCache[str, dict[str, AsyncBufferedReader]],
+def create_caches(config: ServerConfig) -> tuple[TTLCache[str, dict[str, AsyncBufferedReader]],
                                                           TTLCache[str, dict[str, AsyncBufferedIOBase]],
                                                           TTLCache[str, str]]:
     
@@ -39,8 +54,8 @@ def create_log_queue() -> asyncio.PriorityQueue[tuple[db_models.ActivityLog, int
     return asyncio.PriorityQueue(inf)
 
 def start_logger(log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]], config: ServerConfig, connection_master: ConnectionPoolManager) -> None:
-    asyncio.create_task(flush_logs(connection_master=connection_master,
-                                   queue=log_queue,
-                                   batch_size=config.log_batch_size,
-                                   waiting_period=config.log_waiting_period,
-                                   flush_interval=config.log_interval))
+    asyncio.create_task(logging.flush_logs(connection_master=connection_master,
+                                           queue=log_queue,
+                                           batch_size=config.log_batch_size,
+                                           waiting_period=config.log_waiting_period,
+                                           flush_interval=config.log_interval))

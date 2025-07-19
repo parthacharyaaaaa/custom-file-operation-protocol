@@ -17,6 +17,7 @@ def populate_dependency_registry(server: ServerConfig,
                          log_queue: PriorityQueue,
                          reader_cache: TTLCache[str, dict[str, AsyncBufferedReader]],
                          amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]],
+                         deletion_cache: TTLCache[str, str],
                          file_locks: TTLCache[str, bytes]) -> MappingProxyType[type, Any]:
     
     return MappingProxyType({
@@ -26,5 +27,6 @@ def populate_dependency_registry(server: ServerConfig,
         PriorityQueue : log_queue,
         TTLCache[str, dict[str, AsyncBufferedReader]] : reader_cache,
         TTLCache[str, dict[str, AsyncBufferedIOBase]] : amendment_cache,
-        TTLCache[str, bytes] : file_locks
+        TTLCache[str, bytes] : file_locks,
+        TTLCache[str, str] : deletion_cache
 })
