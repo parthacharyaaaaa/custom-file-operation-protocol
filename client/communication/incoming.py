@@ -3,8 +3,8 @@ from typing import Optional
 from models.response_models import ResponseHeader, ResponseBody
 from models.constants import RESPONSE_CONSTANTS
 
-async def process_response(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, timeout: float, header_bytesize: Optional[int] = None) -> tuple[ResponseHeader, Optional[ResponseBody]]:
-    raw_header: bytes = await asyncio.wait_for(reader.readexactly(header_bytesize or RESPONSE_CONSTANTS.header.bytesize), timeout)
+async def process_response(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, timeout: float) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+    raw_header: bytes = await asyncio.wait_for(reader.readexactly(RESPONSE_CONSTANTS.header.bytesize), timeout)
 
     response_header: ResponseHeader = ResponseHeader.model_validate_json(raw_header)
     response_body: ResponseBody = None

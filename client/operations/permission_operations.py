@@ -32,7 +32,7 @@ async def grant_permission(reader: asyncio.StreamReader, writer: asyncio.StreamW
     permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory, subject_user=remote_user, effect_duration=duration)
 
     await send_request(writer, header_component, session_manager.auth_component, permission_component)
-    response_header, _ = await process_response(reader, writer, client_config.read_timeout, REQUEST_CONSTANTS.header.max_bytesize)
+    response_header, _ = await process_response(reader, writer, client_config.read_timeout)
 
     if response_header.code != SuccessFlags.SUCCESSFUL_GRANT.value:
         await display(permission_messages.failed_permission_operation(remote_directory, remote_file, remote_user, response_header.code))
@@ -47,7 +47,7 @@ async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.Stream
     permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory, subject_user=remote_user)
 
     await send_request(writer, header_component, session_manager.auth_component, permission_component)
-    response_header, response_body = await process_response(reader, writer, client_config.read_timeout, REQUEST_CONSTANTS.header.max_bytesize)
+    response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
 
     if response_header.code != SuccessFlags.SUCCESSFUL_REVOKE.value:
         await display(permission_messages.failed_permission_operation(remote_directory, remote_file, remote_user, response_body.code))
