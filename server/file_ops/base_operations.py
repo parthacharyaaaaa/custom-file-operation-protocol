@@ -10,17 +10,15 @@ import aiofiles
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from cachetools import TTLCache
 
-from server.bootup import file_locks
+from server import errors
 from server.config.server_config import SERVER_CONFIG
-from server.errors import FileNotFound, InternalServerError
+from server.database import models as db_models
 from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries, rename_file_entries
 
 
-async def acquire_file_lock(filename: str, requestor: str, ttl: Optional[int] = None, max_attempts: Optional[int] = inf) -> Literal[True]:
+async def acquire_file_lock(file_locks: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]], filename: str, requestor: str, ttl: Optional[int] = None, max_attempts: Optional[int] = inf) -> Literal[True]:
     '''Indefinitely start a coroutine to wait for a lock on a file to be acquired. It is best to use this with `asyncio.wait_for` to prevent the caller from being stalled indefinitely.  
     '''
-    
-    global file_locks
     ttl = min(SERVER_CONFIG.file_lock_ttl, (ttl or SERVER_CONFIG.file_lock_ttl))
     holder_checksum = adler32(requestor.encode('utf-8'))
     attempt: int = 0
@@ -28,7 +26,7 @@ async def acquire_file_lock(filename: str, requestor: str, ttl: Optional[int] = 
     while attempt < max_attempts:
         lock_checksum = file_locks.setdefault(filename, holder_checksum)
         if not lock_checksum:
-            raise FileNotFound(f'File {filename} deleted') 
+            raise errors.FileNotFound(f'File {filename} deleted') 
         if lock_checksum == holder_checksum:
             return True
         attempt += 1
@@ -239,5 +237,5 @@ def delete_directory(root: os.PathLike, dirname: str) -> list[str]:
         shutil.rmtree(os.path.join(root, dirname))
         return next(walk_gen)[2]
     except (OSError, PermissionError):
-        raise InternalServerError
+        raise errors.InternalServerError
     

@@ -108,7 +108,7 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     fpath: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
     # Acquire lock
     try:
-        await asyncio.wait_for(base_ops.acquire_file_lock(filename=fpath, requestor=auth_component.identity),
+        await asyncio.wait_for(base_ops.acquire_file_lock(file_locks=file_locks, filename=fpath, requestor=auth_component.identity),
                                timeout=config.file_contention_timeout)
     except asyncio.TimeoutError:
         raise errors.FileContested(file=file_component.subject_file, username=file_component.subject_file_owner)
