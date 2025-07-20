@@ -6,9 +6,8 @@ from models.flags import FileFlags, CategoryFlag
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent
 from models.response_models import ResponseHeader, ResponseBody
 
-from server.authz.user_manager import UserManager
 from server.comms_utils.incoming import process_component
-from server.config.server_config import ServerConfig
+from server.dependencies import ServerSingletonsRegistry
 from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, SlowStreamRate, UnsupportedOperation
 from server.file_ops.file_subhandlers import handle_read, handle_amendment, handle_deletion, handle_creation
 
@@ -29,13 +28,14 @@ _FILE_SUBHANDLER_MAPPING: MappingProxyType[int, FILE_SUBHANDLERS] = MappingProxy
 )
 
 async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseHeaderComponent,
-                           server_config: ServerConfig, user_master: UserManager) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+                           dependency_registry: ServerSingletonsRegistry) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     # File operations require authentication
     if not (header_component.auth_size and header_component.body_size):
         raise InvalidHeaderSemantic('Headers for permission operations require BOTH auth component and permission (body) component')
 
     try:
-        auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size, reader=reader, component_type='auth', timeout=server_config.read_timeout)
+        auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size, reader=reader,
+                                                                    component_type='auth', timeout=dependency_registry.server_config.read_timeout)
     except asyncio.TimeoutError:
         raise SlowStreamRate
     except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
@@ -44,12 +44,13 @@ async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseH
     if not auth_component.auth_logical_check(flag='authentication'):
         raise InvalidAuthSemantic('File operations require an auth component with ONLY the following: identity, token, refresh_digest')
     
-    await user_master.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
+    await dependency_registry.user_manager.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
     if header_component.subcategory not in FileFlags._value2member_map_:
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.FILE_OP._name_}')
     
     # All checks at the component level passed, read and process file component
-    file_component: BaseFileComponent = await process_component(n_bytes=header_component.body_size, reader=reader, component_type='file', timeout=server_config.read_timeout)
+    file_component: BaseFileComponent = await process_component(n_bytes=header_component.body_size, reader=reader,
+                                                                component_type='file', timeout=dependency_registry.server_config.read_timeout)
     subhandler = _FILE_SUBHANDLER_MAPPING[header_component.subcategory]
     header, body = await subhandler(header_component, auth_component, file_component)
 
