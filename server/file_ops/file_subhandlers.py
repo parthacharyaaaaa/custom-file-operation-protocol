@@ -24,7 +24,7 @@ from server.permission_ops import permission_subhandlers
 from cachetools import TTLCache
 
 async def handle_deletion(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
-                          config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.db_models.ActivityLog, int]],
+                          config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
                           connection_master: ConnectionPoolManager, file_locks: TTLCache[str, bytes],
                           *caches) -> tuple[ResponseHeader, ResponseBody]:
     # Make sure request is coming from file owner

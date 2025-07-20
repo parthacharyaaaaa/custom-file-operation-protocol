@@ -49,7 +49,7 @@ async def check_file_permission(filename: str, owner: str, grantee: str, check_f
     return True
 
 async def publicise_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
-                         config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.db_models.ActivityLog, int]],
+                         config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
                          connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
     proxy: ConnectionProxy = connection_master.request_connection(level=1)
     try:
