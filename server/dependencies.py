@@ -1,7 +1,7 @@
 from functools import lru_cache, partial
 import inspect
 from types import MappingProxyType
-from typing import Any, NewType, Callable, Optional
+from typing import Any, NewType, Callable, Optional, Annotated
 
 import asyncio
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
@@ -27,7 +27,7 @@ NT_GLOBAL_AMEND_CACHE = NewType('NT_GLOBAL_AMEND_CACHE', TTLCache[str, dict[str,
 NT_GLOBAL_DELETE_CACHE = NewType('NT_GLOBAL_DELETE_CACHE', TTLCache[str, str])
 NT_GLOBAL_FILE_LOCK = NewType('NT_GLOBAL_FILE_LOCK', TTLCache[str, bytes])
 
-@pydantic.dataclasses.dataclass(frozen=True, slots=True)
+@pydantic.dataclasses.dataclass(slots=True, config={'arbitrary_types_allowed': True})
 class ServerSingletonsRegistry(metaclass=SingletonMetaclass):
     server_config: ServerConfig
     user_manager: UserManager
@@ -38,14 +38,15 @@ class ServerSingletonsRegistry(metaclass=SingletonMetaclass):
     deletion_cache: NT_GLOBAL_DELETE_CACHE
     file_locks: NT_GLOBAL_FILE_LOCK
 
+    _registry_reverse_mapping: Annotated[Optional[MappingProxyType[type, str]], pydantic.Field(default=None)]
+
     def __post_init__(self) -> None:
-        self._registry_reverse_mapping: MappingProxyType[type, str] = MappingProxyType({v.type : k for k, v in self.__dataclass_fields__.items()})
+        self._registry_reverse_mapping = MappingProxyType({v.type : k for k, v in self.__dataclass_fields__.items()})
 
     @property
     def registry_reverse_mapping(self) -> MappingProxyType[type, str]:
         return self._registry_reverse_mapping
 
-    @lru_cache(typed=True)
     def inject_global_singletons(self,
                                  func: Callable[..., tuple[ResponseHeader, Optional[ResponseBody]]],
                                  **overrides_kwargs) -> Callable[..., tuple[ResponseHeader, Optional[ResponseBody]]]:
@@ -55,7 +56,7 @@ class ServerSingletonsRegistry(metaclass=SingletonMetaclass):
                 bound_args[paramname] = overridden_kwarg
                 continue
             
-            singleton: str = self.registry_reverse_mapping.get(paramtype)
+            singleton: str = self.registry_reverse_mapping.get(paramtype.annotation)
             if not singleton:
                 raise TypeError(f'Parameter mismatch on calling {func} with parameter {paramname} of type {paramtype}')
             bound_args[paramname] = self.__getattribute__(singleton)
