@@ -16,7 +16,7 @@ import server.database.models as db_models
 import pytomlpp
 
 def create_server_config(dirname: Optional[str] = None) -> ServerConfig:
-    loaded_constants: dict[str, Any] = pytomlpp.load(dirname or os.path.join(os.path.dirname(__file__), 'server_config.toml'))
+    loaded_constants: dict[str, Any] = pytomlpp.load(dirname or os.path.join(os.path.dirname(__file__), 'config', 'server_config.toml'))
 
     # Laziest code I have ever written
     SERVER_CONFIG = ServerConfig.model_validate({'version' :loaded_constants['version']} | loaded_constants['network'] | loaded_constants['database'] | loaded_constants['file'] | loaded_constants['auth'] | loaded_constants['logging'])
