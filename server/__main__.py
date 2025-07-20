@@ -2,10 +2,6 @@ import asyncio
 from functools import partial
 import os
 import sys
-from types import MappingProxyType
-from typing import Any
-
-from cachetools import TTLCache
 
 from psycopg.conninfo import make_conninfo
 
@@ -14,8 +10,7 @@ from server.bootup import create_server_config, create_connection_master, create
 from server.callback import callback
 from server.config.server_config import ServerConfig
 from server.connectionpool import ConnectionPoolManager
-from server.database import models as db_models
-from server.dependencies import populate_dependency_registry
+from server.dependencies import ServerSingletonsRegistry, NT_GLOBAL_FILE_LOCK, NT_GLOBAL_LOG_QUEUE
 
 async def main() -> None:
     # Initialize all global singletons
@@ -27,28 +22,28 @@ async def main() -> None:
                                                                                                      dbname=os.environ['PG_DBNAME']),
                                                                               config=SERVER_CONFIG)
     
-    LOG_QUEUE: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]] = create_log_queue()
+    LOG_QUEUE: NT_GLOBAL_LOG_QUEUE = create_log_queue()
     
     USER_MASTER: UserManager = create_user_master(connection_master=CONNECTION_MASTER,
                                                   config=SERVER_CONFIG,
                                                   log_queue=LOG_QUEUE)
     
-    FILE_LOCK: TTLCache[str, bytes] =  create_file_lock(config=SERVER_CONFIG)
+    FILE_LOCK: NT_GLOBAL_FILE_LOCK =  create_file_lock(config=SERVER_CONFIG)
    
     READ_CACHE, AMENDMENT_CACHE, DELETION_CACHE = create_caches(config=SERVER_CONFIG)
 
-    DEPENDENCIES_MAPPING: MappingProxyType[type, Any] = populate_dependency_registry(server=SERVER_CONFIG,
-                                                                                     user_manager=USER_MASTER,
-                                                                                     connection_pool_manager=CONNECTION_MASTER,
-                                                                                     log_queue=LOG_QUEUE,
-                                                                                     reader_cache=READ_CACHE,
-                                                                                     amendment_cache=AMENDMENT_CACHE,
-                                                                                     deletion_cache=DELETION_CACHE,
-                                                                                     file_locks=FILE_LOCK)
+    SERVER_DEPENDENCY_REGISTRY: ServerSingletonsRegistry = ServerSingletonsRegistry(server_config=SERVER_CONFIG,
+                                                                                    user_manager=USER_MASTER,
+                                                                                    connection_pool_manager=CONNECTION_MASTER,
+                                                                                    log_queue=LOG_QUEUE,
+                                                                                    reader_cache=READ_CACHE,
+                                                                                    amendment_cache=AMENDMENT_CACHE,
+                                                                                    deletion_cache=DELETION_CACHE,
+                                                                                    file_locks=FILE_LOCK)
 
     start_logger(log_queue=LOG_QUEUE, config=SERVER_CONFIG, connection_master=CONNECTION_MASTER)
 
-    server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback, DEPENDENCIES_MAPPING),
+    server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback, SERVER_DEPENDENCY_REGISTRY),
                                                         host=str(SERVER_CONFIG.host), port=SERVER_CONFIG.port)
     async with server:
         await server.serve_forever()
