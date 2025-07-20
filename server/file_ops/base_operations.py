@@ -11,15 +11,12 @@ from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from cachetools import TTLCache
 
 from server import errors
-from server.config.server_config import SERVER_CONFIG
 from server.database import models as db_models
 from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries, rename_file_entries
 
 
-async def acquire_file_lock(file_locks: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]], filename: str, requestor: str, ttl: Optional[int] = None, max_attempts: Optional[int] = inf) -> Literal[True]:
-    '''Indefinitely start a coroutine to wait for a lock on a file to be acquired. It is best to use this with `asyncio.wait_for` to prevent the caller from being stalled indefinitely.  
-    '''
-    ttl = min(SERVER_CONFIG.file_lock_ttl, (ttl or SERVER_CONFIG.file_lock_ttl))
+async def acquire_file_lock(file_locks: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]], filename: str, requestor: str, ttl: int, max_attempts: Optional[int] = inf) -> Literal[True]:
+    '''Indefinitely start a coroutine to wait for a lock on a file to be acquired. It is best to use this with `asyncio.wait_for` to prevent the caller from being stalled indefinitely.'''
     holder_checksum = adler32(requestor.encode('utf-8'))
     attempt: int = 0
 
