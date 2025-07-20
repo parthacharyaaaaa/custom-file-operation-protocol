@@ -14,16 +14,16 @@ from cachetools import TTLCache
 
 from models.constants import REQUEST_CONSTANTS
 from models.session_metadata import SessionMetadata
+from models.singletons import SingletonMetaclass
 
 import psycopg.errors as pg_errors
 from psycopg.rows import Row
 
-from server.authz.singleton import MetaUserManager
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog, LogAuthor, Severity, LogType
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned, InvalidAuthData, OperationContested
 
-class UserManager(metaclass=MetaUserManager):
+class UserManager(metaclass=SingletonMetaclass):
     '''Class for managing user sessions and user-related operations'''
     HASHING_ALGORITHM: str = 'sha256'
     PBKDF_ITERATIONS: int = 100_000
