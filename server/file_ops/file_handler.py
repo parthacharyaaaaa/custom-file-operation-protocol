@@ -51,7 +51,12 @@ async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseH
     # All checks at the component level passed, read and process file component
     file_component: BaseFileComponent = await process_component(n_bytes=header_component.body_size, reader=reader,
                                                                 component_type='file', timeout=dependency_registry.server_config.read_timeout)
+    
     subhandler = _FILE_SUBHANDLER_MAPPING[header_component.subcategory]
-    header, body = await subhandler(header_component, auth_component, file_component)
-
+    prepped_subhandler = dependency_registry.inject_global_singletons(func=subhandler,
+                                                                      header_component=header_component,
+                                                                      auth_component=auth_component,
+                                                                      file_component=file_component)
+    
+    header, body = await subhandler()
     return header, body

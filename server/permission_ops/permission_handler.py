@@ -48,11 +48,15 @@ async def top_permission_handler(reader: asyncio.StreamReader, header_component:
     if header_component.subcategory not in PermissionFlags._value2member_map_:
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.PERMISSION._name_}')
     
-    # All checks at the component level passed, read file component
-
+    # All checks at the component level passed, read permission component
     permission_component: BasePermissionComponent = await process_component(n_bytes=header_component.body_size, reader=reader,
                                                                             component_type='permission', timeout=dependency_registry.server_config.read_timeout)
+    
     subhandler = _PERMISSION_SUBHANDLER_MAPPING[header_component.subcategory]
-    header, body = await subhandler(header_component, auth_component, permission_component)
-
+    prepped_subhandler = dependency_registry.inject_global_singletons(func=subhandler,
+                                                                      header_component=header_component,
+                                                                      auth_component=auth_component,
+                                                                      permission_component=permission_component)
+    
+    header, body = await prepped_subhandler()
     return header, body

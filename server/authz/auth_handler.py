@@ -37,6 +37,8 @@ async def top_auth_handler(reader: asyncio.StreamReader, header_component: BaseH
     
     # Delegate actual handling to defined functions/coroutines
     subhandler = _AUTH_SUBHANDLER_MAPPING[header_component.subcategory]
-    header, body = await subhandler(header_component, auth_component)
-
+    prepped_subhandler = dependency_registry.inject_global_singletons(func=subhandler,
+                                                                      header_component=header_component,
+                                                                      auth_component=auth_component)
+    header, body = await prepped_subhandler()
     return header, body
