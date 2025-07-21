@@ -24,6 +24,7 @@ class ClientWindow(cmd):
         self.writer: asyncio.StreamWriter = writer
         self.client_config: client_constants.ClientConfig = client_config
         self.session_master: session_manager.SessionManager = session_master
+        self.connection_ended: bool = False
 
         self.prompt = f'{host}:{port}>'
         super().__init__(completekey, stdin, stdout)
@@ -35,6 +36,16 @@ class ClientWindow(cmd):
     def default(self, line):
         self.stdout.write(f'UNKNOWN COMMAND: {line.split()[0]}\n')
         self.do_help(None)
+
+    async def postcmd(self, stop, line):
+        if self.connection_ended:
+            self.writer.close()
+            await self.writer.wait_closed()
+
+            if self.session_master.identity:
+                self.session_master.clear_auth_data()
+            
+            return True
 
     # Methods
     def do_heartbeat(self) -> None:
