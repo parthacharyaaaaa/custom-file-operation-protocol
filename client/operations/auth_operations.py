@@ -66,17 +66,13 @@ async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
     await display(auth_messages.successful_user_deletion(username, deleted_count, deleted_files))
 
 async def authorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                    username: str, password: str,
+                    auth_component: BaseAuthComponent,
                     client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
-                    display_credentials: bool = False) -> None:
-    try:
-        auth_component: BaseAuthComponent = BaseAuthComponent(identity=username, password=password)
-    except ValidationError as v:
-        await display(auth_messages.invalid_user_data(v))
-        return
+                    display_credentials: bool = False, end_connection: bool = False) -> None:
     
     await send_request(writer=writer,
-                       header_component=BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.LOGIN),
+                       header_component=BaseHeaderComponent(version=client_config.version, end_connection=end_connection,
+                                                            category=CategoryFlag.AUTH, subcategory=AuthFlags.LOGIN),
                        auth_component=auth_component)
     
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
@@ -93,8 +89,9 @@ async def authorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
         await display(auth_messages.failed_auth_operation(AuthFlags.LOGIN, response_header.code), general_messages.malformed_response_body(), sep=b'\n')
         return
 
+    session_manager.identity = auth_component.identity
     session_manager.create_authentication_component(**session_dict)
-    await display(auth_messages.successful_authorization(remote_user=username))
+    await display(auth_messages.successful_authorization(remote_user=auth_component.identity))
     if display_credentials:
         await display(format_dict(session_manager.session_metadata.json_repr))
     
