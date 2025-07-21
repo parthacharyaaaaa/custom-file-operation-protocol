@@ -50,9 +50,7 @@ class ClientWindow(cmd):
         This is the recommended way of starting a remote session, as it avoids writing password to shell history'''
         tokens: list[str] = arg.split()
         auth_component: BaseAuthComponent = parsers.parse_authorization(tokens)
-        display_credentials, end_connection = parsers.parse_modifiers(tokens[2:],
-                                                                      GeneralModifierCommands.DISPLAY_CREDENTIALS.value,
-                                                                      GeneralModifierCommands.END_CONNECTION.value)
+        display_credentials, end_connection = parsers.parse_modifiers(tokens)
         
         await auth_operations.authorize(self.reader, self.writer, auth_component, self.client_config, self.session_master, display_credentials, end_connection)
 
@@ -62,18 +60,18 @@ class ClientWindow(cmd):
         Terminate an established remote session
         '''
         tokens: list[str] = arg.split()
-        display_credentials, end_connection = parsers.parse_modifiers(tokens[2:],
-                                                                      GeneralModifierCommands.DISPLAY_CREDENTIALS.value,
-                                                                      GeneralModifierCommands.END_CONNECTION.value)
+        display_credentials, end_connection = parsers.parse_auth_modifiers(tokens)
         await auth_operations.end_remote_session(self.reader, self.writer, self.client_config, self.session_master, display_credentials, end_connection)
         
     
-    def do_sref(self) -> None:
+    async def do_sref(self, arg: str) -> None:
         '''
-        SREF
+        SREF [MODIFIERS]
         Refresh an established remote session
         '''
-        ...
+        tokens: list[str] = arg.split()
+        display_credentials, end_connection = parsers.parse_auth_modifiers(tokens)
+        await auth_operations.end_remote_session(self.reader, self.writer, self.client_config, self.session_master, display_credentials, end_connection)
 
 
     def do_create(self, filename: str) -> None:

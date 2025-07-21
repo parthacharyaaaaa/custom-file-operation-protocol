@@ -47,3 +47,9 @@ def parse_authorization(tokens: Iterable[str]) -> BaseAuthComponent:
     if len(tokens) < 2:
         raise cmd_exc.CommandException(f'Command {AuthCommands.AUTH} requires username and password to be provided as {AuthCommands.AUTH} USERNAME PASSWORD')
     return BaseAuthComponent(identity=tokens[0], password=tokens[1])
+
+async def parse_auth_modifiers(tokens: Iterable[str]) -> list[bool, bool]:
+    '''Abstraction over parse_modifier calls for auth-related operations. Calls parse_modifiers with predetermined expected_modifiers args
+    Order of modifiers: `DISPLAY CREDENTIALS`, `END CONNECTION`
+    '''
+    return await parse_modifiers(tokens, GeneralModifierCommands.DISPLAY_CREDENTIALS.value, GeneralModifierCommands.END_CONNECTION.value)
