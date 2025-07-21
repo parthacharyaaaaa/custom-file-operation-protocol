@@ -45,7 +45,7 @@ class ClientWindow(cmd):
 
     async def do_auth(self, arg: str) -> None:
         '''
-        AUTH [username] [password] [end_connection]
+        AUTH [username] [password] [MODIFIERS]
         Start a remote session on the host machine.
         This is the recommended way of starting a remote session, as it avoids writing password to shell history'''
         tokens: list[str] = arg.split()
@@ -56,12 +56,17 @@ class ClientWindow(cmd):
         
         await auth_operations.authorize(self.reader, self.writer, auth_component, self.client_config, self.session_master, display_credentials, end_connection)
 
-    def do_sterm(self) -> None:
+    async def do_sterm(self, arg: str) -> None:
         '''
-        STERM
+        STERM [MODIFIERS]
         Terminate an established remote session
         '''
-        ...
+        tokens: list[str] = arg.split()
+        display_credentials, end_connection = parsers.parse_modifiers(tokens[2:],
+                                                                      GeneralModifierCommands.DISPLAY_CREDENTIALS.value,
+                                                                      GeneralModifierCommands.END_CONNECTION.value)
+        await auth_operations.end_remote_session(self.reader, self.writer, self.client_config, self.session_master, display_credentials, end_connection)
+        
     
     def do_sref(self) -> None:
         '''
