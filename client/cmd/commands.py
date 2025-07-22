@@ -3,6 +3,8 @@ from enum import Enum
 
 class AuthCommands(Enum):
     AUTH: str = 'AUTH'
+    UNEW: str = 'UNEW'
+    UDEL: str = 'UDEL'
     STERM: str = 'STERM'
     SREF: str = 'SREF'
 

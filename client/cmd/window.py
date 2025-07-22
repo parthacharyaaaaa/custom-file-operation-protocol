@@ -9,11 +9,9 @@ from client.cmd.commands import GeneralModifierCommands
 from client.config import constants as client_constants
 from client.operations import auth_operations
 
-
 from models.request_model import BaseAuthComponent
 
-class ClientWindow(cmd):
-    
+class ClientWindow(cmd.Cmd):
     # Overrides
     def __init__(self, host: str, port: int,
                  reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
@@ -74,7 +72,33 @@ class ClientWindow(cmd):
         display_credentials, self.end_connection = parsers.parse_auth_modifiers(tokens)
         await auth_operations.end_remote_session(self.reader, self.writer, self.client_config, self.session_master, display_credentials, self.end_connection)
         
+    async def do_unew(self, arg: str) -> None:
+        '''
+        UNEW [username] [password] [MODIFIERS]
+        Create a new remote user. This does not create a remote session
+        '''
+        tokens: list[str] = arg.split()
+        auth_component: BaseAuthComponent = parsers.parse_authorization(tokens)
+        display_credentials, self.end_connection = parsers.parse_auth_modifiers(tokens)
+
+        await auth_operations.create_remote_user(self.reader, self.writer, auth_component, self.client_config, display_credentials, self.end_connection)
     
+    async def do_udel(self, arg: str) -> None:
+        '''
+        UDEL [username] [password] [MODIFIERS]
+        Delete a remote user.
+        '''
+        tokens: list[str] = arg.split()
+
+        auth_component: BaseAuthComponent = parsers.parse_authorization(tokens)
+        display_credentials, self.end_connection = parsers.parse_auth_modifiers(tokens)
+
+        await auth_operations.delete_remote_user(self.reader, self.writer, auth_component, self.client_config, self.session_master, display_credentials, self.end_connection)
+
+        if self.session_master.identity == auth_component.identity:
+            self.session_master.clear_auth_data()
+        
+
     async def do_sref(self, arg: str) -> None:
         '''
         SREF [MODIFIERS]
