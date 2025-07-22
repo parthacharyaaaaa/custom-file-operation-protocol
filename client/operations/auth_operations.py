@@ -18,17 +18,25 @@ from models.session_metadata import SessionMetadata
 
 async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              auth_component: BaseAuthComponent,
-                             client_config: client_constants.ClientConfig) -> None:
+                             client_config: client_constants.ClientConfig,
+                             display_credentials: bool = False, end_connection: bool = False) -> None:
     await send_request(writer=writer,
-                       header_component=BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.REGISTER),
+                       header_component=BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.REGISTER, finish=end_connection),
                        auth_component=auth_component)
     
-    response_header, _ = await process_response(reader, writer, client_config.read_timeout)
+    response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_USER_CREATION.value:
         await display(auth_messages.failed_auth_operation(operation=AuthFlags.REGISTER, code=response_header.code))
         return
     
-    await display()
+    epoch: float = response_body.contents.get('epoch')
+    if not epoch:
+        await display(general_messages.missing_response_claim('epoch'))
+    username: str = response_body.contents.get('username')
+    if not username:
+        await display(general_messages.missing_response_claim('username'))
+
+    await display(auth_messages.successful_user_creation(username or auth_component.identity, epoch))
 
 async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              auth_component: BaseAuthComponent,
