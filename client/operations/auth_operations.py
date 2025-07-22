@@ -17,14 +17,8 @@ from models.response_codes import SuccessFlags, ServerErrorFlags
 from models.session_metadata import SessionMetadata
 
 async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                             username: str, password: str,
+                             auth_component: BaseAuthComponent,
                              client_config: client_constants.ClientConfig) -> None:
-    try:
-        auth_component: BaseAuthComponent = BaseAuthComponent(identity=username, password=password)
-    except ValidationError as v:
-        await display(auth_messages.invalid_user_data(v), sep=b' : ')
-        return
-    
     await send_request(writer=writer,
                        header_component=BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.REGISTER),
                        auth_component=auth_component)
@@ -37,14 +31,8 @@ async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
     await display()
 
 async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                             username: str, password: str,
-                             client_config: client_constants.ClientConfig) -> None:
-    try:
-        auth_component: BaseAuthComponent = BaseAuthComponent(identity=username, password=password)
-    except ValidationError as v:
-        await display(auth_messages.invalid_user_data(v))
-        return
-    
+                             auth_component: BaseAuthComponent,
+                             client_config: client_constants.ClientConfig) -> None:    
     await send_request(writer,
                        header_component=BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.DELETE),
                        auth_component=auth_component)
@@ -63,7 +51,7 @@ async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
     if actual_fcount:=len(deleted_files) != deleted_count:
         await display(general_messages.malformed_response_body(message=auth_messages.filecount_mismatch(deleted_count, actual_fcount)))
 
-    await display(auth_messages.successful_user_deletion(username, deleted_count, deleted_files))
+    await display(auth_messages.successful_user_deletion(auth_component.identity, deleted_count, deleted_files))
 
 async def authorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                     auth_component: BaseAuthComponent,
