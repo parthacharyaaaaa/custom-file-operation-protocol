@@ -18,6 +18,9 @@ def failed_auth_operation(operation: AuthFlags, code: str) -> str:
 def filecount_mismatch(reported_fcount: int, actual_fcount: int) -> str:
     return f"Count of deleted files sent by server do not match actual number of deleted filenames sent. Reported: {reported_fcount}, got: {actual_fcount}"
 
+def successful_user_creation(remote_user: str, epoch: Optional[float] = None) -> str:
+    return f'Created remote user {remote_user}, at: {epoch or "N\A"}'
+
 def successful_user_deletion(remote_user: str, deleted_count: int, deleted_files: Sequence[str]) -> str:
     return f'Deleted remote user {remote_user}, deleted files: {deleted_count}. Files:\n{"\n".join(deleted_files)}'
 
