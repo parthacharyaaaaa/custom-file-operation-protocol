@@ -19,9 +19,9 @@ async def handle_registration(header_component: BaseHeaderComponent, auth_compon
         raise InvalidAuthSemantic('Account creation requires only the following fields: identity, password')
     
     await user_manager.create_user(username=auth_component.identity, password=auth_component.password, make_dir=True, root=config.root_directory)
-    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_CREATION.value, ended_connection=header_component.finish, config=config)
 
-    return header, None
+    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_CREATION.value, ended_connection=header_component.finish, config=config),
+            ResponseBody(contents={'epoch' : time.time(), 'username' : auth_component.identity}))
 
 async def handle_login(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
                        config: server_config.ServerConfig, user_manager: user_manager.UserManager) -> tuple[ResponseHeader, ResponseBody]:
