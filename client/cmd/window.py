@@ -222,4 +222,28 @@ class ClientWindow(cmd.Cmd):
 
         await permission_operations.transfer_ownership(self.reader, self.writer, permission_component, self.client_config, self.session_master, self.end_connection)
 
+    @require_auth_state(state=True)
+    async def do_publicise(self, arg: str) -> None:
+        '''
+        PUBLISICE [filename] [directory] [modifiers]
+        Publicise a given file and grant every remote user read access, without overriding any previosuly granted permissions
+        '''
+        tokens: list[str] = arg.split()
+        permission_component: BasePermissionComponent = parsers.parse_generic_permission_command(tokens, include_user=False)
+        self.end_connection = parsers.parse_modifiers(tokens)
+
+        await permission_operations.publicise_remote_file(self.reader, self.writer, permission_component, self.client_config, self.session_master, self.end_connection)
+    
+    @require_auth_state(state=True)
+    async def do_hide(self, arg: str) -> None:
+        '''
+        HIDE [filename] [directory] [modifiers]
+        '''
+        tokens: list[str] = arg.split()
+        permission_component: BasePermissionComponent = parsers.parse_generic_permission_command(tokens, include_user=False)
+        self.end_connection = parsers.parse_modifiers(tokens)
+
+        await permission_operations.hide_remote_file(self.reader, self.writer, permission_component, self.client_config, self.session_master, self.end_connection)
+    
+
 ClientWindow('localhost', 5000).cmdloop()
