@@ -1,11 +1,13 @@
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Sequence
 
 from client.cmd import cmd_utils
 import client.cmd.errors as cmd_exc
-from client.cmd.commands import AuthCommands, FileCommands
+from client.cmd.commands import AuthCommands, FileCommands, PermissionCommands
 from client.cmd.commands import GeneralModifierCommands
 
-from models.request_model import BaseAuthComponent, BaseFileComponent
+from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent
+from models.constants import REQUEST_CONSTANTS
+from models.flags import PermissionFlags
 
 async def parse_modifiers(tokens: Iterable[str], *expected_modifiers: GeneralModifierCommands, raise_on_unexpected: bool = True) -> list[bool]:
     '''Parse a given command for any additional modifiers provided at the end
@@ -61,3 +63,26 @@ def parse_file_command(tokens: Iterable[str], operation: FileCommands, default_d
     remote_dir = next(filter(lambda token : token not in GeneralModifierCommands.__members__, tokens[1:]), None) if allow_dir else default_dir
     return BaseFileComponent(subject_file=tokens[0], subject_file_owner=remote_dir)
     
+async def parse_grant_command(tokens: Sequence[str]) -> tuple[BasePermissionComponent, int]:
+    tokens_count: int = len(tokens)
+    if tokens_count < 4:
+        raise cmd_exc.CommandException(f'Command {PermissionCommands.GRANT.value} missing mandatory fields')
+    
+    role: PermissionFlags = PermissionFlags._member_map_.get(tokens[3])
+    if not role:
+        raise cmd_exc.CommandException(f'Unsupported role')
+    role_bits: int = role.value
+
+    permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=tokens[0], subject_file_owner=tokens[1], subject_user=tokens[2])
+    if tokens_count > 4 and tokens[4] not in GeneralModifierCommands._value2member_map_:
+        if not tokens[5].isnumeric():
+            await cmd_utils.display('Non-numeric value for permission effect duration')
+        
+        duration: int = int(tokens[4])
+        if not (REQUEST_CONSTANTS.permission.effect_duration_range[0] < duration < REQUEST_CONSTANTS.permission.effect_duration_range[1]):
+            await cmd_utils.display(f'Effect duration {duration} out of range {REQUEST_CONSTANTS.permission.effect_duration_range}')
+            duration = None
+
+        permission_component.effect_duration = duration
+
+    return permission_component, PermissionFlags.GRANT.value | role_bits

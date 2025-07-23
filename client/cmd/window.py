@@ -9,7 +9,7 @@ from client.cmd import parsers
 from client.cmd.commands import GeneralModifierCommands, FileCommands
 from client.cmd import errors as cmd_errors 
 from client.config import constants as client_constants
-from client.operations import auth_operations, file_operations
+from client.operations import auth_operations, file_operations, permission_operations
 
 from models.request_model import BaseAuthComponent, BaseFileComponent
 
@@ -186,6 +186,16 @@ class ClientWindow(cmd.Cmd):
         '''
         ...
 
+    @require_auth_state(state=True)
+    async def do_grant(self, arg: str) -> None:
+        '''
+        GRANT [filename] [directory] [user] [role] [optional: duration] [modifiers]
+        Grant role to user on a given file
+        '''
+        tokens: list[str] = arg.split()
+        permission_component, subcategory_bits = parsers.parse_grant_command(tokens)
+        self.end_connection = parsers.parse_modifiers(tokens, GeneralModifierCommands.END_CONNECTION)
 
+        await permission_operations.grant_permission(self.reader, self.writer, subcategory_bits, permission_component, self.client_config, self.session_master)
     
 ClientWindow('localhost', 5000).cmdloop()

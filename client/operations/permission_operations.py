@@ -15,30 +15,19 @@ from models.request_model import BasePermissionComponent, BaseHeaderComponent
 from models.flags import CategoryFlag, PermissionFlags
 
 async def grant_permission(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                           granted_role: RoleTypes, remote_user: str, remote_directory: str, remote_file: str,
-                           client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
-                           duration: Optional[float] = None):
-    subcategory_bits: int = PermissionFlags.GRANT.value
-    # Based on role arg, mask the 3 most significant bits
-    for flag_equivalent, role in ROLE_MAPPING.items():
-        if granted_role == role:
-            subcategory_bits |= flag_equivalent.value
-            break
-    
+                           subcategory_bits: int, permission_component: BasePermissionComponent,
+                           client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager) -> None:
     header_component: BaseHeaderComponent = BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=subcategory_bits)
-    if duration:
-        duration = min(REQUEST_CONSTANTS.permission.effect_duration_range[1], abs(duration))    # 0th index contains lower bound, 1st index contains upper bound
-    
-    permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory, subject_user=remote_user, effect_duration=duration)
 
     await send_request(writer, header_component, session_manager.auth_component, permission_component)
     response_header, _ = await process_response(reader, writer, client_config.read_timeout)
 
     if response_header.code != SuccessFlags.SUCCESSFUL_GRANT.value:
-        await display(permission_messages.failed_permission_operation(remote_directory, remote_file, remote_user, response_header.code))
+        await display(permission_messages.failed_permission_operation(permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user, response_header.code))
         return
     
-    await display(permission_messages.successful_granted_role(remote_directory, remote_file, remote_user, granted_role.value))
+    await display(permission_messages.successful_granted_role(permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user,
+                                                              permission=ROLE_MAPPING[(subcategory_bits&PermissionFlags.ROLE_EXTRACTION_BITMASK.value)].value))
 
 async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                             remote_user: str, remote_directory: str, remote_file: str,
