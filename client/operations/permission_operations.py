@@ -85,15 +85,16 @@ async def publicise_remote_file(reader: asyncio.StreamReader, writer: asyncio.St
     await display(permission_messages.successful_file_publicise(permission_component.subject_file_owner, permission_component.subject_file, response_header.code))
 
 async def hide_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                           remote_directory: str, remote_file: str,
-                           client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager):
-    header_component: BaseHeaderComponent = BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.HIDE)
-    permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory)
-
-    await send_request(writer, header_component, session_manager.auth_component, permission_component)
+                           permission_component: BasePermissionComponent,
+                           client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
+                           end_connection: bool = False):
+    await send_request(writer,
+                       BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.HIDE, finish=end_connection),
+                       session_manager.auth_component,
+                       permission_component)
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value:
-        await display(permission_messages.failed_permission_operation(remote_directory, remote_file, code=response_header.code))
+        await display(permission_messages.failed_permission_operation(permission_component.subject_file_owner, permission_component.subject_file, code=response_header.code))
         return
     
     revoked_info: list[dict[str, str]] = response_body.get('revoked_grantee_info')
@@ -106,4 +107,4 @@ async def hide_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
         await display(general_messages.malformed_response_body("Mismatched data types in response body sent by server"))
         return
 
-    await display(permission_messages.successful_file_hide(remote_directory, remote_file, revoked_info))
+    await display(permission_messages.successful_file_hide(permission_component.subject_file_owner, permission_component.subject_file, revoked_info))
