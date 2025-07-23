@@ -86,3 +86,9 @@ async def parse_grant_command(tokens: Sequence[str]) -> tuple[BasePermissionComp
         permission_component.effect_duration = duration
 
     return permission_component, PermissionFlags.GRANT.value | role_bits
+
+async def parse_revoke_command(tokens: Sequence[str]) -> BasePermissionComponent:
+    if len(tokens) < 3:
+        raise cmd_exc.CommandException(f'Command {PermissionCommands.REVOKE.value} missing mandatory fields')
+    
+    return BasePermissionComponent(subject_file=tokens[0], subject_file_owner=tokens[1], subject_user=tokens[2], effect_duration=None)

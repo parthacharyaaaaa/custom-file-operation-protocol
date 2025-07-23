@@ -11,7 +11,7 @@ from client.cmd import errors as cmd_errors
 from client.config import constants as client_constants
 from client.operations import auth_operations, file_operations, permission_operations
 
-from models.request_model import BaseAuthComponent, BaseFileComponent
+from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent
 
 class ClientWindow(cmd.Cmd):
     # Overrides
@@ -198,4 +198,16 @@ class ClientWindow(cmd.Cmd):
 
         await permission_operations.grant_permission(self.reader, self.writer, subcategory_bits, permission_component, self.client_config, self.session_master)
     
+    @require_auth_state(state=True)
+    async def do_revoke(self, arg: str) -> None:
+        '''
+        REVOKE [filename] [directory] [user] [modifiers]
+        Revoke a role from a user
+        '''
+        tokens: list[str] = arg.split()
+        permission_component: BasePermissionComponent = parsers.parse_revoke_command(tokens)
+        self.end_connection = parsers.parse_modifiers(tokens[2:], GeneralModifierCommands.END_CONNECTION)
+
+        await permission_operations.revoke_permission(self.reader, self.writer, permission_component, self.client_config, self.session_master, self.end_connection)
+
 ClientWindow('localhost', 5000).cmdloop()
