@@ -179,12 +179,22 @@ class ClientWindow(cmd.Cmd):
         '''
         ...
     
-    def do_upload(self, local_fpath: os.PathLike) -> None:
+    @require_auth_state(state=True)
+    async def do_upload(self, arg: str) -> None:
         '''
-        UPLOAD [local_fpath]
+        UPLOAD [local_fpath] [optional: remote filename] [modifiers]
         Upload a local file to a remote directory.
         '''
-        ...
+        tokens: list[str] = arg.split()
+        local_fpath: str = tokens[0]
+        remote_fname: str = None
+        
+        if len(tokens) > 1 and tokens[1] not in GeneralModifierCommands._value2member_map_:
+            remote_fname = tokens[1]
+         
+        cursor_keepalive, end_connection = parsers.parse_modifiers(tokens[1:], GeneralModifierCommands.CURSOR_KEEPALIVE, GeneralModifierCommands.END_CONNECTION)
+        
+        await file_operations.upload_remote_file(self.reader, self.writer, local_fpath, self.client_config, self.session_master, remote_fname, None, end_connection, cursor_keepalive)
 
     @require_auth_state(state=True)
     async def do_grant(self, arg: str) -> None:

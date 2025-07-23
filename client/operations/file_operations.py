@@ -142,7 +142,8 @@ async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              local_fpath: str, 
                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
-                             remote_filename: Optional[str] = None, chunk_size: Optional[int] = None) -> None:
+                             remote_filename: Optional[str] = None, chunk_size: Optional[int] = None,
+                             end_connection: bool = False, cursor_keepalive: bool = False) -> None:
     if not os.path.isfile(local_fpath):
         await display(file_messages.file_not_found(local_fpath))
     
@@ -150,8 +151,11 @@ async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
         remote_filename = os.path.basename(local_fpath)
 
     # Create remote file
-    file_creation_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=session_manager.identity)
-    await send_request(writer, BaseHeaderComponent(version=client_config.version, finish=False, category=CategoryFlag.FILE_OP, subcategory=FileFlags.CREATE), session_manager.auth_component, file_creation_component)
+    file_creation_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=session_manager.identity, cursor_keepalive=cursor_keepalive)
+    await send_request(writer,
+                       BaseHeaderComponent(version=client_config.version, finish=end_connection, category=CategoryFlag.FILE_OP, subcategory=FileFlags.CREATE),
+                       session_manager.auth_component,
+                       file_creation_component)
 
     creation_response_header, creation_response_body = await process_response(reader, writer, client_config.read_timeout)
     if creation_response_header != SuccessFlags.SUCCESSFUL_FILE_CREATION:
