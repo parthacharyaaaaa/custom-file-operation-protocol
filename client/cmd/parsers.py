@@ -1,11 +1,11 @@
-from typing import Iterable
+from typing import Iterable, Optional
 
 from client.cmd import cmd_utils
 import client.cmd.errors as cmd_exc
-from client.cmd.commands import AuthCommands
+from client.cmd.commands import AuthCommands, FileCommands
 from client.cmd.commands import GeneralModifierCommands
 
-from models.request_model import BaseAuthComponent
+from models.request_model import BaseAuthComponent, BaseFileComponent
 
 async def parse_modifiers(tokens: Iterable[str], *expected_modifiers: GeneralModifierCommands, raise_on_unexpected: bool = True) -> list[bool]:
     '''Parse a given command for any additional modifiers provided at the end
@@ -42,7 +42,6 @@ async def parse_modifiers(tokens: Iterable[str], *expected_modifiers: GeneralMod
     
     return modifiers_found
 
-
 def parse_authorization(tokens: Iterable[str]) -> BaseAuthComponent:
     if len(tokens) < 2:
         raise cmd_exc.CommandException(f'Command {AuthCommands.AUTH} requires username and password to be provided as {AuthCommands.AUTH} USERNAME PASSWORD')
@@ -53,3 +52,12 @@ async def parse_auth_modifiers(tokens: Iterable[str]) -> list[bool, bool]:
     Order of modifiers: `DISPLAY CREDENTIALS`, `END CONNECTION`
     '''
     return await parse_modifiers(tokens, GeneralModifierCommands.DISPLAY_CREDENTIALS.value, GeneralModifierCommands.END_CONNECTION.value)
+
+def parse_file_command(tokens: Iterable[str], operation: FileCommands, default_dir: str, allow_dir: bool = True) -> BaseFileComponent:
+    token_length: int = len(tokens)
+    if token_length < 1:
+        raise cmd_exc.CommandException(f'Command {operation.value} requires filename to be provided')
+    
+    remote_dir = next(filter(lambda token : token not in GeneralModifierCommands.__members__, tokens[1:]), None) if allow_dir else default_dir
+    return BaseFileComponent(subject_file=tokens[0], subject_file_owner=remote_dir)
+    
