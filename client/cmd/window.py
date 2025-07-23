@@ -205,9 +205,21 @@ class ClientWindow(cmd.Cmd):
         Revoke a role from a user
         '''
         tokens: list[str] = arg.split()
-        permission_component: BasePermissionComponent = parsers.parse_revoke_command(tokens)
-        self.end_connection = parsers.parse_modifiers(tokens[2:], GeneralModifierCommands.END_CONNECTION)
+        permission_component: BasePermissionComponent = parsers.parse_generic_permission_command(tokens)
+        self.end_connection = parsers.parse_modifiers(tokens[3:], GeneralModifierCommands.END_CONNECTION)
 
         await permission_operations.revoke_permission(self.reader, self.writer, permission_component, self.client_config, self.session_master, self.end_connection)
+
+    @require_auth_state(state=True)
+    async def do_transfer(self, arg: str) -> None:
+        '''
+        TRANSFER [filename] [directory] [user] [modifiers]
+        Transfer ownership of a file to another user.
+        '''
+        tokens: list[str] = arg.split()
+        permission_component: BasePermissionComponent = parsers.parse_generic_permission_command(tokens[:3])
+        self.end_connection = parsers.parse_modifiers(tokens[3:])
+
+        await permission_operations.transfer_ownership(self.reader, self.writer, permission_component, self.client_config, self.session_master, self.end_connection)
 
 ClientWindow('localhost', 5000).cmdloop()
