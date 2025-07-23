@@ -113,17 +113,15 @@ async def create_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     await display(file_messages.succesful_file_creation(file_component.subject_file_owner, file_component.subject_file, iso_epoch, response_header.code))
 
 async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                      remote_directory: str, remote_filename: str,
+                      file_component: BaseFileComponent,
                       client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager) -> None:
-    file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=remote_directory)
-
     await send_request(writer, header_component=BaseHeaderComponent(client_config.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.DELETE),
                     auth_component=session_manager.auth_component,
                     body_component=file_component)
     
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_FILE_DELETION:
-        await display(file_messages.failed_file_operation(remote_directory, remote_filename, FileFlags.DELETE, response_header.code))
+        await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.DELETE, response_header.code))
 
     revoked_info: list[dict[str, str]] = response_body.get('revoked_grantee_info')
     if not revoked_info:
@@ -139,7 +137,7 @@ async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     if not deletion_iso_datetime:
         await display(general_messages.malformed_response_body('deletion_time'))
 
-    await display(file_messages.succesful_file_deletion(remote_directory, remote_filename, revoked_info, deletion_iso_datetime, response_header.code))
+    await display(file_messages.succesful_file_deletion(file_component.subject_file_owner, file_component.subject_file, revoked_info, deletion_iso_datetime, response_header.code))
 
 async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              local_fpath: str, remote_directory: str,

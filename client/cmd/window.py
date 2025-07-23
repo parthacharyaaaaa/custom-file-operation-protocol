@@ -141,13 +141,19 @@ class ClientWindow(cmd.Cmd):
         await file_operations.create_file(self.reader, self.writer,
                                           file_component, self.client_config, self.session_master, self.end_connection)
 
-    def do_delete(self, filename: str, directory: Optional[str] = None) -> None:
+    @require_auth_state(state=True)
+    async def do_delete(self, arg: str) -> None:
         '''
-        DELETE [filename] [directory]
+        DELETE [filename]
         Delete a file from a remote directory.
-        If not specified, remote directory is determined based on remote session
+        Filename must include file extension
         '''
-        ...
+        tokens: list[str] = arg.split()
+        file_component: BaseFileComponent = parsers.parse_file_command(tokens, FileCommands.DELETE, self.session_master.identity, False)
+        file_component.cursor_keepalive = False
+
+        self.end_connection = parsers.parse_modifiers(tokens, GeneralModifierCommands.END_CONNECTION)
+        await file_operations.delete_file(self.reader, self.writer, file_component, self.client_config, self.session_master)
 
     def do_read(self, filename: str, directory: Optional[str] = None) -> None:
         '''
