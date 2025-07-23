@@ -1,11 +1,13 @@
 import asyncio
 import cmd
+import functools
 import os
-from typing import Optional
+from typing import Optional, Callable, Any
 
 from client import session_manager
 from client.cmd import parsers
 from client.cmd.commands import GeneralModifierCommands
+from client.cmd import errors as cmd_errors 
 from client.config import constants as client_constants
 from client.operations import auth_operations
 
@@ -45,6 +47,19 @@ class ClientWindow(cmd.Cmd):
             
             return True
 
+    # Decorators
+    def require_auth_state(state: bool):
+        def outer_wrapper(method: Callable[..., Any]) -> Callable[..., Any]:
+            @functools.wraps
+            def inner_wrapper(*args, **kwargs):
+                session_master: session_manager.SessionManager = getattr(args[0], 'session_master', None)
+                if not (session_master and bool(session_master.identity) == state):
+                    raise cmd_errors.InvalidAuthenticationState
+                
+                return method(*args, **kwargs)
+            return inner_wrapper
+        return outer_wrapper
+
     # Methods
     def do_heartbeat(self) -> None:
         '''
@@ -52,6 +67,7 @@ class ClientWindow(cmd.Cmd):
         Send a heartbeat signal to the connected process
         '''
 
+    @require_auth_state(state=False)
     async def do_auth(self, arg: str) -> None:
         '''
         AUTH [username] [password] [MODIFIERS]
@@ -63,6 +79,7 @@ class ClientWindow(cmd.Cmd):
         
         await auth_operations.authorize(self.reader, self.writer, auth_component, self.client_config, self.session_master, display_credentials, self.end_connection)
 
+    @require_auth_state(state=True)
     async def do_sterm(self, arg: str) -> None:
         '''
         STERM [MODIFIERS]
@@ -71,7 +88,7 @@ class ClientWindow(cmd.Cmd):
         tokens: list[str] = arg.split()
         display_credentials, self.end_connection = parsers.parse_auth_modifiers(tokens)
         await auth_operations.end_remote_session(self.reader, self.writer, self.client_config, self.session_master, display_credentials, self.end_connection)
-        
+    
     async def do_unew(self, arg: str) -> None:
         '''
         UNEW [username] [password] [MODIFIERS]
@@ -99,6 +116,7 @@ class ClientWindow(cmd.Cmd):
             self.session_master.clear_auth_data()
         
 
+    @require_auth_state(state=True)
     async def do_sref(self, arg: str) -> None:
         '''
         SREF [MODIFIERS]
