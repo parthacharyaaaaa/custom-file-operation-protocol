@@ -94,24 +94,23 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
         await display(read_data)
 
 async def create_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                      remote_directory: str, remote_filename: str,
-                      client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager) -> dict[str, Any]:
-    file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=remote_directory)
-
-    await send_request(writer, header_component=BaseHeaderComponent(client_config.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.CREATE),
+                      file_component: BaseFileComponent,
+                      client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
+                      end_connection: bool = False) -> dict[str, Any]:
+    await send_request(writer, header_component=BaseHeaderComponent(client_config.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.CREATE, finish=end_connection),
                     auth_component=session_manager.auth_component,
                     body_component=file_component)
     
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_FILE_CREATION:
-        await display(file_messages.failed_file_operation(remote_directory, remote_filename, FileFlags.CREATE, response_header.code))
+        await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.CREATE, response_header.code))
         return
 
     iso_epoch: str = response_body.contents.get('contents')
     if not iso_epoch:
         await display(general_messages.missing_response_claim('contents'))
 
-    await display(file_messages.succesful_file_creation(remote_directory, remote_filename, iso_epoch, response_header.code))
+    await display(file_messages.succesful_file_creation(file_component.subject_file_owner, file_component.subject_file, iso_epoch, response_header.code))
 
 async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                       remote_directory: str, remote_filename: str,
