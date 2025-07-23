@@ -30,19 +30,20 @@ async def grant_permission(reader: asyncio.StreamReader, writer: asyncio.StreamW
                                                               permission=ROLE_MAPPING[(subcategory_bits&PermissionFlags.ROLE_EXTRACTION_BITMASK.value)].value))
 
 async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                            remote_user: str, remote_directory: str, remote_file: str,
-                            client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,) -> None:
-    header_component: BaseHeaderComponent = BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.REVOKE)
-    permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory, subject_user=remote_user)
-
-    await send_request(writer, header_component, session_manager.auth_component, permission_component)
+                            permission_component: BasePermissionComponent,
+                            client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
+                            end_connection: bool = False) -> None:
+    await send_request(writer,
+                       BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.REVOKE, finish=end_connection),
+                       session_manager.auth_component, permission_component)
+    
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
 
     if response_header.code != SuccessFlags.SUCCESSFUL_REVOKE.value:
-        await display(permission_messages.failed_permission_operation(remote_directory, remote_file, remote_user, response_body.code))
+        await display(permission_messages.failed_permission_operation(permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user, response_body.code))
         return
     
-    await display(permission_messages.successful_revoked_role(remote_directory, remote_file, response_body))
+    await display(permission_messages.successful_revoked_role(permission_component.subject_file_owner, permission_component.subject_file, response_body.contents))
 
 async def transfer_ownership(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              remote_user: str, remote_directory: str, remote_file: str,
