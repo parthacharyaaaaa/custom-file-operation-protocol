@@ -6,12 +6,12 @@ from typing import Optional, Callable, Any
 
 from client import session_manager
 from client.cmd import parsers
-from client.cmd.commands import GeneralModifierCommands
+from client.cmd.commands import GeneralModifierCommands, FileCommands
 from client.cmd import errors as cmd_errors 
 from client.config import constants as client_constants
-from client.operations import auth_operations
+from client.operations import auth_operations, file_operations
 
-from models.request_model import BaseAuthComponent
+from models.request_model import BaseAuthComponent, BaseFileComponent
 
 class ClientWindow(cmd.Cmd):
     # Overrides
@@ -127,13 +127,19 @@ class ClientWindow(cmd.Cmd):
         await auth_operations.end_remote_session(self.reader, self.writer, self.client_config, self.session_master, display_credentials, self.end_connection)
 
 
-    def do_create(self, filename: str) -> None:
+    @require_auth_state(state=True)
+    async def do_create(self, arg: str) -> None:
         '''
-        CREATE [filename]
+        CREATE [filename] [MODIFIERS]
         Create a new file in the remote directory.
         Filename must include file extension
         '''
-        ...
+        tokens: list[str] = arg.split()
+        file_component: BaseFileComponent = parsers.parse_file_command(tokens, FileCommands.CREATE, self.session_master.identity, False)
+        file_component.cursor_keepalive, self.end_connection = parsers.parse_modifiers(tokens, GeneralModifierCommands.CURSOR_KEEPALIVE, GeneralModifierCommands.END_CONNECTION)
+
+        await file_operations.create_file(self.reader, self.writer,
+                                          file_component, self.client_config, self.session_master, self.end_connection)
 
     def do_delete(self, filename: str, directory: Optional[str] = None) -> None:
         '''
