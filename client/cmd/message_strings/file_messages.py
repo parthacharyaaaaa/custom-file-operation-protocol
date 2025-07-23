@@ -14,7 +14,7 @@ def succesful_file_creation(remote_directory: str, remote_file: str, iso_epoch: 
 
 def succesful_file_deletion(remote_directory: str, remote_file: str, revoked_info: Sequence[dict[str, Any]], deletion_time_string: Optional[str] = None, code: Optional[SuccessFlags] = None) -> str:
     revocation_info_string: str = '\n---\n'.join(format_dict(i) for i in revoked_info)
-    return (f'Code {code or SuccessFlags.SUCCESSFUL_FILE_DELETION}: Deleted file {remote_directory}/{remote_file} at {deletion_time_string or "N\A"}\n{revocation_info_string}')
+    return (f'Code {code or SuccessFlags.SUCCESSFUL_FILE_DELETION}: Deleted file {remote_directory}/{remote_file} at {deletion_time_string or "N/A"}\n{revocation_info_string}')
 
 def successful_file_amendment(remote_directory: str, remote_file: str, code: Optional[SuccessFlags] = None) -> str:
     return f'Code: {code or SuccessFlags.SUCCESSFUL_AMEND.value}: Amended file {remote_directory}/{remote_file}'
@@ -22,7 +22,7 @@ def successful_file_amendment(remote_directory: str, remote_file: str, code: Opt
 def failed_file_operation(remote_directory: str, remote_file: str, operation: FileFlags, code: Optional[SuccessFlags] = None, exc: Optional[Exception] = None) -> str:
     return '\n'.join((f'Code: {code or ClientErrorFlags.UNKNOWN_EXCEPTION.value} Failed to perform operation on file {remote_directory}/{remote_file}',
                       f'Operation: {operation._name_}',
-                      f'Traceback: {"\n\t".join(format_exception(exc))}' if exc else ''))
+                      'Traceback:'+ "\n\t".join(format_exception(exc)) if exc else ''))
 
 def file_not_found(fpath: os.PathLike) -> str:
     return f'File {fpath} not found'
