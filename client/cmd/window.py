@@ -9,7 +9,7 @@ from client.cmd import parsers
 from client.cmd.commands import GeneralModifierCommands, FileCommands
 from client.cmd import errors as cmd_errors 
 from client.config import constants as client_constants
-from client.operations import auth_operations, file_operations, permission_operations
+from client.operations import auth_operations, file_operations, permission_operations, info_operations
 
 from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent
 
@@ -61,11 +61,14 @@ class ClientWindow(cmd.Cmd):
         return outer_wrapper
 
     # Methods
-    def do_heartbeat(self) -> None:
+    async def do_heartbeat(self, arg: str) -> None:
         '''
-        HEARTBEAT
+        HEARTBEAT [modifiers]
         Send a heartbeat signal to the connected process
         '''
+        tokens: list[str] = arg.split()
+        self.end_connection = await parsers.parse_modifiers(tokens, GeneralModifierCommands.END_CONNECTION)
+        await info_operations.send_heartbeat(self.reader, self.writer, self.client_config, self.session_master, self.end_connection)
 
     @require_auth_state(state=False)
     async def do_auth(self, arg: str) -> None:
