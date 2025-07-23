@@ -35,18 +35,26 @@ class ConnectionProxy:
 
 class LeasedConnection:
     exempt_methods: frozenset[str] = frozenset('release')
-    def __init__(self, pgconn: pg.AsyncConnection, manager: 'ConnectionPoolManager', lease_duration: float, **kwargs):
+    def __init__(self, pgconn: pg.AsyncConnection, manager: 'ConnectionPoolManager', lease_duration: float, priority: int, **kwargs):
         self._pgconn = pgconn
         self._manager = manager
         self._lease_duration: float = lease_duration
         self._lease_expired: bool = False
         self._in_use: bool = False
+        self._priority: int = priority
         self._usage_token: str = None
 
     @classmethod
-    async def connect(cls, conninfo: str, manager: 'ConnectionPoolManager', lease_duration: float, **kwargs) -> 'LeasedConnection':
+    async def connect(cls, conninfo: str, manager: 'ConnectionPoolManager', lease_duration: float, priority: int, **kwargs) -> 'LeasedConnection':
         pgconn = await pg.AsyncConnection.connect(conninfo=conninfo, **kwargs)
-        return cls(pgconn, manager, lease_duration)
+        return cls(pgconn, manager, lease_duration, priority)
+    
+    @property
+    def priority(self) -> str:
+        return self._priority
+    @priority.setter
+    def priority(self, value) -> NoReturn:
+        raise TypeError('LeasedConnection.priority is read-only and required to be untampered for proper reclaims')
 
     @property
     def manager(self) -> 'ConnectionPoolManager':
@@ -166,4 +174,10 @@ class ConnectionPoolManager:
             raise ValueError(f'Connection not reclaimable as it does not belong to this instance of {self.__class__.__name__}')
         
         proxy._conn._reset_usage()
+        if proxy._conn.priority == 1:
+            await self._hp_connection_pool.put(proxy._conn)
+        elif proxy._conn.priority == 2:
+            await self._mp_connection_pool.put(proxy._conn)
+        else:
+            await self._lp_connection_pool.put(proxy._conn)
     
