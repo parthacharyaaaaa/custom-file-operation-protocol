@@ -86,8 +86,7 @@ async def authorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
         await display(auth_messages.failed_auth_operation(AuthFlags.LOGIN, response_header.code), general_messages.malformed_response_body(), sep=b'\n')
         return
 
-    session_manager.identity = auth_component.identity
-    session_manager.create_authentication_component(**session_dict)
+    session_manager.local_authenticate(identity=auth_component.identity, **session_dict)
     await display(auth_messages.successful_authorization(remote_user=auth_component.identity))
     if display_credentials:
         await display(format_dict(session_manager.session_metadata.json_repr))
