@@ -69,18 +69,20 @@ async def transfer_ownership(reader: asyncio.StreamReader, writer: asyncio.Strea
     await display(permission_messages.successful_ownership_trasnfer(permission_component.subject_file_owner, permission_component.subject_file, new_fpath, transfer_iso_datetime, response_header.code))
 
 async def publicise_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                                remote_directory: str, remote_file: str,
-                                client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager) -> None:
-    header_component: BaseHeaderComponent = BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.PUBLICISE)
-    permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=remote_file, subject_file_owner=remote_directory)
-
-    await send_request(writer, header_component, session_manager.auth_component, permission_component)
+                                permission_component: BasePermissionComponent,
+                                client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
+                                end_connection: bool = False) -> None:
+    await send_request(writer,
+                       BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.PUBLICISE, finish=end_connection),
+                       session_manager.auth_component,
+                       permission_component)
+    
     response_header, _ = await process_response(reader, writer, client_config.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value:
-        await display(permission_messages.failed_permission_operation(remote_directory, remote_file, code=response_header.code))
+        await display(permission_messages.failed_permission_operation(permission_component.subject_file_owner, permission_component.subject_file, code=response_header.code))
         return
     
-    await display(permission_messages.successful_file_publicise(remote_directory, remote_file, response_header.code))
+    await display(permission_messages.successful_file_publicise(permission_component.subject_file_owner, permission_component.subject_file, response_header.code))
 
 async def hide_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                            remote_directory: str, remote_file: str,
