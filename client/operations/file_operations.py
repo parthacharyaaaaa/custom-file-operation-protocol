@@ -8,7 +8,7 @@ from client.cmd.cmd_utils import display
 from client.cmd.message_strings import file_messages, general_messages
 from client.communication.outgoing import send_request
 from client.communication.incoming import process_response
-from client.config import client_constants as client_constants
+from client.config import constants as client_constants
 from client import session_manager
 
 from models.constants import REQUEST_CONSTANTS
