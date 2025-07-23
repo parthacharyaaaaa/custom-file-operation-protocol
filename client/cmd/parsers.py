@@ -87,8 +87,12 @@ async def parse_grant_command(tokens: Sequence[str]) -> tuple[BasePermissionComp
 
     return permission_component, PermissionFlags.GRANT.value | role_bits
 
-async def parse_generic_permission_command(tokens: Sequence[str]) -> BasePermissionComponent:
-    if len(tokens) < 3:
-        raise cmd_exc.CommandException(f'Command {PermissionCommands.REVOKE.value} missing mandatory fields')
+async def parse_generic_permission_command(tokens: Sequence[str], include_user: bool = True) -> BasePermissionComponent:
+    min_token_length: int = 3
+    if include_user:
+        min_token_length-=1
+
+    if len(tokens) < min_token_length:
+        raise cmd_exc.CommandException(f'Command {PermissionCommands.REVOKE.value} missing mandatory fields, expected {min_token_length}, got {len(tokens)}')
     
-    return BasePermissionComponent(subject_file=tokens[0], subject_file_owner=tokens[1], subject_user=tokens[2], effect_duration=None)
+    return BasePermissionComponent(subject_file=tokens[0], subject_file_owner=tokens[1], subject_user=None if not include_user else tokens[2], effect_duration=None)
