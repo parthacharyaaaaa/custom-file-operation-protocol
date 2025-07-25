@@ -3,6 +3,8 @@ from aiofiles.threadpool.binary import AsyncBufferedReader
 from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
 from typing import Literal, Union
 
+__all__ = ('remove_reader', 'get_reader', 'purge_file_entries', 'rename_file_entries')
+
 def remove_reader(read_cache: TTLCache[str, dict[str, AsyncBufferedReader]], fpath: str, identifier: str) -> None:
     try:
         read_cache[fpath].pop(identifier, None)

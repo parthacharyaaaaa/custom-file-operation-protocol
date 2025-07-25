@@ -11,7 +11,11 @@ import server.errors as exc
 from pydantic import BaseModel, ValidationError
 import orjson
 
-CATEGORY_MODEL_MAP: MappingProxyType[int, type[BaseModel]] = MappingProxyType({CategoryFlag.AUTH: BaseAuthComponent, CategoryFlag.FILE_OP: BaseFileComponent, CategoryFlag.PERMISSION: BasePermissionComponent})
+__all__ = ('CATEGORY_MODEL_MAP', 'serialize_json', 'parse_body', 'process_component')
+
+CATEGORY_MODEL_MAP: MappingProxyType[int, type[BaseModel]] = MappingProxyType({CategoryFlag.AUTH: BaseAuthComponent,
+                                                                               CategoryFlag.FILE_OP: BaseFileComponent,
+                                                                               CategoryFlag.PERMISSION: BasePermissionComponent})
 
 async def serialize_json(data: bytes, awaitable_lower_bound: int = 2048, await_timeout: float = 5) -> dict[str, Any]:
     if len(data) < awaitable_lower_bound:

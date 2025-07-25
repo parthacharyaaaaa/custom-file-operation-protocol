@@ -15,6 +15,8 @@ from server.database import models as db_models
 from server.dependencies import ServerSingletonsRegistry
 from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
 
+__all__ = ('callback',)
+
 async def callback(dependency_registry: ServerSingletonsRegistry, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     while not reader.at_eof():
         header_component: BaseHeaderComponent = None

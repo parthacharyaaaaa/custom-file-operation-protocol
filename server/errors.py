@@ -4,6 +4,8 @@ from typing import Optional
 from models.flags import CategoryFlag
 from models.response_codes import ClientErrorFlags, ServerErrorFlags
 
+__all__ = ('ProtocolException', 'SlowStreamRate', 'InvalidHeaderSemantic', 'InvalidHeaderValues', 'InvalidAuthSemantic', 'InvalidAuthData', 'InvalidFileData', 'UnsupportedOperation', 'UserAuthenticationError', 'InsufficientPermissions', 'OperationalConflict', 'OperationContested', 'Banned', 'FileNotFound', 'FileConflict', 'FileContested', 'InternalServerError', 'DatabaseFailure')
+
 class ProtocolException(ABC, Exception):
     '''Abstract base exception class for all protocol specific exceptions. Contains all the bare minimum data required to construct and send a response to an erroneous request'''
     code: str
@@ -13,6 +15,7 @@ class ProtocolException(ABC, Exception):
     def __init__(self, description: Optional[str] = None):
         self.description = description or self.__class__.description
         self.exception_iso_timestamp = datetime.now().isoformat()
+
 
 # Client side errors
 class SlowStreamRate(ProtocolException):

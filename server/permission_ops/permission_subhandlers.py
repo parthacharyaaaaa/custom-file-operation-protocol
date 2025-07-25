@@ -26,6 +26,8 @@ from server.connectionpool import ConnectionProxy, ConnectionPoolManager
 from server.database import models as db_models
 from server.file_ops import base_operations as base_ops
 
+__all__ = ('check_file_permission', 'publicise_file', 'hide_file', 'grant_permission', 'revoke_permission', 'transfer_ownership')
+
 async def check_file_permission(filename: str, owner: str, grantee: str, check_for: FilePermissions, connection_master: ConnectionPoolManager, proxy: Optional[ConnectionProxy] = None, level: Optional[Literal[1,2,3]] = 1, check_until: Optional[datetime] = None) -> bool:
     reclaim_after: bool = proxy is None
     if not proxy:

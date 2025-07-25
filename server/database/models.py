@@ -6,6 +6,8 @@ from enum import Enum
 
 from models.permissions import RoleTypes, FilePermissions
 
+__all__ = ('ROLE_PERMISSION_MAPPING', 'Severity', 'LogType', 'LogAuthor', 'ActivityLog')
+
 ROLE_PERMISSION_MAPPING: MappingProxyType[RoleTypes, tuple[FilePermissions]] = MappingProxyType({
     RoleTypes.READER : (FilePermissions.READ,),
     RoleTypes.EDITOR : (FilePermissions.READ, FilePermissions.WRITE),

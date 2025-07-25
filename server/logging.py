@@ -6,7 +6,7 @@ from server.database.models import ActivityLog
 
 from psycopg import sql
 
-__all__ = ('flush_logs', 'LOG_INSERTION_SQL')
+__all__ = ('enqueue_log', 'flush_logs', 'LOG_INSERTION_SQL')
 
 LOG_INSERTION_SQL: sql.SQL = (sql.SQL('''INSERT INTO {tablename} ({columns_template})
                                         VALUES ({placeholder_template});''')

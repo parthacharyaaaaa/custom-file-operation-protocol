@@ -14,6 +14,7 @@ from server.file_ops.file_subhandlers import handle_read, handle_amendment, hand
 import orjson
 from pydantic import ValidationError
 
+__all__ = ('FILE_SUBHANDLERS', 'top_file_handler')
 
 FILE_SUBHANDLERS: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent, BaseFileComponent],
                                       Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]

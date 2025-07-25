@@ -12,6 +12,8 @@ from server.errors import InvalidAuthSemantic, UnsupportedOperation
 from typing import Optional, Coroutine, Any, Callable, TypeAlias
 from types import MappingProxyType
 
+__all__ = ('AUTH_SUBHABDLER', 'top_auth_handler')
+
 AUTH_SUBHABDLER: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent],
                                       Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]
 

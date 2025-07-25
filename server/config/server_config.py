@@ -1,8 +1,8 @@
-import os
-from typing import Any, Annotated
+from typing import Annotated
 from models.constants import REQUEST_CONSTANTS
 from pydantic import BaseModel, Field, IPvAnyAddress
-import pytomlpp
+
+__all__ = ('ServerConfig',)
 
 class ServerConfig(BaseModel):
     version: Annotated[str, Field(frozen=True, pattern=rf'{REQUEST_CONSTANTS.header.version_regex}')]

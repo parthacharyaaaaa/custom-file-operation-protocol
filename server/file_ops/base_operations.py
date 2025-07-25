@@ -14,6 +14,7 @@ from server import errors
 from server.database import models as db_models
 from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries, rename_file_entries
 
+__all__ = ('acquire_file_lock', 'preemptive_eof_check', 'read_file', 'write_file', 'append_file', 'create_file', 'delete_file', 'rename_file', 'transfer_file', 'delete_directory')
 
 async def acquire_file_lock(file_locks: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]], filename: str, requestor: str, ttl: int, max_attempts: Optional[int] = inf) -> Literal[True]:
     '''Indefinitely start a coroutine to wait for a lock on a file to be acquired. It is best to use this with `asyncio.wait_for` to prevent the caller from being stalled indefinitely.'''
@@ -178,7 +179,6 @@ async def create_file(root: os.PathLike, owner: str, filename: str) -> tuple[Opt
 
     except FileExistsError:
         return None, None
-    
 
 async def delete_file(root: os.PathLike, fpath: os.PathLike, deleted_cache: TTLCache[str, Literal[True]], *caches: TTLCache[str, dict[str, Union[AsyncBufferedIOBase, AsyncBufferedReader]]]) -> bool:
     abs_fpath: os.PathLike = os.path.join(root, fpath)

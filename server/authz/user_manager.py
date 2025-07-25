@@ -23,6 +23,8 @@ from server.connectionpool import ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog, LogAuthor, Severity, LogType
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned, InvalidAuthData, OperationContested
 
+__all__ = ('UserManager',)
+
 class UserManager(metaclass=SingletonMetaclass):
     '''Class for managing user sessions and user-related operations'''
     HASHING_ALGORITHM: str = 'sha256'

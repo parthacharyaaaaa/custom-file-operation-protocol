@@ -3,6 +3,8 @@ import asyncio
 from typing import Literal, Optional, NoReturn
 from uuid import uuid4
 
+__all__ = ('ConnectionPoolManager', 'LeasedConnection', 'ConnectionProxy')
+
 class ConnectionProxy:
     def __init__(self, leased_conn: 'LeasedConnection', token: str):
         __slots__ = '_token', '_conn'

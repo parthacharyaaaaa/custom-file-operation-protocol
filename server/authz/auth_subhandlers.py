@@ -12,6 +12,7 @@ from server.errors import InvalidAuthSemantic
 from server.file_ops.base_operations import delete_directory
 from server.logging import enqueue_log
 
+__all__ = ('handle_registration', 'handle_login', 'handle_deletion', 'handle_password_change', 'handle_session_refresh', 'handle_session_termination')
 
 async def handle_registration(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
                               config: server_config.ServerConfig, user_manager: user_manager.UserManager) -> tuple[ResponseHeader, None]:

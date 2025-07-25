@@ -15,6 +15,8 @@ import orjson
 from pydantic import ValidationError
 
 
+__all__ = ('top_permission_handler', 'PERMISSION_SUBHABDLER')
+
 PERMISSION_SUBHABDLER: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent],
                                       Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]
 

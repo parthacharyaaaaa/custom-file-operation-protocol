@@ -5,6 +5,8 @@ from models.response_models import ResponseHeader, ResponseBody
 from models.constants import RESPONSE_CONSTANTS
 from typing import Optional, Union
 
+__all__ = ('send_heartbeat', 'send_response')
+
 async def send_heartbeat(header: BaseHeaderComponent) -> tuple[ResponseHeader, None]:
     '''Send a heartbeat signal back to the client'''
     return (

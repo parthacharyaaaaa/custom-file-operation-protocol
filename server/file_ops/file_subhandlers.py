@@ -23,6 +23,8 @@ from server.permission_ops import permission_subhandlers
 
 from cachetools import TTLCache
 
+__all__ = ('handle_deletion', 'handle_amendment', 'handle_read', 'handle_creation')
+
 async def handle_deletion(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
                           config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
                           connection_master: ConnectionPoolManager, file_locks: TTLCache[str, bytes],

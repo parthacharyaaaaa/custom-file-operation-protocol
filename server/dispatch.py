@@ -12,6 +12,8 @@ from server.dependencies import ServerSingletonsRegistry
 from server.file_ops.file_handler import top_file_handler
 from server.permission_ops.permission_handler import top_permission_handler
 
+__all__ = ('TOP_LEVEL_REQUEST_MAPPING',)
+
 TOP_LEVEL_REQUEST_MAPPING: MappingProxyType[int, Callable[[asyncio.StreamReader, BaseHeaderComponent, ServerSingletonsRegistry], Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]] = (
     MappingProxyType({CategoryFlag.AUTH : top_auth_handler,
                       CategoryFlag.HEARTBEAT : send_heartbeat,
