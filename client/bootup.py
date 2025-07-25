@@ -1,8 +1,10 @@
+import asyncio
 import os
 from typing import Any
 import pytomlpp
 
 from client.config.constants import ClientConfig
+from client.cmd.window import ClientWindow
 from client.session_manager import SessionManager
 
 __all__ = ('init_session_manager', 'init_client_configurations',)
@@ -15,3 +17,15 @@ def init_client_configurations() -> ClientConfig:
     client_config = ClientConfig.model_validate(constants_mapping)
 
     return client_config
+
+def init_cmd_window(host: str, port: int,
+                    reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                    client_config: ClientConfig, session_manager: SessionManager) -> ClientWindow:
+    return ClientWindow(host, port, reader, writer, client_config, session_manager)
+
+async def create_server_connection(host: str, port: int, timeout: float) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    #TODO: Add SSL
+    return await asyncio.open_connection(host, port)
+
+def init_streaming_lock() -> asyncio.Lock:
+    return asyncio.Lock()
