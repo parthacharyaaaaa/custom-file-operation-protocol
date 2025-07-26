@@ -7,6 +7,7 @@ from client.config.constants import ClientConfig
 from client.cmd.window import ClientWindow
 from client.session_manager import SessionManager
 from client.communication import incoming, outgoing
+from client.operations import info_operations
 
 from models.response_codes import SuccessFlags
 
@@ -30,11 +31,13 @@ async def create_server_connection(host: str, port: int, timeout: float) -> tupl
     #TODO: Add SSL
     return await asyncio.open_connection(host, port)
 
-async def heartbeat_monitor(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, session_manager: SessionManager, hb_interval: float, read_timeout: float = 3.0) -> None:
+async def heartbeat_monitor(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                            client_config: ClientConfig, session_manager: SessionManager,
+                            hb_interval: float, read_timeout: float = 3.0) -> None:
     '''Background task for monitoring heartbeat of the remote server'''
     conn_teardown: bool = False
     while True:
-        await outgoing.send_request(writer, reader)
+        await info_operations.send_heartbeat(reader, writer, client_config, session_manager, end_connection=False)
         try:
             heartbeat_header, _ = await incoming.process_response(reader, writer, read_timeout)
             if heartbeat_header.code != SuccessFlags.HEARTBEAT.value:
