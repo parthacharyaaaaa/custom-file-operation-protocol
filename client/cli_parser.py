@@ -1,8 +1,5 @@
-import sys
 import argparse
-import pydantic
 import re
-from traceback import format_exception_only
 import warnings
 
 from models.constants import REQUEST_CONSTANTS
@@ -10,11 +7,8 @@ from models.constants import REQUEST_CONSTANTS
 __all__ = ('PARSER', 'parse_args')
 
 def _parse_host_arg(host: str) -> str:
-    hostname_verifier: pydantic.BaseModel = type('IPvAny_validator', pydantic.BaseModel, {'ip' : pydantic.IPvAnyAddress})
-    try:
-        hostname_verifier(ip=host)
-    except pydantic.ValidationError as v:
-        raise ValueError(f'Invalid IP (v4/v6) address {host} provided: {format_exception_only(v)[0]}')
+    if not re.match(r'^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$', host):
+        raise ValueError(f'Invalid IP (v4/v6) address {host} provided')
     return host
 
 def _parse_port_arg(arg: str) -> int:
