@@ -2,7 +2,7 @@ import asyncio
 import argparse
 
 from client import cli_parser
-from client.bootup import init_client_configurations, init_session_manager, create_server_connection, init_cmd_window
+from client.bootup import init_client_configurations, init_session_manager, create_server_connection, init_cmd_window, heartbeat_monitor
 from client.cmd.window import ClientWindow
 from client.config.constants import ClientConfig
 from client.operations import auth_operations
@@ -24,6 +24,7 @@ async def main() -> None:
 
     client_cmd_window: ClientWindow = init_cmd_window(args.host, args.port, reader, writer, client_config, session_manager)
 
+    asyncio.create_task(heartbeat_monitor(reader, writer, session_manager, client_config.heartbeat_interval), name=heartbeat_monitor.__name__)
     await client_cmd_window.cmdloop()
 
 asyncio.run(main())
