@@ -51,7 +51,7 @@ async def callback(dependency_registry: ServerSingletonsRegistry, reader: asynci
             connection_end: bool = False if not header_component else header_component.finish
             is_caught: bool = isinstance(e, errors.ProtocolException)
             response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=e if is_caught else errors.InternalServerError,
-                                                                              version=config.version if not header_component else header_component.version,
+                                                                              version=dependency_registry.server_config.version if not header_component else header_component.version,
                                                                               end_conn=connection_end,
                                                                               host=str(dependency_registry.server_config.host),
                                                                               port=dependency_registry.server_config.port)
