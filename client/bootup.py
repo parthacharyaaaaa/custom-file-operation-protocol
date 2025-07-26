@@ -7,7 +7,7 @@ from client.config.constants import ClientConfig
 from client.cmd.window import ClientWindow
 from client.session_manager import SessionManager
 
-__all__ = ('init_session_manager', 'init_client_configurations',)
+__all__ = ('init_session_manager', 'init_client_configurations', 'init_cmd_window', 'create_server_connection')
 
 def init_session_manager() -> SessionManager:
     return SessionManager()
@@ -26,6 +26,3 @@ def init_cmd_window(host: str, port: int,
 async def create_server_connection(host: str, port: int, timeout: float) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     #TODO: Add SSL
     return await asyncio.open_connection(host, port)
-
-def init_streaming_lock() -> asyncio.Lock:
-    return asyncio.Lock()

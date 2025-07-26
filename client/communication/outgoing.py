@@ -2,9 +2,10 @@ import asyncio
 from typing import Optional, Union, Literal
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent, BasePermissionComponent
 
+STREAM_LOCK: asyncio.Lock = asyncio.Lock()
+
 async def send_request(writer: asyncio.StreamWriter,
                        header_component: BaseHeaderComponent,
-                       streaming_lock: asyncio.Lock,
                        lock_contention_timmeout: float = 3.0,
                        auth_component: Optional[BaseAuthComponent] = None,
                        body_component: Optional[Union[BaseFileComponent, BasePermissionComponent]] = None) -> None:
@@ -14,7 +15,7 @@ async def send_request(writer: asyncio.StreamWriter,
     header_component.auth_size = len(auth_stream)
     header_component.body_size = len(body_stream)
 
-    acquired: Literal[True] = asyncio.wait_for(streaming_lock.acquire(), lock_contention_timmeout)
+    acquired: Literal[True] = asyncio.wait_for(STREAM_LOCK.acquire(), lock_contention_timmeout)
     try:
         writer.write(header_component.model_dump_json().encode('utf-8'))
         writer.write(auth_stream)
@@ -22,4 +23,4 @@ async def send_request(writer: asyncio.StreamWriter,
 
         await writer.drain()
     finally:
-        streaming_lock.release()
+        STREAM_LOCK.release()
