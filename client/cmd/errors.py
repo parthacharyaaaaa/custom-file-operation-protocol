@@ -4,7 +4,8 @@ class CommandException(Exception):
     description: str = 'Invalid command issued'
 
     def __init__(self, description: Optional[str] = None):
-        super().__init__(description or self.__class__.description)
+        self.description = description or self.__class__.description
+        super().__init__()
 
 
 class InvalidAuthenticationState(CommandException):
