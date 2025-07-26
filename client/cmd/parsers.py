@@ -1,4 +1,5 @@
-from typing import Iterable, Optional, Sequence
+from traceback import format_exception_only
+from typing import Iterable, Sequence
 
 from client.cmd import cmd_utils
 import client.cmd.errors as cmd_exc
@@ -8,6 +9,8 @@ from client.cmd.commands import GeneralModifierCommands
 from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent
 from models.constants import REQUEST_CONSTANTS
 from models.flags import PermissionFlags
+
+import pydantic
 
 async def parse_modifiers(tokens: Iterable[str], *expected_modifiers: GeneralModifierCommands, raise_on_unexpected: bool = True) -> list[bool]:
     '''Parse a given command for any additional modifiers provided at the end
@@ -47,7 +50,11 @@ async def parse_modifiers(tokens: Iterable[str], *expected_modifiers: GeneralMod
 def parse_authorization(tokens: Iterable[str]) -> BaseAuthComponent:
     if len(tokens) < 2:
         raise cmd_exc.CommandException(f'Command {AuthCommands.AUTH} requires username and password to be provided as {AuthCommands.AUTH} USERNAME PASSWORD')
-    return BaseAuthComponent(identity=tokens[0], password=tokens[1])
+    try:
+        return BaseAuthComponent(identity=tokens[0], password=tokens[1])
+    except pydantic.ValidationError as v:
+        error_string: str = '\n'.join(f'{err_details["loc"][0]} (input={err_details["input"]}): {err_details["msg"]}' for err_details in v.errors())
+        raise cmd_exc.CommandException('Invalid login credentials:\n'+error_string)
 
 async def parse_auth_modifiers(tokens: Iterable[str]) -> list[bool, bool]:
     '''Abstraction over parse_modifier calls for auth-related operations. Calls parse_modifiers with predetermined expected_modifiers args

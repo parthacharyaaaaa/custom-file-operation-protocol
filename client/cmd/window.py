@@ -5,7 +5,7 @@ import inspect
 from typing import Optional, Callable, Any
 
 from client import session_manager
-from client.cmd import parsers
+from client.cmd import parsers, cmd_utils
 from client.cmd.commands import GeneralModifierCommands, FileCommands
 from client.cmd import errors as cmd_errors 
 from client.config import constants as client_constants
@@ -110,12 +110,14 @@ class ClientWindow(cmd.Cmd):
                 return self.default(line)
             
             # Additional logic added here to deal with any asynchronous functions
-            if inspect.iscoroutinefunction(inspect.unwrap(func)):
-                return await func(arg)
-            else:
-                return func(arg)
-    
-
+            try:
+                if inspect.iscoroutinefunction(inspect.unwrap(func)):
+                    return await func(arg)
+                else:
+                    return func(arg)
+            except cmd_errors.CommandException as cmd_exc:
+                await cmd_utils.display(cmd_exc.description)
+            
     # Decorators
     def require_auth_state(state: bool):
         def outer_wrapper(method: Callable[..., Any]) -> Callable[..., Any]:
