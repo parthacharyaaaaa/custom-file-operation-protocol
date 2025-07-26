@@ -50,7 +50,7 @@ class ClientWindow(cmd.Cmd):
     # Decorators
     def require_auth_state(state: bool):
         def outer_wrapper(method: Callable[..., Any]) -> Callable[..., Any]:
-            @functools.wraps
+            @functools.wraps(method)
             def inner_wrapper(*args, **kwargs):
                 session_master: session_manager.SessionManager = getattr(args[0], 'session_master', None)
                 if not (session_master and bool(session_master.identity) == state):
