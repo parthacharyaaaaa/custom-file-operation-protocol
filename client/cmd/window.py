@@ -1,7 +1,7 @@
 import asyncio
 import cmd
 import functools
-import os
+import inspect
 from typing import Optional, Callable, Any
 
 from client import session_manager
@@ -46,6 +46,75 @@ class ClientWindow(cmd.Cmd):
                 self.session_master.clear_auth_data()
             
             return True
+
+    async def cmdloop(self, intro = None):
+        self.preloop()
+        if self.use_rawinput and self.completekey:
+            try:
+                import readline
+                self.old_completer = readline.get_completer()
+                readline.set_completer(self.complete)
+                readline.parse_and_bind(self.completekey+": complete")
+            except ImportError:
+                pass
+        try:
+            if intro is not None:
+                self.intro = intro
+            if self.intro:
+                self.stdout.write(str(self.intro)+"\n")
+            stop = None
+            while not stop:
+                if self.cmdqueue:
+                    line = self.cmdqueue.pop(0)
+                else:
+                    if self.use_rawinput:
+                        try:
+                            line = input(self.prompt)
+                        except EOFError:
+                            line = 'EOF'
+                    else:
+                        self.stdout.write(self.prompt)
+                        self.stdout.flush()
+                        line = self.stdin.readline()
+                        if not len(line):
+                            line = 'EOF'
+                        else:
+                            line = line.rstrip('\r\n')
+                line = self.precmd(line)
+                stop = await self.onecmd(line)
+                stop = await self.postcmd(stop, line)
+            self.postloop()
+        finally:
+            if self.use_rawinput and self.completekey:
+                try:
+                    import readline
+                    readline.set_completer(self.old_completer)
+                except ImportError:
+                    pass
+
+    async def onecmd(self, line):
+        cmd, arg, line = self.parseline(line)
+        if not line:
+            return self.emptyline()
+        if cmd is None:
+            return self.default(line)
+        self.lastcmd = line
+        if line == 'EOF' :
+            self.lastcmd = ''
+        if cmd == '':
+            return self.default(line)
+        else:
+            try:
+                func = getattr(self, 'do_' + cmd)
+            except AttributeError:
+                return self.default(line)
+            
+            # Additional logic added here to deal with any asynchronous functions
+            if inspect.iscoroutinefunction(inspect.unwrap(func)):
+                return await func(arg)
+            else:
+                return func(arg)
+    
 
     # Decorators
     def require_auth_state(state: bool):
