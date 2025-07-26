@@ -258,5 +258,3 @@ class ClientWindow(cmd.Cmd):
 
         await permission_operations.hide_remote_file(self.reader, self.writer, permission_component, self.client_config, self.session_master, self.end_connection)
     
-
-ClientWindow('localhost', 5000).cmdloop()
