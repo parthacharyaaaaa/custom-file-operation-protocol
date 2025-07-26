@@ -136,11 +136,11 @@ class ConnectionPoolManager:
 
     async def populate_pools(self, conninfo: str) -> None:
         for _ in range(self._hp_connection_pool.maxsize):
-            await self._hp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, autocommit=True))
+            await self._hp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, 1, autocommit=True))
         for _ in range(self._mp_connection_pool.maxsize):
-            await self._mp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, autocommit=True))
+            await self._mp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, 2, autocommit=True))
         for _ in range(self._lp_connection_pool.maxsize):
-            await self._lp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, autocommit=True))
+            await self._lp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, 3, autocommit=True))
 
         
     async def request_connection(self, level: Literal[1,2,3], max_lease_duration: Optional[float] = None) -> ConnectionProxy:
