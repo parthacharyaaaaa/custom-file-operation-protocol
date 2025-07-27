@@ -63,8 +63,8 @@ class BaseHeaderComponent(BaseModel):
     version: Annotated[str, Field(min_length=5, max_length=12, pattern=REQUEST_CONSTANTS.header.version_regex)]
 
     # Read ahead logic
-    auth_size: Annotated[int, Field(frozen=True, default=0)]
-    body_size: Annotated[int, Field(frozen=True, default=0)]
+    auth_size: Annotated[int, Field(ge=0, default=0)]
+    body_size: Annotated[int, Field(ge=0, default=0)]
 
     # Sender metadata
     sender_hostname: Annotated[IPvAnyAddress, Field(frozen=True)]
