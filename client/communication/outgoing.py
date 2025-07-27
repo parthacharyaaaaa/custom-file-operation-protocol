@@ -15,7 +15,7 @@ async def send_request(writer: asyncio.StreamWriter,
     header_component.auth_size = len(auth_stream)
     header_component.body_size = len(body_stream)
 
-    acquired: Literal[True] = asyncio.wait_for(STREAM_LOCK.acquire(), lock_contention_timmeout)
+    acquired: Literal[True] = await asyncio.wait_for(STREAM_LOCK.acquire(), lock_contention_timmeout)
     try:
         writer.write(header_component.model_dump_json().encode('utf-8'))
         writer.write(auth_stream)
