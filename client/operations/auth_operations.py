@@ -3,6 +3,7 @@ from typing import Any
 
 from client import session_manager
 from client.config import constants as client_constants
+from client.communication import utils as comm_utils 
 from client.communication.outgoing import send_request
 from client.communication.incoming import process_response
 from client.cmd.cmd_utils import display, format_dict
@@ -18,10 +19,11 @@ from models.session_metadata import SessionMetadata
 
 async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              auth_component: BaseAuthComponent,
-                             client_config: client_constants.ClientConfig,
+                             client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                              display_credentials: bool = False, end_connection: bool = False) -> None:
+    header_component: BaseHeaderComponent = comm_utils.make_header_component(client_config, session_manager, CategoryFlag.AUTH, AuthFlags.REGISTER, finish=end_connection)
     await send_request(writer=writer,
-                       header_component=BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.REGISTER, finish=end_connection),
+                       header_component=header_component,
                        auth_component=auth_component)
     
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
