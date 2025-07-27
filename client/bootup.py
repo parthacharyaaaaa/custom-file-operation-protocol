@@ -13,8 +13,8 @@ from models.response_codes import SuccessFlags
 
 __all__ = ('init_session_manager', 'init_client_configurations', 'init_cmd_window', 'create_server_connection')
 
-def init_session_manager() -> SessionManager:
-    return SessionManager()
+def init_session_manager(host: str, port: int) -> SessionManager:
+    return SessionManager(host, port)
 
 def init_client_configurations() -> ClientConfig:
     constants_mapping: dict[str, Any] = pytomlpp.load(os.path.join(os.path.dirname(__file__), 'config', 'constants.toml'))

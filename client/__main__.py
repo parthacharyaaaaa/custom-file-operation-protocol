@@ -16,7 +16,7 @@ async def main() -> None:
     
     client_config: ClientConfig = init_client_configurations()
     reader, writer = await create_server_connection(args.host, args.port, client_config.ssl_handshake_timeout)
-    session_manager: SessionManager = init_session_manager()
+    session_manager: SessionManager = init_session_manager(*writer.get_extra_info('peername'))
 
     if args.password:
         auth_component: BaseAuthComponent = BaseAuthComponent(identity=args.username, password=args.password)

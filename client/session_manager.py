@@ -1,12 +1,22 @@
-from models.request_model import BaseAuthComponent
+from models.request_model import BaseHeaderComponent, BaseAuthComponent
 from models.response_models import ResponseBody
 from models.session_metadata import SessionMetadata
 
 class SessionManager:
-    def __init__(self):
+    def __init__(self, host: str, port: int):
+        self._host: str = host
+        self._port: int = port
         self._identity: str = None
         self.session_metadata: SessionMetadata = None
         self.auth_component: BaseAuthComponent = None
+
+    @property
+    def host(self) -> str:
+        return self._host
+
+    @property
+    def port(self) -> int:
+        return self._port
 
     @property
     def identity(self) -> str:
