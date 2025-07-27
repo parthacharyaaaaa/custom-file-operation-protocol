@@ -60,7 +60,7 @@ async def parse_auth_modifiers(tokens: Iterable[str]) -> list[bool, bool]:
     '''Abstraction over parse_modifier calls for auth-related operations. Calls parse_modifiers with predetermined expected_modifiers args
     Order of modifiers: `DISPLAY CREDENTIALS`, `END CONNECTION`
     '''
-    return await parse_modifiers(tokens, GeneralModifierCommands.DISPLAY_CREDENTIALS.value, GeneralModifierCommands.END_CONNECTION.value)
+    return await parse_modifiers(tokens, GeneralModifierCommands.DISPLAY_CREDENTIALS, GeneralModifierCommands.END_CONNECTION)
 
 def parse_file_command(tokens: Iterable[str], operation: FileCommands, default_dir: str, allow_dir: bool = True) -> BaseFileComponent:
     token_length: int = len(tokens)
