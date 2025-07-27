@@ -2,6 +2,7 @@ import asyncio
 import cmd
 import functools
 import inspect
+from traceback import format_exc
 from typing import Optional, Callable, Any
 
 from client import session_manager
@@ -117,6 +118,9 @@ class ClientWindow(cmd.Cmd):
                     return func(arg)
             except cmd_errors.CommandException as cmd_exc:
                 await cmd_utils.display(cmd_exc.description)
+            except Exception:
+                await cmd_utils.display(format_exc())
+
             
     # Decorators
     def require_auth_state(state: bool):
@@ -169,10 +173,10 @@ class ClientWindow(cmd.Cmd):
         Create a new remote user. This does not create a remote session
         '''
         tokens: list[str] = arg.split()
-        auth_component: BaseAuthComponent = parsers.parse_authorization(tokens)
-        display_credentials, self.end_connection = parsers.parse_auth_modifiers(tokens)
+        auth_component: BaseAuthComponent = parsers.parse_authorization(tokens[:2])
+        display_credentials, self.end_connection = await parsers.parse_auth_modifiers(tokens[2:])
 
-        await auth_operations.create_remote_user(self.reader, self.writer, auth_component, self.client_config, display_credentials, self.end_connection)
+        await auth_operations.create_remote_user(self.reader, self.writer, auth_component, self.client_config, self.session_master, display_credentials, self.end_connection)
     
     async def do_udel(self, arg: str) -> None:
         '''
