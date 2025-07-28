@@ -56,20 +56,19 @@ CREATE INDEX ix_ban_logs_lifted_at ON ban_logs(lifted_at);
 CREATE INDEX ix_ban_logs_ban_time ON ban_logs(ban_time);
 
 CREATE TABLE IF NOT EXISTS activity_logs(
-    id              BIGSERIAL PRIMARY KEY,
-    occurance_time  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    severity        SMALLINT NOT NULL DEFAULT 1,
-    logged_by       logger_type NOT NULL DEFAULT 'exception_fallback',
-    log_category    log_type NOT NULL DEFAULT 'unknown',
-    log_details     VARCHAR(512),
-    user_concerned  VARCHAR(128) REFERENCES users(username) ON DELETE NO ACTION,
-    host_concerned  inet,
+    id                  BIGSERIAL PRIMARY KEY,
+    occurance_time      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reported_severity   severity NOT NULL,
+    logged_by           logger_type NOT NULL DEFAULT 'exception_fallback',
+    log_category        log_type NOT NULL DEFAULT 'unknown',
+    log_details         VARCHAR(512),
+    user_concerned      VARCHAR(128) REFERENCES users(username) ON DELETE NO ACTION,
+    host_concerned      inet,
 
-    CONSTRAINT check_activity_log_time_consistency CHECK(occurance_time <= CURRENT_TIMESTAMP),
-    CONSTRAINT check_activity_log_severity CHECK(severity BETWEEN 1 AND 5)
+    CONSTRAINT check_activity_log_time_consistency CHECK(occurance_time <= CURRENT_TIMESTAMP)
 );
 
 CREATE INDEX ix_activity_logs_type ON activity_logs(log_category);
 CREATE INDEX ix_activity_logs_logger ON activity_logs(logged_by);
 CREATE INDEX ix_activity_logs_host ON activity_logs(host_concerned);
-CREATE INDEX ix_activity_logs_severity ON activity_logs(severity);
+CREATE INDEX ix_activity_logs_severity ON activity_logs(reported_severity);

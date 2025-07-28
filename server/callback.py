@@ -59,9 +59,9 @@ async def callback(dependency_registry: ServerSingletonsRegistry, reader: asynci
             if not is_caught:
                 asyncio.create_task(
                     logging.enqueue_log(waiting_period=dependency_registry.server_config.log_waiting_period, queue=dependency_registry.log_queue,
-                                        log=db_models.ActivityLog(severity=db_models.Severity.CRITICAL_FAILURE.value,
-                                                                  log_category=db_models.LogType.INTERNAL.value,
-                                                                  logged_by=db_models.LogAuthor.EXCEPTION_FALLBACK.value,
+                                        log=db_models.ActivityLog(reported_severity=db_models.Severity.CRITICAL_FAILURE,
+                                                                  log_category=db_models.LogType.INTERNAL,
+                                                                  logged_by=db_models.LogAuthor.EXCEPTION_FALLBACK,
                                                                   log_details=format_exception_only(e)[0])))
                 
             await send_response(writer=writer, header=response)

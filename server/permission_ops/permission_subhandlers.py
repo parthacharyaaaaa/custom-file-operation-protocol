@@ -79,10 +79,10 @@ async def publicise_file(header_component: BaseHeaderComponent, auth_component: 
     except pg_exc.Error as e:
         asyncio.create_task(
                 logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                                    log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER.value,
-                                            log_category=db_models.LogType.DATABASE.value,
+                                    log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                            log_category=db_models.LogType.DATABASE,
                                             log_details=format_exception_only(e)[0],
-                                            severity=db_models.Seveirty.NON_CRITICAL_FAILURE.value)))
+                                            reported_severity=db_models.Seveirty.NON_CRITICAL_FAILURE)))
         
         raise errors.DatabaseFailure('Failed to publicise file')
     finally:
@@ -125,10 +125,10 @@ async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseA
     except pg_exc.Error as e:
         asyncio.create_task(
                 logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                            log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER.value,
-                                            log_category=db_models.LogType.DATABASE.value,
+                            log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                            log_category=db_models.LogType.DATABASE,
                                             log_details=format_exception_only(e)[0],
-                                            severity=db_models.Seveirty.NON_CRITICAL_FAILURE.value)))
+                                            reported_severity=db_models.Seveirty.NON_CRITICAL_FAILURE)))
         
         raise errors.DatabaseFailure('Failed to hide file')
     finally:
@@ -188,10 +188,10 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
     except pg_exc.Error as e:
         asyncio.create_task(
                 logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                                    log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER.value,
-                                                              log_category=db_models.LogType.DATABASE.value,
+                                    log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                              log_category=db_models.LogType.DATABASE,
                                                               log_details=format_exception_only(e)[0],
-                                                              severity=db_models.Seveirty.NON_CRITICAL_FAILURE.value)))
+                                                              reported_severity=db_models.Seveirty.NON_CRITICAL_FAILURE)))
         
         raise errors.DatabaseFailure('Failed to grant permission')
     finally:
@@ -237,10 +237,10 @@ async def revoke_permission(header_component: BaseHeaderComponent, auth_componen
     except pg_exc.Error as e:
         asyncio.create_task(
             logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                                log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER.value,
-                                                          log_category=db_models.LogType.DATABASE.value,
+                                log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                          log_category=db_models.LogType.DATABASE,
                                                           log_details=format_exception_only(e)[0],
-                                                          severity=db_models.Seveirty.NON_CRITICAL_FAILURE.value)))
+                                                          reported_severity=db_models.Seveirty.NON_CRITICAL_FAILURE)))
         
         raise errors.DatabaseFailure('Failed to revoke permission')
     finally:
@@ -314,10 +314,10 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
         elif isinstance(e, pg_exc.Error):
             asyncio.create_task(
                 logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                            log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER.value,
-                                            log_category=db_models.LogType.DATABASE.value,
+                            log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                            log_category=db_models.LogType.DATABASE,
                                             log_details=format_exception_only(e)[0],
-                                            severity=db_models.Seveirty.NON_CRITICAL_FAILURE.value)))
+                                            reported_severity=db_models.Seveirty.NON_CRITICAL_FAILURE)))
             
             raise errors.DatabaseFailure(f'Failed to transfer ownership of file {permission_component.subject_file} to {permission_component.subject_user}')
         raise e

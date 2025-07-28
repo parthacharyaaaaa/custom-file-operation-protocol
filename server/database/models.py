@@ -51,9 +51,9 @@ class LogAuthor(Enum):
 class ActivityLog(BaseModel):
     '''Pydantic object mapping to relation ACTIVITY_LOGS'''
     occurance_time: Annotated[datetime, Field(frozen=True, default_factory=datetime.now)]
-    severity: Annotated[int, Field(le=5, ge=1, default=1)]
-    logged_by: Annotated[LogAuthor, Field(default=LogAuthor.CONNECTION_MASTER.value)]
-    log_category: Annotated[LogType, Field(default=LogType.UNKNOWN.value)]
+    reported_severity: Severity
+    logged_by: Annotated[LogAuthor, Field(default=LogAuthor.CONNECTION_MASTER)]
+    log_category: Annotated[LogType, Field(default=LogType.UNKNOWN)]
     log_details: Annotated[Optional[str], Field(max_length=512, default=None)]
     user_concerned: Annotated[Optional[str], Field(max_length=128, default=None)]
     host_concerned: Annotated[Optional[IPvAnyAddress], Field(frozen=True, default=None)]

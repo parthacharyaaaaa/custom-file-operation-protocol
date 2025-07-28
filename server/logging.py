@@ -2,7 +2,7 @@ import asyncio
 from traceback import format_exception_only
 
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
-from server.database.models import ActivityLog
+from server.database.models import ActivityLog, Severity
 
 from psycopg import sql
 
@@ -25,7 +25,7 @@ async def flush_logs(connection_master: ConnectionPoolManager, queue: asyncio.Pr
     while True:
         try:
             for _ in range(batch_size):
-                log_entries.append((await asyncio.wait_for(queue.get(), timeout=waiting_period))[0])  # Fetch only ActivityLog object in tuple at 0 index
+                log_entries.append((await asyncio.wait_for(queue.get(), timeout=waiting_period)))  # Fetch only ActivityLog object in tuple at 0 index
         except asyncio.TimeoutError:
             if not log_entries:
                 continue
@@ -38,7 +38,7 @@ async def flush_logs(connection_master: ConnectionPoolManager, queue: asyncio.Pr
         except Exception as e:
             async with proxy.cursor() as cursor:
                 await cursor.execute(LOG_INSERTION_SQL,
-                                    (list(ActivityLog(severity=5, log_details=format_exception_only(e)[0]).model_dump().values())),)
+                                    (list(ActivityLog(reported_severity=Severity.CRITICAL_FAILURE, log_details=format_exception_only(e)[0]).model_dump().values())),)
             await proxy.commit()
         finally:
             await connection_master.reclaim_connection(proxy)

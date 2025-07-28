@@ -33,7 +33,7 @@ class UserManager(metaclass=SingletonMetaclass):
     USERNAME_REGEX: str = REQUEST_CONSTANTS.auth.username_regex
     TOKEN_LENGTH: int = REQUEST_CONSTANTS.auth.token_length
     DIGEST_LENGTH: int = REQUEST_CONSTANTS.auth.digest_length
-    LOG_ALIAS: str = LogAuthor.USER_MASTER.value
+    LOG_ALIAS: str = LogAuthor.USER_MASTER
     LOG_TIMEOUT: float = 2.0
 
     def __init__(self, connection_master: ConnectionPoolManager, log_queue: asyncio.PriorityQueue[ActivityLog], session_lifespan: float):
