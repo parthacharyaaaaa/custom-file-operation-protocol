@@ -46,6 +46,7 @@ class SessionMetadata:
         return {'token' : self.token,
                 'refresh_digest' : self.refresh_digest,
                 'lifespan' : self.lifespan,
+                'last_refresh' : self.last_refresh,
                 'valid_until' : self.valid_until,
                 'iteration' : self.iteration}
     
@@ -54,12 +55,13 @@ class SessionMetadata:
         return {'token' : self.token.hex(),
                 'refresh_digest' : self.refresh_digest.hex(),
                 'lifespan' : self.lifespan,
+                'last_refresh' : self.last_refresh,
                 'valid_until' : self.valid_until,
                 'iteration' : self.iteration}
     
     @staticmethod
-    def check_authentication_response_validity(session_dict: dict[str, Any], validate_timestamp: bool = False, ref_timestamp: Optional[float] = None, timestamp_claims: Sequence[str] = ['lifespan', 'valid_until']) -> bool:
-        timestamp_validator: FunctionType = (lambda tmstmp : tmstmp <= (ref_timestamp or time.time())) if validate_timestamp else (lambda tmstmp : True)
+    def check_authentication_response_validity(session_dict: dict[str, Any], validate_timestamp: bool = False, ref_timestamp: Optional[float] = None, timestamp_claims: Sequence[str] = ['valid_until']) -> bool:
+        timestamp_validator: FunctionType = (lambda tmstmp : tmstmp >= (ref_timestamp or time.time())) if validate_timestamp else (lambda tmstmp : True)
 
         return all((isinstance(claim:=session_dict.get(validator_key), validator_type) and timestamp_validator(claim) if validator_key in timestamp_claims else True)
                    for validator_key, validator_type in SessionMetadata.AUTHENTICATION_RESPONSE_TYPES.items())
@@ -77,7 +79,7 @@ class SessionMetadata:
         instance: 'SessionMetadata' = cls(token, digest, lifespan)
         instance._last_refresh = last_refresh
         instance._valid_until = valid_until
-        instance.iteration = iteration
+        instance._iteration = iteration
         return instance
     
     def __repr__(self) -> str:
