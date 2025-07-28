@@ -152,8 +152,8 @@ class ClientWindow(cmd.Cmd):
         Start a remote session on the host machine.
         This is the recommended way of starting a remote session, as it avoids writing password to shell history'''
         tokens: list[str] = arg.split()
-        auth_component: BaseAuthComponent = parsers.parse_authorization(tokens)
-        display_credentials, self.end_connection = parsers.parse_modifiers(tokens)
+        auth_component: BaseAuthComponent = parsers.parse_authorization(tokens[:2])
+        display_credentials, self.end_connection = await parsers.parse_modifiers(tokens[2:], GeneralModifierCommands.DISPLAY_CREDENTIALS, GeneralModifierCommands.END_CONNECTION)
         
         await auth_operations.authorize(self.reader, self.writer, auth_component, self.client_config, self.session_master, display_credentials, self.end_connection)
 
