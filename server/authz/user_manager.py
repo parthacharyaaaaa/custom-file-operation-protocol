@@ -89,10 +89,10 @@ class UserManager(metaclass=SingletonMetaclass):
             if compare_digest(auth_data.token, token):
                 return auth_data
         except Exception as e:
-            await self.enqueue_activity(ActivityLog(severity=Severity.ERROR,
+            await self.enqueue_activity(ActivityLog(reported_severity=Severity.ERROR,
                                                     log_details=f'Failed in digest comparison: {e.__class__.__name__}',
                                                     user_concerned=username,
-                                                    log_category=LogType.USER.value))
+                                                    log_category=LogType.USER))
             if raise_on_exc:
                 raise UserAuthenticationError('Invalid authentication token. Please login again')
 
@@ -119,10 +119,10 @@ class UserManager(metaclass=SingletonMetaclass):
             raise UserAuthenticationError(f'No username with {username} exists')
  
         if not UserManager.verify_password_hash(password, *pw_data):
-            await self.enqueue_activity(ActivityLog(severity=Severity.ERROR,
+            await self.enqueue_activity(ActivityLog(reported_severity=Severity.ERROR,
                                                     log_details=f'Incorrect password: {UserAuthenticationError.__name__}',
                                                     user_concerned=username,
-                                                    log_category=LogType.USER.value))
+                                                    log_category=LogType.USER))
             
             raise UserAuthenticationError(f'Invalid password for user {username}')
                 
@@ -255,9 +255,9 @@ class UserManager(metaclass=SingletonMetaclass):
             raise UserAuthenticationError('Invalid token')
         except Exception as e:
             self.enqueue_activity(ActivityLog(user_concerned=username,
-                                              severity=Severity.ERROR,
+                                              reported_severity=Severity.ERROR,
                                               log_details=f'Failed in digest comparison: {e.__class__.__name__}',
-                                              log_category=LogType.USER.value))
+                                              log_category=LogType.USER))
             raise UserAuthenticationError('Failed to log out (Possibly corrupted token)')
 
     async def refresh_session(self, username: str, token: bytes, digest: bytes) -> tuple[bytes, int]:
@@ -300,9 +300,9 @@ class UserManager(metaclass=SingletonMetaclass):
             self.session.pop(username, None)
             self.previous_digests_mapping.pop(username, None)
             await self.enqueue_activity(ActivityLog(user_concerned=username,
-                                                    severity=Severity.ERROR,
+                                                    reported_severity=Severity.ERROR,
                                                     log_details=f'Failed to refresh session: {e.__class__.__name__}',
-                                                    log_category=LogType.USER.value if isinstance(e, UserAuthenticationError) else 'session'))
+                                                    log_category=LogType.USER if isinstance(e, UserAuthenticationError) else LogType.SESSION))
             if isinstance(e, UserAuthenticationError):
                 raise e
             # Generic handler for exceptions rising from hmac.compare_digest()
@@ -333,9 +333,9 @@ class UserManager(metaclass=SingletonMetaclass):
             return True
         except Exception as e:
             await self.enqueue_activity(ActivityLog(user_concerned=username,
-                                                    severity=Severity.NON_CRITICAL_FAILURE,
+                                                    reported_severity=Severity.NON_CRITICAL_FAILURE,
                                                     log_details=f'Failed in check ban status: {e.__class__.__name__}',
-                                                    log_category=LogType.DATABASE.value))
+                                                    log_category=LogType.DATABASE))
             if reclaim_on_exc:
                 self.connection_master.reclaim_connection(proxy)
             return True
@@ -351,9 +351,9 @@ class UserManager(metaclass=SingletonMetaclass):
         try:
             if await self.check_banned(username, proxy):
                 await self.enqueue_activity(ActivityLog(user_concerned=username,
-                                                        severity=Severity.NON_CRITICAL_FAILURE,
+                                                        reported_severity=Severity.NON_CRITICAL_FAILURE,
                                                         log_details=f'Duplicate ban attempt: {DatabaseFailure.__name__}',
-                                                        log_category=LogType.USER.value))
+                                                        log_category=LogType.USER))
                 return
             
             async with proxy.cursor() as cursor:
@@ -363,9 +363,9 @@ class UserManager(metaclass=SingletonMetaclass):
                 await proxy.commit()
         except pg_errors.Error as e:
             await self.enqueue_activity(ActivityLog(user_concerned=username,
-                                                    severity=Severity.CRITICAL_FAILURE,
+                                                    reported_severity=Severity.CRITICAL_FAILURE,
                                                     log_details=f'Failed to ban user: {e.__name__}',
-                                                    log_category=LogType.DATABASE.value))
+                                                    log_category=LogType.DATABASE))
             
             raise DatabaseFailure(f'Failed to ban user {username}')
         finally:
@@ -385,9 +385,9 @@ class UserManager(metaclass=SingletonMetaclass):
         try:
             if not await self.check_banned(username, proxy, lock_row=True):
                 await self.enqueue_activity(ActivityLog(user_concerned=username,
-                                                        severity=Severity.NON_CRITICAL_FAILURE,
+                                                        reported_severity=Severity.NON_CRITICAL_FAILURE,
                                                         log_details=f'Duplicate unban attempt: {DatabaseFailure.__name__}',
-                                                        log_category=LogType.USER.value))
+                                                        log_category=LogType.USER))
                 return
             async with proxy.cursor() as cursor:
                 await cursor.execute('''UPDATE ban_logs
