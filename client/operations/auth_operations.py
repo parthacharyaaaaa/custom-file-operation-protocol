@@ -68,14 +68,13 @@ async def authorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                     auth_component: BaseAuthComponent,
                     client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                     display_credentials: bool = False, end_connection: bool = False) -> None:
-    
+    header_component: BaseHeaderComponent = comm_utils.make_header_component(client_config,  session_manager, CategoryFlag.AUTH, AuthFlags.LOGIN)
     await send_request(writer=writer,
-                       header_component=BaseHeaderComponent(version=client_config.version, end_connection=end_connection,
-                                                            category=CategoryFlag.AUTH, subcategory=AuthFlags.LOGIN),
+                       header_component=header_component,
                        auth_component=auth_component)
     
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
-    if response_header.code != SuccessFlags.SUCCESSFUL_AUTHENTICATION:
+    if response_header.code != SuccessFlags.SUCCESSFUL_AUTHENTICATION.value:
         await display(auth_messages.failed_auth_operation(AuthFlags.LOGIN, response_header.code))
         return
     
