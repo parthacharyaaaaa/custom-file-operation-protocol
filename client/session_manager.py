@@ -26,8 +26,8 @@ class SessionManager:
     def make_authorization_component(identity: str, password: str) -> BaseAuthComponent:
         return BaseAuthComponent(identity=identity, password=password)
 
-    def local_authenticate(self, identity: str, token: bytes, digest: bytes, lifespan: float, last_refresh: float, valid_until: float, iteration: int) -> None:
-        self.session_metadata = SessionMetadata.from_response(token, digest, lifespan, last_refresh, valid_until, iteration)
+    def local_authenticate(self, identity: str, token: bytes, refresh_digest: bytes, lifespan: float, last_refresh: float, valid_until: float, iteration: int) -> None:
+        self.session_metadata = SessionMetadata.from_response(token, refresh_digest, lifespan, last_refresh, valid_until, iteration)
         self._identity = identity
 
     def update_authentication_component(self, digest: bytes) -> None:
