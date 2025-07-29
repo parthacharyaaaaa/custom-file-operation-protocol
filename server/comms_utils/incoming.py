@@ -44,7 +44,10 @@ async def process_component(n_bytes: int, reader: asyncio.StreamReader, componen
         raw_component: bytes = await asyncio.wait_for(reader.readexactly(n_bytes), timeout)
         return model.model_validate_json(raw_component)
     
-    except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
+    except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError) as e:
+        if isinstance(e, asyncio.IncompleteReadError) and e.partial == b'':
+            raise exc.SlowStreamRate
+        
         raise exc.InvalidHeaderSemantic
     except asyncio.TimeoutError:
         raise exc.SlowStreamRate
