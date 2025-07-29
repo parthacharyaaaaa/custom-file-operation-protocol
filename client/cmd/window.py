@@ -142,7 +142,7 @@ class ClientWindow(cmd.Cmd):
         Send a heartbeat signal to the connected process
         '''
         tokens: list[str] = arg.split()
-        self.end_connection = await parsers.parse_modifiers(tokens, GeneralModifierCommands.END_CONNECTION)
+        self.end_connection, = await parsers.parse_modifiers(tokens[1:], GeneralModifierCommands.END_CONNECTION)
         await info_operations.send_heartbeat(self.reader, self.writer, self.client_config, self.session_master, self.end_connection)
 
     @require_auth_state(state=False)
