@@ -1,16 +1,20 @@
 '''Outgoing messages from server to client'''
 import asyncio
+from typing import Optional, Union
+
 from models.request_model import BaseHeaderComponent
 from models.response_models import ResponseHeader, ResponseBody
 from models.constants import RESPONSE_CONSTANTS
-from typing import Optional, Union
+from models.response_codes import SuccessFlags
+
+from server.dependencies import ServerSingletonsRegistry
 
 __all__ = ('send_heartbeat', 'send_response')
 
-async def send_heartbeat(header: BaseHeaderComponent) -> tuple[ResponseHeader, None]:
+async def send_heartbeat(reader: asyncio.StreamReader, header: BaseHeaderComponent, dependency_registry: ServerSingletonsRegistry) -> tuple[ResponseHeader, None]:
     '''Send a heartbeat signal back to the client'''
     return (
-        ResponseHeader.from_server(version=header.version, code='1:hb', description='Doki Doki', ended_connection=header.finish),
+        ResponseHeader.from_server(config=dependency_registry.server_config, code=SuccessFlags.HEARTBEAT.value, version=header.version, ended_connection=header.finish),
         None
     )
 
