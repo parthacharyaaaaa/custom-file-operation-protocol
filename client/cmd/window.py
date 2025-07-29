@@ -185,10 +185,10 @@ class ClientWindow(cmd.Cmd):
         '''
         tokens: list[str] = arg.split()
 
-        auth_component: BaseAuthComponent = parsers.parse_authorization(tokens)
-        display_credentials, self.end_connection = parsers.parse_auth_modifiers(tokens)
+        auth_component: BaseAuthComponent = parsers.parse_authorization(tokens[:2])
+        _, self.end_connection = await parsers.parse_auth_modifiers(tokens[2:])
 
-        await auth_operations.delete_remote_user(self.reader, self.writer, auth_component, self.client_config, self.session_master, display_credentials, self.end_connection)
+        await auth_operations.delete_remote_user(self.reader, self.writer, auth_component, self.client_config, self.session_master, self.end_connection)
 
         if self.session_master.identity == auth_component.identity:
             self.session_master.clear_auth_data()

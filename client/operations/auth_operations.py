@@ -43,21 +43,22 @@ async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
 async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              auth_component: BaseAuthComponent,
                              client_config: client_constants.ClientConfig, session_master: session_manager.SessionManager,
-                             display_credentials: bool = False, end_connection: bool = False) -> None:    
+                             end_connection: bool = False) -> None:
+    header_component: BaseHeaderComponent = comm_utils.make_header_component(client_config, session_master, CategoryFlag.AUTH, AuthFlags.DELETE, finish=end_connection)
     await send_request(writer,
-                       header_component=BaseHeaderComponent(version=client_config.version, category=CategoryFlag.AUTH, subcategory=AuthFlags.DELETE, finish=end_connection),
+                       header_component=header_component,
                        auth_component=auth_component)
     
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
-    if response_header.code != SuccessFlags.SUCCESSFUL_USER_DELETION:
+    if response_header.code != SuccessFlags.SUCCESSFUL_USER_DELETION.value:
         await display(auth_messages.failed_auth_operation(AuthFlags.DELETE, response_header.code))
         return
 
     deleted_count: int = response_body.contents.get('deleted_count')
-    if not deleted_count:
+    if deleted_count is None:
         await display(general_messages.missing_response_claim('deleted_count'))
     deleted_files: list[str] = response_body.contents.get('deleted_files')
-    if not deleted_files:
+    if deleted_files is None:
         await display(general_messages.missing_response_claim('deleted_files'))
     if actual_fcount:=len(deleted_files) != deleted_count:
         await display(general_messages.malformed_response_body(message=auth_messages.filecount_mismatch(deleted_count, actual_fcount)))
