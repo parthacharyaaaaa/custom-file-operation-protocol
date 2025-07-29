@@ -1,5 +1,8 @@
 import asyncio
+from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
 import time
+
+from cachetools import TTLCache
 
 from models.request_model import BaseHeaderComponent, BaseAuthComponent
 from models.response_codes import SuccessFlags
@@ -37,11 +40,12 @@ async def handle_login(header_component: BaseHeaderComponent, auth_component: Ba
 
 async def handle_deletion(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
                           config: server_config.ServerConfig, user_manager: user_manager.UserManager,
-                          *caches) -> tuple[ResponseHeader, ResponseBody]:
+                          reader_cache: TTLCache[str, dict[str, AsyncBufferedReader]],
+                          amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> tuple[ResponseHeader, ResponseBody]:
     await user_manager.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
 
     await user_manager.delete_user(auth_component.identity, auth_component.password,
-                                  *caches)
+                                  reader_cache, amendment_cache)
     
     # Delete this user's directory
     files_deleted = await asyncio.wait_for(asyncio.to_thread(delete_directory, root=config.root_directory, dirname=auth_component.identity),
