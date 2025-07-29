@@ -1,6 +1,7 @@
 from typing import Annotated
+from typing_extensions import Self
 from models.constants import REQUEST_CONSTANTS
-from pydantic import BaseModel, Field, IPvAnyAddress
+from pydantic import BaseModel, Field, IPvAnyAddress, model_validator, ValidationError
 
 __all__ = ('ServerConfig',)
 
@@ -10,8 +11,8 @@ class ServerConfig(BaseModel):
     # Network
     host: Annotated[IPvAnyAddress, Field(frozen=True)]
     port: Annotated[int, Field(frozen=True)]
-    connection_timeout: Annotated[float, Field(frozen=True, ge=0)]
     read_timeout: Annotated[float, Field(frozen=True, ge=0)]
+    socket_connection_timeout: Annotated[float, Field(frozen=True, ge=0)]
 
     # Database
     max_connections: tuple[Annotated[int, Field(ge=1)],
@@ -44,3 +45,11 @@ class ServerConfig(BaseModel):
     log_batch_size: Annotated[int, Field(ge=1)]
     log_interval: Annotated[float, Field(ge=0)]
     log_waiting_period: Annotated[float, Field(ge=0)]
+
+
+    @model_validator(mode='after')
+    def validate_network_timings(self) -> Self:
+        if self.socket_connection_timeout <= self.read_timeout:
+            raise ValidationError(f'Socket connection timeout {self.socket_connection_timeout} must be greater than component read timeout {self.read_timeout}')
+        return self
+    

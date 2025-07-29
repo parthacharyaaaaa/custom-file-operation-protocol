@@ -3,7 +3,7 @@ version = '0.0.1'
 [network]
 host = '127.0.0.1'
 port = 6000
-connection_timeout = 5.0
+socket_connection_timeout = 180
 read_timeout = 5
 
 [database]

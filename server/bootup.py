@@ -22,7 +22,7 @@ def create_server_config(dirname: Optional[str] = None) -> ServerConfig:
 
     # Laziest code I have ever written
     SERVER_CONFIG = ServerConfig.model_validate({'version' :loaded_constants['version']} | loaded_constants['network'] | loaded_constants['database'] | loaded_constants['file'] | loaded_constants['auth'] | loaded_constants['logging'])
-    SERVER_CONFIG.root_directory = os.path.join(os.path.dirname(os.path.dirname(__file__)), SERVER_CONFIG.root_directory)
+    SERVER_CONFIG.root_directory = os.path.join(os.path.dirname(__file__), SERVER_CONFIG.root_directory)
     
     return SERVER_CONFIG
 
