@@ -249,7 +249,7 @@ class UserManager(metaclass=SingletonMetaclass):
         try:
             if compare_digest(auth_data.token, token):
                 self.session.pop(username, None)
-                self.previous_digests.pop(username, None)
+                self.previous_digests_mapping.pop(username, None)
                 return auth_data
             
             raise UserAuthenticationError('Invalid token')
