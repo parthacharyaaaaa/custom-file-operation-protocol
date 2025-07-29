@@ -227,12 +227,15 @@ def transfer_file(root: os.PathLike, previous_owner: str, file: os.PathLike, new
     except (PermissionError, OSError):
         return None
 
-def delete_directory(root: os.PathLike, dirname: str) -> list[str]:
+def delete_directory(root: os.PathLike, dirname: str, raise_on_absence: bool = False) -> list[str]:
     abs_dpath: os.PathLike = os.path.join(root, dirname)
-    walk_gen = os.walk(top=abs_dpath)
+    if not os.path.isdir(abs_dpath) and raise_on_absence:
+        raise FileNotFoundError(f"{abs_dpath} doesn't exist")
+    
     try:
-        shutil.rmtree(os.path.join(root, dirname))
-        return next(walk_gen)[2]
+        deleted_files = next(os.walk(top=abs_dpath))[2]
+        shutil.rmtree(abs_dpath)
+        return deleted_files
     except (OSError, PermissionError):
         raise errors.InternalServerError
     
