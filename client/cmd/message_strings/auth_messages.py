@@ -35,7 +35,7 @@ def successful_reauthorization(remote_user: str, iteration: int, code: str = Suc
     return f'Code {code}: Refreshed remote session for user {remote_user}, session iterations: {iteration}'
 
 def successful_logout(remote_user: str, code: str = SuccessFlags.SUCCESSFUL_SESSION_TERMINATION.value, **kwargs) -> str:
-    return f'Code: {code}: Terminated remote session for {remote_user}.\n{format_dict(**kwargs)}'
+    return f'Code: {code}: Terminated remote session for {remote_user}.\n{format_dict(kwargs)}'
 
 def already_authenticated(remote_user: str) -> str:
     return f'Cannot perform authentication for user {remote_user}, already logged in'
