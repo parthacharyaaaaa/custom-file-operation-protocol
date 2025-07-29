@@ -41,7 +41,9 @@ class ServerSingletonsRegistry(metaclass=SingletonMetaclass):
     _registry_reverse_mapping: Annotated[Optional[MappingProxyType[type, str]], pydantic.Field(default=None)]
 
     def __post_init__(self) -> None:
-        self._registry_reverse_mapping = MappingProxyType({v.type : k for k, v in self.__dataclass_fields__.items()})
+        self._registry_reverse_mapping = MappingProxyType(
+            {dtype if not isinstance((dtype:=v.type), NewType) else dtype.__supertype__: k for k, v in self.__dataclass_fields__.items()}
+        )
 
     @property
     def registry_reverse_mapping(self) -> MappingProxyType[type, str]:
