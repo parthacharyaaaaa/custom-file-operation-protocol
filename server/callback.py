@@ -24,7 +24,7 @@ async def callback(dependency_registry: ServerSingletonsRegistry, reader: asynci
             header_component: BaseHeaderComponent = await process_component(n_bytes=REQUEST_CONSTANTS.header.max_bytesize,
                                                                             reader=reader,
                                                                             component_type='header',
-                                                                            timeout=dependency_registry.server_config.read_timeout)
+                                                                            timeout=10.0)
             if not header_component:
                 raise errors.SlowStreamRate('Unable to parse header')
             handler: Callable[[asyncio.StreamReader, BaseHeaderComponent, ServerSingletonsRegistry],
@@ -48,14 +48,7 @@ async def callback(dependency_registry: ServerSingletonsRegistry, reader: asynci
 
         except Exception as e:
             print(format_exc(), flush=True)
-            connection_end: bool = False if not header_component else header_component.finish
             is_caught: bool = isinstance(e, errors.ProtocolException)
-            response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=e if is_caught else errors.InternalServerError,
-                                                                              version=dependency_registry.server_config.version if not header_component else header_component.version,
-                                                                              end_conn=connection_end,
-                                                                              host=str(dependency_registry.server_config.host),
-                                                                              port=dependency_registry.server_config.port)
-            # Log uncaught exceptions
             if not is_caught:
                 asyncio.create_task(
                     logging.enqueue_log(waiting_period=dependency_registry.server_config.log_waiting_period, queue=dependency_registry.log_queue,
@@ -63,6 +56,18 @@ async def callback(dependency_registry: ServerSingletonsRegistry, reader: asynci
                                                                   log_category=db_models.LogType.INTERNAL,
                                                                   logged_by=db_models.LogAuthor.EXCEPTION_FALLBACK,
                                                                   log_details=format_exception_only(e)[0])))
+            
+            if isinstance(e, errors.SlowStreamRate) and not header_component:   # Failure to read header component past socket_connection_timeout
+                writer.close()
+                await writer.wait_closed()
+                return
+            
+            connection_end: bool = False if not header_component else header_component.finish   # Explicit request to end connection from the client
+            response: ResponseHeader = ResponseHeader.from_protocol_exception(exc=e if is_caught else errors.InternalServerError,
+                                                                              version=dependency_registry.server_config.version if not header_component else header_component.version,
+                                                                              end_conn=connection_end,
+                                                                              host=str(dependency_registry.server_config.host),
+                                                                              port=dependency_registry.server_config.port)
                 
             await send_response(writer=writer, header=response)
             if connection_end:
