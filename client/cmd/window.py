@@ -164,7 +164,7 @@ class ClientWindow(cmd.Cmd):
         Terminate an established remote session
         '''
         tokens: list[str] = arg.split()
-        display_credentials, self.end_connection = parsers.parse_auth_modifiers(tokens)
+        display_credentials, self.end_connection = await parsers.parse_auth_modifiers(tokens)
         await auth_operations.end_remote_session(self.reader, self.writer, self.client_config, self.session_master, display_credentials, self.end_connection)
     
     async def do_unew(self, arg: str) -> None:
