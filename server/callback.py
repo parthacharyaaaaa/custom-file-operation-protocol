@@ -24,7 +24,7 @@ async def callback(dependency_registry: ServerSingletonsRegistry, reader: asynci
             header_component: BaseHeaderComponent = await process_component(n_bytes=REQUEST_CONSTANTS.header.max_bytesize,
                                                                             reader=reader,
                                                                             component_type='header',
-                                                                            timeout=10.0)
+                                                                            timeout=dependency_registry.server_config.socket_connection_timeout)
             if not header_component:
                 raise errors.SlowStreamRate('Unable to parse header')
             handler: Callable[[asyncio.StreamReader, BaseHeaderComponent, ServerSingletonsRegistry],
