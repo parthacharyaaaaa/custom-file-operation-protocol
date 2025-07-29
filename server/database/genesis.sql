@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS activity_logs(
     logged_by           logger_type NOT NULL DEFAULT 'exception_fallback',
     log_category        log_type NOT NULL DEFAULT 'unknown',
     log_details         VARCHAR(512),
-    user_concerned      VARCHAR(128) REFERENCES users(username) ON DELETE NO ACTION,
+    user_concerned      VARCHAR(128),
     host_concerned      inet,
 
     CONSTRAINT check_activity_log_time_consistency CHECK(occurance_time <= CURRENT_TIMESTAMP)
