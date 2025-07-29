@@ -21,7 +21,7 @@ __all__ = ('NT_GLOBAL_LOG_QUEUE', 'NT_GLOBAL_READ_CACHE', 'NT_GLOBAL_AMEND_CACHE
            'ServerSingletonsRegistry',)
 
 # NewType annotations for global singletons with data types that can be repeated in a function signature
-NT_GLOBAL_LOG_QUEUE = NewType('NT_GLOBAL_LOG_QUEUE', asyncio.queues.PriorityQueue[tuple[db_models.ActivityLog, int]])
+NT_GLOBAL_LOG_QUEUE = NewType('NT_GLOBAL_LOG_QUEUE', asyncio.queues.Queue[db_models.ActivityLog])
 NT_GLOBAL_READ_CACHE = NewType('NT_GLOBAL_READ_CACHE', TTLCache[str, dict[str, AsyncBufferedReader]])
 NT_GLOBAL_AMEND_CACHE = NewType('NT_GLOBAL_AMEND_CACHE', TTLCache[str, dict[str, AsyncBufferedIOBase]])
 NT_GLOBAL_DELETE_CACHE = NewType('NT_GLOBAL_DELETE_CACHE', TTLCache[str, str])

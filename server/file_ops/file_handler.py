@@ -59,5 +59,5 @@ async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseH
                                                                       auth_component=auth_component,
                                                                       file_component=file_component)
     
-    header, body = await subhandler()
+    header, body = await prepped_subhandler()
     return header, body

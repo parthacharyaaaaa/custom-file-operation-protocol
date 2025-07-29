@@ -45,7 +45,7 @@ class ServerConfig(BaseModel):
     log_batch_size: Annotated[int, Field(ge=1)]
     log_interval: Annotated[float, Field(ge=0)]
     log_waiting_period: Annotated[float, Field(ge=0)]
-
+    log_queue_size: Annotated[int, Field(ge=0)]
 
     @model_validator(mode='after')
     def validate_network_timings(self) -> Self:

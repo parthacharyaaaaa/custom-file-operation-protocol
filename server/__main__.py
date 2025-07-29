@@ -22,7 +22,7 @@ async def main() -> None:
                                                                                                      dbname=os.environ['PG_DBNAME']),
                                                                               config=SERVER_CONFIG)
     
-    LOG_QUEUE: NT_GLOBAL_LOG_QUEUE = create_log_queue()
+    LOG_QUEUE: NT_GLOBAL_LOG_QUEUE = create_log_queue(SERVER_CONFIG)
     
     USER_MASTER: UserManager = create_user_master(connection_master=CONNECTION_MASTER,
                                                   config=SERVER_CONFIG,

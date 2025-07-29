@@ -34,7 +34,7 @@ async def create_connection_master(conninfo: str, config: ServerConfig) -> Conne
     await connection_master.populate_pools(conninfo)
     return connection_master
 
-def create_user_master(connection_master: ConnectionPoolManager, config: ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]]) -> UserManager:
+def create_user_master(connection_master: ConnectionPoolManager, config: ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog]) -> UserManager:
     return UserManager(connection_master=connection_master,
                        log_queue=log_queue,
                        session_lifespan=config.session_lifespan)
@@ -52,10 +52,10 @@ def create_caches(config: ServerConfig) -> tuple[TTLCache[str, dict[str, AsyncBu
 
     return read_cache, amendment_cache, delete_cache
 
-def create_log_queue() -> asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]]:
-    return asyncio.PriorityQueue(inf)
+def create_log_queue(config: ServerConfig) -> asyncio.Queue[db_models.ActivityLog]:
+    return asyncio.Queue(config.log_queue_size)
 
-def start_logger(log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]], config: ServerConfig, connection_master: ConnectionPoolManager) -> None:
+def start_logger(log_queue: asyncio.Queue[db_models.ActivityLog], config: ServerConfig, connection_master: ConnectionPoolManager) -> None:
     asyncio.create_task(logging.flush_logs(connection_master=connection_master,
                                            queue=log_queue,
                                            batch_size=config.log_batch_size,

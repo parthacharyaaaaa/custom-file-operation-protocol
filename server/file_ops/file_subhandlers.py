@@ -26,7 +26,7 @@ from cachetools import TTLCache
 __all__ = ('handle_deletion', 'handle_amendment', 'handle_read', 'handle_creation')
 
 async def handle_deletion(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
-                          config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
+                          config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
                           connection_master: ConnectionPoolManager, file_locks: TTLCache[str, bytes],
                           *caches) -> tuple[ResponseHeader, ResponseBody]:
     # Make sure request is coming from file owner
@@ -89,7 +89,7 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
             ResponseBody(contents={'revoked_info' : revoked_info, 'deletion_time' : deletion_time.isoformat()}, return_partial=False))
 
 async def handle_amendment(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
-                           config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
+                           config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
                            file_locks: TTLCache[str, bytes], connection_master: ConnectionPoolManager,
                            delete_cache: TTLCache, amendment_cache: TTLCache) -> tuple[ResponseHeader, ResponseBody]:
     # Check permissions
@@ -140,7 +140,7 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
             ResponseBody(cursor_position=cursor_position, keepalive_accepted=keepalive_accepted))
 
 async def handle_read(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
-                      config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
+                      config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
                       file_locks: TTLCache[str, bytes],
                       delete_cache: TTLCache, read_cache: TTLCache) -> tuple[ResponseHeader, ResponseBody]:    
     # Check permissions
@@ -171,7 +171,7 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
                          keepalive_accepted=bool(cache_ops.get_reader(read_cache, fpath, auth_component.identity))))
 
 async def handle_creation(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
-                          config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
+                          config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
                           connection_master: ConnectionPoolManager
                           ) -> tuple[ResponseHeader, None]:
     if file_component.subject_file_owner != auth_component.identity:

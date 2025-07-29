@@ -51,7 +51,7 @@ async def check_file_permission(filename: str, owner: str, grantee: str, check_f
     return True
 
 async def publicise_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
-                         config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
+                         config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
                          connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
     proxy: ConnectionProxy = connection_master.request_connection(level=1)
     try:
@@ -92,7 +92,7 @@ async def publicise_file(header_component: BaseHeaderComponent, auth_component: 
             None)
 
 async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
-                    config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
+                    config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
                     connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, ResponseBody]:
     proxy: ConnectionProxy = connection_master.request_connection(level=1)
     try:
@@ -138,7 +138,7 @@ async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseA
             ResponseBody(contents={'revoked_grantee_info' : revoked_grantees}))
 
 async def grant_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
-                           config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
+                           config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
                            connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
     allowed_permission: FilePermissions = FilePermissions.MANAGE_RW
     if (permission_component.permission_flags & PermissionFlags.MANAGER.value): # If request is to grant manager role to a user, then only the owner of this file is allowed
@@ -201,7 +201,7 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
             None)
 
 async def revoke_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
-                            config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[tuple[db_models.ActivityLog, int]],
+                            config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
                             connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, ResponseBody]:
     allowed_permission: FilePermissions = FilePermissions.MANAGE_RW
     if (permission_component.permission_flags & PermissionFlags.MANAGER.value): # If request is to revoke a user's manager role, then only the owner of this file is allowed
