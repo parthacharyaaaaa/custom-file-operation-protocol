@@ -31,3 +31,4 @@ session_lifespan = 10800
 log_batch_size = 100
 log_waiting_period = 1.0
 log_interval = 5.0
+log_queue_size = 1_048_576
