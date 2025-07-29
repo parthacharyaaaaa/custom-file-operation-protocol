@@ -165,7 +165,7 @@ class UserManager(metaclass=SingletonMetaclass):
                 await cursor.execute('''SELECT password_hash, password_salt
                                      FROM users
                                      WHERE users.username = %s
-                                     FOR UPDATE NOWAIT READ;''',
+                                     FOR UPDATE NOWAIT;''',
                                      (username,))
                 pw_data: tuple[memoryview, memoryview] = await cursor.fetchone()
                 if not pw_data:
@@ -186,7 +186,7 @@ class UserManager(metaclass=SingletonMetaclass):
         self.previous_digests_mapping.pop(username, None)
         # Perform relatively less important task of trimming the cache preemptive to usual expiry of this user's buffered readers/writers
         if caches:
-            asyncio.create_task(self.terminate_user_cache(identifier=str, *caches))
+            asyncio.create_task(self.terminate_user_cache(username, *caches))
 
     async def change_password(self, username: str, new_password: str) -> None:
         proxy: ConnectionProxy = await self.connection_master.request_connection(level=3)

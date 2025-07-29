@@ -51,7 +51,7 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     files_deleted = await asyncio.wait_for(asyncio.to_thread(delete_directory, root=config.root_directory, dirname=auth_component.identity),
                                            timeout=config.file_transfer_timeout)
     
-    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_DELETION, ended_connection=header_component.finish, config=config)
+    header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_DELETION.value, ended_connection=header_component.finish, config=config)
     body = ResponseBody(contents={'deleted_count' : len(files_deleted),
                                   'deleted_files' : files_deleted})
 
