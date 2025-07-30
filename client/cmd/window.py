@@ -193,7 +193,6 @@ class ClientWindow(cmd.Cmd):
         if self.session_master.identity == auth_component.identity:
             self.session_master.clear_auth_data()
         
-
     @require_auth_state(state=True)
     async def do_sref(self, arg: str) -> None:
         '''
@@ -203,7 +202,6 @@ class ClientWindow(cmd.Cmd):
         tokens: list[str] = arg.split()
         display_credentials, self.end_connection = parsers.parse_auth_modifiers(tokens)
         await auth_operations.end_remote_session(self.reader, self.writer, self.client_config, self.session_master, display_credentials, self.end_connection)
-
 
     @require_auth_state(state=True)
     async def do_create(self, arg: str) -> None:
@@ -222,15 +220,15 @@ class ClientWindow(cmd.Cmd):
     @require_auth_state(state=True)
     async def do_delete(self, arg: str) -> None:
         '''
-        DELETE [filename]
+        DELETE [filename] [modifiers]
         Delete a file from a remote directory.
         Filename must include file extension
         '''
         tokens: list[str] = arg.split()
-        file_component: BaseFileComponent = parsers.parse_file_command(tokens, FileCommands.DELETE, self.session_master.identity, False)
+        file_component: BaseFileComponent = parsers.parse_file_command(tokens[:1], FileCommands.DELETE, self.session_master.identity, False)
         file_component.cursor_keepalive = False
 
-        self.end_connection = parsers.parse_modifiers(tokens, GeneralModifierCommands.END_CONNECTION)
+        self.end_connection, = await parsers.parse_modifiers(tokens[1:], GeneralModifierCommands.END_CONNECTION)
         await file_operations.delete_file(self.reader, self.writer, file_component, self.client_config, self.session_master)
 
     def do_read(self, filename: str, directory: Optional[str] = None) -> None:

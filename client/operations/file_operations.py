@@ -65,8 +65,8 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
         read_limit = math.inf
     while len(read_data) < read_limit:
         file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=remote_directory,
-                                                        chunk_size=chunk_size, cursor_position=remote_cursor_position,
-                                                        cursor_keepalive=True)
+                                                              chunk_size=chunk_size, cursor_position=remote_cursor_position,
+                                                              cursor_keepalive=True)
         await send_request(writer, header_component=BaseHeaderComponent(client_config.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.READ),
                            auth_component=session_manager.auth_component,
                            body_component=file_component)
@@ -118,16 +118,18 @@ async def create_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                       file_component: BaseFileComponent,
                       client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager) -> None:
-    await send_request(writer, header_component=BaseHeaderComponent(client_config.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.DELETE),
-                    auth_component=session_manager.auth_component,
-                    body_component=file_component)
+    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.DELETE)
+    await send_request(writer,
+                       header_component=header_component,
+                       auth_component=session_manager.auth_component,
+                       body_component=file_component)
     
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_FILE_DELETION:
         await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.DELETE, response_header.code))
 
-    revoked_info: list[dict[str, str]] = response_body.get('revoked_grantee_info')
-    if not revoked_info:
+    revoked_info: list[dict[str, str]] = response_body.contents.get('revoked_grantee_info', [])
+    if revoked_info == []:
         await display(general_messages.malformed_response_body('revoked_grantee_info'))
     
     # No need to check inner types, anything over a byte stream can be used in f-strings anyways.
