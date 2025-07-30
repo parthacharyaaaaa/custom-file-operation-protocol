@@ -183,7 +183,7 @@ async def create_file(root: os.PathLike, owner: str, filename: str) -> tuple[Opt
 async def delete_file(root: os.PathLike, fpath: os.PathLike, deleted_cache: TTLCache[str, Literal[True]], *caches: TTLCache[str, dict[str, Union[AsyncBufferedIOBase, AsyncBufferedReader]]]) -> bool:
     abs_fpath: os.PathLike = os.path.join(root, fpath)
     if fpath in deleted_cache or not os.path.isfile(abs_fpath):
-        raise False
+        return False
     try:
         os.remove(abs_fpath)
         await purge_file_entries(fpath, deleted_cache, *caches)

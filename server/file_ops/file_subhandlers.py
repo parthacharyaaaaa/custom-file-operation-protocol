@@ -1,4 +1,5 @@
 import asyncio
+from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from datetime import datetime
 import os
 from traceback import format_exception_only
@@ -28,7 +29,9 @@ __all__ = ('handle_deletion', 'handle_amendment', 'handle_read', 'handle_creatio
 async def handle_deletion(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
                           config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
                           connection_master: ConnectionPoolManager, file_locks: TTLCache[str, bytes],
-                          *caches) -> tuple[ResponseHeader, ResponseBody]:
+                          deleted_cache: TTLCache[str, str],
+                          read_cache: TTLCache[str, dict[str, AsyncBufferedReader]],
+                          amendment_cache: TTLCache[str, dict[str, AsyncBufferedReader]]) -> tuple[ResponseHeader, ResponseBody]:
     # Make sure request is coming from file owner
     if file_component.subject_file_owner != auth_component.identity:
         err_str: str = f'Missing permission to delete file {file_component.subject_file} owned by {file_component.subject_file_owner}'
@@ -45,7 +48,7 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     # Request validated. No need to acquire lock since owner's deletion request is more important than any concurrent file amendment locks
     file: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
 
-    file_deleted: bool = await base_ops.delete_file(config.root_directory, file, *caches)
+    file_deleted: bool = await base_ops.delete_file(config.root_directory, file, deleted_cache, read_cache, amendment_cache)
     if not file_deleted:
         err_str: str = f'Failed to delete file {file_component.subject_file}'
         asyncio.create_task(
