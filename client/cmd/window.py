@@ -31,8 +31,20 @@ class ClientWindow(cmd.Cmd):
         super().__init__(completekey, stdin, stdout)
 
     def parseline(self, line: str):
-        cmd, arg, line = super().parseline(line.upper())
-        return cmd.lower(), arg, line
+        line = line.strip()
+        if not line:
+            return None, None, line
+        elif line[0] == '?':
+            line = 'help ' + line[1:]
+        elif line[0] == '!':
+            if hasattr(self, 'do_shell'):
+                line = 'shell ' + line[1:]
+            else:
+                return None, None, line
+        i, n = 0, len(line)
+        while i < n and line[i] in self.identchars: i = i+1
+        cmd, arg = line[:i].lower(), line[i:].strip()
+        return cmd, arg, line
 
     def default(self, line):
         self.stdout.write(f'UNKNOWN COMMAND: {line.split()[0]}\n')
