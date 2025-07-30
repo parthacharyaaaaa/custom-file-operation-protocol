@@ -213,8 +213,8 @@ class ClientWindow(cmd.Cmd):
         Filename must include file extension
         '''
         tokens: list[str] = arg.split()
-        file_component: BaseFileComponent = parsers.parse_file_command(tokens, FileCommands.CREATE, self.session_master.identity, False)
-        file_component.cursor_keepalive, self.end_connection = parsers.parse_modifiers(tokens, GeneralModifierCommands.CURSOR_KEEPALIVE, GeneralModifierCommands.END_CONNECTION)
+        file_component: BaseFileComponent = parsers.parse_file_command(tokens[:1], FileCommands.CREATE, self.session_master.identity, False)
+        file_component.cursor_keepalive, self.end_connection = await parsers.parse_modifiers(tokens[1:], GeneralModifierCommands.CURSOR_KEEPALIVE, GeneralModifierCommands.END_CONNECTION)
 
         await file_operations.create_file(self.reader, self.writer,
                                           file_component, self.client_config, self.session_master, self.end_connection)

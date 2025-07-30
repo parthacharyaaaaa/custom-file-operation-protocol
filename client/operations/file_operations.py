@@ -8,6 +8,7 @@ from client.cmd.cmd_utils import display
 from client.cmd.message_strings import file_messages, general_messages
 from client.communication.outgoing import send_request
 from client.communication.incoming import process_response
+from client.communication import utils as comms_utils
 from client.config import constants as client_constants
 from client import session_manager
 
@@ -97,18 +98,20 @@ async def create_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
                       file_component: BaseFileComponent,
                       client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                       end_connection: bool = False) -> dict[str, Any]:
-    await send_request(writer, header_component=BaseHeaderComponent(client_config.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.CREATE, finish=end_connection),
-                    auth_component=session_manager.auth_component,
-                    body_component=file_component)
+    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.CREATE, finish=end_connection)
+    await send_request(writer,
+                       header_component=header_component,
+                       auth_component=session_manager.auth_component,
+                       body_component=file_component)
     
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
-    if response_header.code != SuccessFlags.SUCCESSFUL_FILE_CREATION:
+    if response_header.code != SuccessFlags.SUCCESSFUL_FILE_CREATION.value:
         await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.CREATE, response_header.code))
         return
 
-    iso_epoch: str = response_body.contents.get('contents')
+    iso_epoch: str = response_body.contents.get('iso_epoch')
     if not iso_epoch:
-        await display(general_messages.missing_response_claim('contents'))
+        await display(general_messages.missing_response_claim('iso_epoch'))
 
     await display(file_messages.succesful_file_creation(file_component.subject_file_owner, file_component.subject_file, iso_epoch, response_header.code))
 
