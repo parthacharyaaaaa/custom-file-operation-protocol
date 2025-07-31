@@ -1,9 +1,12 @@
+import argparse
 import cmd
 import inspect
-from traceback import format_exc
+from traceback import format_exc, format_exception_only
 
 from client.cmd import cmd_utils
 from client.cmd import errors as cmd_errors
+
+import pydantic
 
 class AsyncCmd(cmd.Cmd):
     def parseline(self, line: str):
@@ -106,7 +109,12 @@ class AsyncCmd(cmd.Cmd):
                     return func(arg)
             except cmd_errors.CommandException as cmd_exc:
                 await cmd_utils.display(cmd_exc.description)
-            except Exception:
+            except (argparse.ArgumentError, argparse.ArgumentTypeError) as arg_exc:
+                await cmd_utils.display(getattr(arg_exc, 'message', format_exception_only(arg_exc)[0]))
+            except pydantic.ValidationError as v:
+                error_string: str = '\n'.join(f'{err_details["loc"][0]} (input={err_details["input"]}): {err_details["msg"]}' for err_details in v.errors())
+                await cmd_utils.display(error_string)
+            except Exception as e:
                 await cmd_utils.display(format_exc())
 
             
