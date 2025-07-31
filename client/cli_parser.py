@@ -4,14 +4,32 @@ import warnings
 
 from models.constants import REQUEST_CONSTANTS
 
-__all__ = ('PARSER', 'parse_args')
+__all__ = ('PARSER', 'parse_args', 'parse_filename', 'parse_dir', 'parse_non_negative_int', 'parse_host_arg', 'parse_port_arg', 'parse_username_arg', 'parse_password_arg')
 
-def _parse_host_arg(host: str) -> str:
+def parse_filename(filename: str) -> str:
+    if not re.match(r'(.\w*)+', (filename:=filename.strip())):
+        raise ValueError('Invalid filename')
+    return filename
+
+def parse_dir(dir: str) -> str:
+    if not (dir:=dir.strip()).isalnum():
+        raise ValueError('Invalid directory name')
+    return dir
+
+def parse_non_negative_int(arg: str) -> int:
+    if not (arg:=arg.strip()).isnumeric():
+        raise ValueError(f'Non-numeric argument ({arg}) given')
+    num: int = int(arg)
+    if num < 0:
+        raise ValueError(f'Non-negative integer expected, got ({num})')
+    return num
+
+def parse_host_arg(host: str) -> str:
     if not re.match(r'^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$', host):
         raise ValueError(f'Invalid IP (v4/v6) address {host} provided')
     return host
 
-def _parse_port_arg(arg: str) -> int:
+def parse_port_arg(arg: str) -> int:
     if not arg.isnumeric():
         raise TypeError('Port must be numeric')
     
@@ -21,13 +39,13 @@ def _parse_port_arg(arg: str) -> int:
     
     return port
 
-def _parse_password_arg(arg: str) -> str:
+def parse_password_arg(arg: str) -> str:
     if not (REQUEST_CONSTANTS.auth.password_range[0] <= len(arg) <= REQUEST_CONSTANTS.auth.password_range[1]):
         raise ValueError(f'Invalid range for password ({len(arg)}), must be in range {REQUEST_CONSTANTS.auth.password_range}')
     
     return arg
 
-def _parse_username_arg(arg: str) -> str:
+def parse_username_arg(arg: str) -> str:
     arg = arg.strip()
     if not (REQUEST_CONSTANTS.auth.username_range[0] <= len(arg) <= REQUEST_CONSTANTS.auth.username_range[1]):
         raise ValueError(f'Invalid range for password ({len(arg)}), must be in range {REQUEST_CONSTANTS.auth.username_range}')
@@ -41,19 +59,19 @@ PARSER: argparse.ArgumentParser = argparse.ArgumentParser(prog='Client tool for 
 ### CLI arguments ###
 PARSER.add_argument('--host', '-H',
                     help='The host machine to connect to',
-                    type=_parse_host_arg, required=True)
+                    type=parse_host_arg, required=True)
 
 PARSER.add_argument('--port', '-P',
                     help='The port of the target process',
-                    type=_parse_port_arg, required=True)
+                    type=parse_port_arg, required=True)
 
 PARSER.add_argument('--username', '-U',
                     help='Optional username value used to start a remote session alongside the shell',
-                    required=False, type=_parse_username_arg, default=None)
+                    required=False, type=parse_username_arg, default=None)
 
 PARSER.add_argument('--password', '-PS',
                     help='Optional password value used to start a remote session alongside the shell',
-                    required=False, type=_parse_password_arg, default=None)
+                    required=False, type=parse_password_arg, default=None)
 
 def parse_args() -> argparse.Namespace:
     args: argparse.Namespace = PARSER.parse_args()
