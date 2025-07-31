@@ -29,5 +29,12 @@ class HeartbeatCommands(Enum):
 class GeneralModifierCommands(Enum):
     END_CONNECTION: str = 'BYE'
     CURSOR_KEEPALIVE: str = 'CK'
+
+class FileModifierCommands(Enum):
     RETURNED_PARTIAL: str = 'RP'
+
+class AuthModifierCommands(Enum):
     DISPLAY_CREDENTIALS: str = 'DC'
+
+class PermissionModifierCommands(Enum):
+    GRANT_DURATION: str = 'GD'
