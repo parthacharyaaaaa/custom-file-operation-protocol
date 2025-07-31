@@ -243,17 +243,16 @@ class ClientWindow(cmd.Cmd):
         self.end_connection, = await parsers.parse_modifiers(tokens[1:], GeneralModifierCommands.END_CONNECTION)
         await file_operations.delete_file(self.reader, self.writer, file_component, self.client_config, self.session_master)
 
-    def do_read(self, filename: str, directory: Optional[str] = None) -> None:
+    def do_read(self, arg: str) -> None:
         '''
-        READ [filename] [directory]
+        READ [filename] [directory] [--chunk] [--until] [--pos] [modifiers]
         Read a file from a remote directory.
-        If not specified, remote directory is determined based on remote session
         '''
         ...
     
-    def do_write(self, filename: str, directory: Optional[str] = None) -> None:
+    def do_write(self, arg: str) -> None:
         '''
-        WRITE [filename] [directory]
+        WRITE [filename] [directory] [--chunk] [--pos] [modifiers]
         Write into a file in a remote directory, overwriting previous contents
         If not specified, remote directory is determined based on remote session
         '''
@@ -261,7 +260,7 @@ class ClientWindow(cmd.Cmd):
     
     def do_append(self, filename: str, directory: Optional[str] = None) -> None:
         '''
-        APPEND [filename] [directory]
+        APPEND [filename] [directory] [--chunk] [modifiers]
         Append to a file from a remote directory.
         If not specified, remote directory is determined based on remote session
         '''
@@ -270,7 +269,7 @@ class ClientWindow(cmd.Cmd):
     @require_auth_state(state=True)
     async def do_upload(self, arg: str) -> None:
         '''
-        UPLOAD [local_fpath] [optional: remote filename] [modifiers]
+        UPLOAD [local_fpath] [filename] [--chunk] [modifiers]
         Upload a local file to a remote directory.
         '''
         tokens: list[str] = arg.split()
