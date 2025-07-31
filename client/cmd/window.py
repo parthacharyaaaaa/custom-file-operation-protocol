@@ -1,11 +1,13 @@
 import asyncio
-import cmd
+import argparse
 import functools
+import shlex
 from typing import Optional, Callable, Any
 
-from client.cmd import async_cmd
 from client import session_manager
-from client.cmd import parsers
+from client.cmd import async_cmd
+from client.parsing import command_parsers
+from client.cmd import operational_utils as op_utils
 from client.cmd.commands import GeneralModifierCommands, FileCommands
 from client.cmd import errors as cmd_errors 
 from client.config import constants as client_constants
@@ -43,72 +45,86 @@ class ClientWindow(async_cmd.AsyncCmd):
         return outer_wrapper
 
     # Methods
-    async def do_heartbeat(self, arg: str) -> None:
+    async def do_heartbeat(self, args: str) -> None:
         '''
         HEARTBEAT [modifiers]
         Send a heartbeat signal to the connected process
         '''
-        tokens: list[str] = arg.split()
-        self.end_connection, = await parsers.parse_modifiers(tokens[1:], GeneralModifierCommands.END_CONNECTION)
-        await info_operations.send_heartbeat(self.reader, self.writer, self.client_config, self.session_master, self.end_connection)
+        parsed_args: argparse.Namespace = command_parsers.generic_modifier_parser.parse_args(args.split())
+        self.end_connection = parsed_args.bye
+        await info_operations.send_heartbeat(reader=self.reader, writer=self.writer,
+                                             client_config=self.client_config, session_master=self.session_master,
+                                             end_connection=self.end_connection)
 
     @require_auth_state(state=False)
-    async def do_auth(self, arg: str) -> None:
+    async def do_auth(self, args: str) -> None:
         '''
         AUTH [username] [password] [MODIFIERS]
         Start a remote session on the host machine.
         This is the recommended way of starting a remote session, as it avoids writing password to shell history'''
-        tokens: list[str] = arg.split()
-        auth_component: BaseAuthComponent = parsers.parse_authorization(tokens[:2])
-        display_credentials, self.end_connection = await parsers.parse_modifiers(tokens[2:], GeneralModifierCommands.DISPLAY_CREDENTIALS, GeneralModifierCommands.END_CONNECTION)
+        parsed_args: argparse.Namespace = command_parsers.auth_command_parser.parse_args(args.split())
+        auth_component: BaseAuthComponent = await op_utils.make_auth_component(parsed_args.username, parsed_args.password)
         
-        await auth_operations.authorize(self.reader, self.writer, auth_component, self.client_config, self.session_master, display_credentials, self.end_connection)
+        self.end_connection = parsed_args.bye
+        await auth_operations.authorize(reader=self.reader, writer=self.writer,
+                                        auth_component=auth_component,
+                                        client_config=self.client_config, session_manager=self.session_master,
+                                        display_credentials=parsed_args.dc, end_connection=self.end_connection)
 
     @require_auth_state(state=True)
-    async def do_sterm(self, arg: str) -> None:
+    async def do_sterm(self, args: str) -> None:
         '''
         STERM [MODIFIERS]
         Terminate an established remote session
         '''
-        tokens: list[str] = arg.split()
-        display_credentials, self.end_connection = await parsers.parse_auth_modifiers(tokens)
-        await auth_operations.end_remote_session(self.reader, self.writer, self.client_config, self.session_master, display_credentials, self.end_connection)
+        parsed_args: argparse.Namespace = command_parsers.generic_modifier_parser.parse_args(args.split())
+        display_credentials, self.end_connection = parsed_args.dc, parsed_args.bye
+        await auth_operations.end_remote_session(reader=self.reader, writer=self.writer,
+                                                 client_config=self.client_config, session_manager=self.session_master,
+                                                 display_credentials=display_credentials, end_connection=self.end_connection)
     
-    async def do_unew(self, arg: str) -> None:
+    async def do_unew(self, args: str) -> None:
         '''
         UNEW [username] [password] [MODIFIERS]
         Create a new remote user. This does not create a remote session
         '''
-        tokens: list[str] = arg.split()
-        auth_component: BaseAuthComponent = parsers.parse_authorization(tokens[:2])
-        display_credentials, self.end_connection = await parsers.parse_auth_modifiers(tokens[2:])
+        parsed_args: argparse.Namespace = command_parsers.auth_command_parser.parse_args(args.split())
+        auth_component: BaseAuthComponent = op_utils.make_auth_component(username=parsed_args.username, password=parsed_args.password)
+        display_credentials, self.end_connection = parsed_args.dc, parsed_args.bye
 
-        await auth_operations.create_remote_user(self.reader, self.writer, auth_component, self.client_config, self.session_master, display_credentials, self.end_connection)
+        await auth_operations.create_remote_user(reader=self.reader, writer=self.writer,
+                                                 auth_component=auth_component,
+                                                 client_config=self.client_config, session_manager=self.session_master,
+                                                 display_credentials=display_credentials, end_connection=self.end_connection)
     
-    async def do_udel(self, arg: str) -> None:
+    async def do_udel(self, args: str) -> None:
         '''
         UDEL [username] [password] [MODIFIERS]
         Delete a remote user.
         '''
-        tokens: list[str] = arg.split()
+        parsed_args: argparse.Namespace = command_parsers.auth_command_parser.parse_args(args.split())
+        auth_component: BaseAuthComponent = op_utils.make_auth_component(username=parsed_args.username, password=parsed_args.password)
+        self.end_connection = parsed_args.bye
 
-        auth_component: BaseAuthComponent = parsers.parse_authorization(tokens[:2])
-        _, self.end_connection = await parsers.parse_auth_modifiers(tokens[2:])
-
-        await auth_operations.delete_remote_user(self.reader, self.writer, auth_component, self.client_config, self.session_master, self.end_connection)
+        await auth_operations.delete_remote_user(reader=self.reader, writer=self.writer,
+                                                 auth_component=auth_component,
+                                                 client_config=self.client_config, session_master=self.session_master,
+                                                 end_connection=self.end_connection)
 
         if self.session_master.identity == auth_component.identity:
             self.session_master.clear_auth_data()
         
     @require_auth_state(state=True)
-    async def do_sref(self, arg: str) -> None:
+    async def do_sref(self, args: str) -> None:
         '''
         SREF [MODIFIERS]
         Refresh an established remote session
         '''
-        tokens: list[str] = arg.split()
-        display_credentials, self.end_connection = parsers.parse_auth_modifiers(tokens)
-        await auth_operations.end_remote_session(self.reader, self.writer, self.client_config, self.session_master, display_credentials, self.end_connection)
+        parsed_args: argparse.Namespace = command_parsers.generic_modifier_parser.parse_args(args.split())
+        display_credentials, self.end_connection = parsed_args.dc, parsed_args.bye
+        await auth_operations.end_remote_session(reader=self.reader, writer=self.writer,
+                                                 client_config=self.client_config, session_manager=self.session_master,
+                                                 display_credentials=display_credentials, end_connection=self.end_connection)
 
     @require_auth_state(state=True)
     async def do_create(self, arg: str) -> None:
