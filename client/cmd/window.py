@@ -8,7 +8,7 @@ from client import session_manager
 from client.cmd import async_cmd
 from client.parsing import command_parsers
 from client.cmd import operational_utils as op_utils
-from client.cmd.commands import GeneralModifierCommands, FileCommands
+from client.cmd.commands import GeneralModifierCommands
 from client.cmd import errors as cmd_errors 
 from client.config import constants as client_constants
 from client.operations import auth_operations, file_operations, permission_operations, info_operations
@@ -127,36 +127,39 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                  display_credentials=display_credentials, end_connection=self.end_connection)
 
     @require_auth_state(state=True)
-    async def do_create(self, arg: str) -> None:
+    async def do_create(self, args: str) -> None:
         '''
         CREATE [filename] [MODIFIERS]
         Create a new file in the remote directory.
         Filename must include file extension
         '''
-        tokens: list[str] = arg.split()
-        file_component: BaseFileComponent = parsers.parse_file_command(tokens[:1], FileCommands.CREATE, self.session_master.identity, False)
-        file_component.cursor_keepalive, self.end_connection = await parsers.parse_modifiers(tokens[1:], GeneralModifierCommands.CURSOR_KEEPALIVE, GeneralModifierCommands.END_CONNECTION)
+        parsed_args: argparse.Namespace = command_parsers.filedir_parser.parse_args(shlex.split(args))
+        file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory)
+        self.end_connection = parsed_args.bye
 
-        await file_operations.create_file(self.reader, self.writer,
-                                          file_component, self.client_config, self.session_master, self.end_connection)
+        await file_operations.create_file(reader=self.reader, writer=self.writer,
+                                          file_component=file_component,
+                                          client_config=self.client_config, session_manager=self.session_master,
+                                          end_connection=self.end_connection)
 
     @require_auth_state(state=True)
-    async def do_delete(self, arg: str) -> None:
+    async def do_delete(self, args: str) -> None:
         '''
         DELETE [filename] [modifiers]
         Delete a file from a remote directory.
         Filename must include file extension
         '''
-        tokens: list[str] = arg.split()
-        file_component: BaseFileComponent = parsers.parse_file_command(tokens[:1], FileCommands.DELETE, self.session_master.identity, False)
-        file_component.cursor_keepalive = False
+        parsed_args: argparse.Namespace = command_parsers.filedir_parser.parse_args(shlex.split(args))
+        file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory)
+        self.end_connection = parsed_args.bye
 
-        self.end_connection, = await parsers.parse_modifiers(tokens[1:], GeneralModifierCommands.END_CONNECTION)
-        await file_operations.delete_file(self.reader, self.writer, file_component, self.client_config, self.session_master)
+        await file_operations.delete_file(reader=self.reader, writer=self.writer,
+                                          file_component=file_component,
+                                          client_config=self.client_config, session_manager=self.session_master)
 
     def do_read(self, arg: str) -> None:
         '''
-        READ [filename] [directory] [--chunk] [--until] [--pos] [modifiers]
+        READ [filename] [directory] [modifiers]
         Read a file from a remote directory.
         '''
         ...
@@ -183,16 +186,6 @@ class ClientWindow(async_cmd.AsyncCmd):
         UPLOAD [local_fpath] [filename] [--chunk] [modifiers]
         Upload a local file to a remote directory.
         '''
-        tokens: list[str] = arg.split()
-        local_fpath: str = tokens[0]
-        remote_fname: str = None
-        
-        if len(tokens) > 1 and tokens[1] not in GeneralModifierCommands._value2member_map_:
-            remote_fname = tokens[1]
-         
-        cursor_keepalive, end_connection = parsers.parse_modifiers(tokens[1:], GeneralModifierCommands.CURSOR_KEEPALIVE, GeneralModifierCommands.END_CONNECTION)
-        
-        await file_operations.upload_remote_file(self.reader, self.writer, local_fpath, self.client_config, self.session_master, remote_fname, None, end_connection, cursor_keepalive)
 
     @require_auth_state(state=True)
     async def do_grant(self, arg: str) -> None:
@@ -200,23 +193,13 @@ class ClientWindow(async_cmd.AsyncCmd):
         GRANT [filename] [directory] [user] [role] [optional: duration] [modifiers]
         Grant role to user on a given file
         '''
-        tokens: list[str] = arg.split()
-        permission_component, subcategory_bits = parsers.parse_grant_command(tokens)
-        self.end_connection = parsers.parse_modifiers(tokens, GeneralModifierCommands.END_CONNECTION)
 
-        await permission_operations.grant_permission(self.reader, self.writer, subcategory_bits, permission_component, self.client_config, self.session_master)
-    
     @require_auth_state(state=True)
     async def do_revoke(self, arg: str) -> None:
         '''
         REVOKE [filename] [directory] [user] [modifiers]
         Revoke a role from a user
         '''
-        tokens: list[str] = arg.split()
-        permission_component: BasePermissionComponent = parsers.parse_generic_permission_command(tokens)
-        self.end_connection = parsers.parse_modifiers(tokens[3:], GeneralModifierCommands.END_CONNECTION)
-
-        await permission_operations.revoke_permission(self.reader, self.writer, permission_component, self.client_config, self.session_master, self.end_connection)
 
     @require_auth_state(state=True)
     async def do_transfer(self, arg: str) -> None:
@@ -224,11 +207,6 @@ class ClientWindow(async_cmd.AsyncCmd):
         TRANSFER [filename] [directory] [user] [modifiers]
         Transfer ownership of a file to another user.
         '''
-        tokens: list[str] = arg.split()
-        permission_component: BasePermissionComponent = parsers.parse_generic_permission_command(tokens[:3])
-        self.end_connection = parsers.parse_modifiers(tokens[3:])
-
-        await permission_operations.transfer_ownership(self.reader, self.writer, permission_component, self.client_config, self.session_master, self.end_connection)
 
     @require_auth_state(state=True)
     async def do_publicise(self, arg: str) -> None:
@@ -236,20 +214,9 @@ class ClientWindow(async_cmd.AsyncCmd):
         PUBLISICE [filename] [directory] [modifiers]
         Publicise a given file and grant every remote user read access, without overriding any previosuly granted permissions
         '''
-        tokens: list[str] = arg.split()
-        permission_component: BasePermissionComponent = parsers.parse_generic_permission_command(tokens, include_user=False)
-        self.end_connection = parsers.parse_modifiers(tokens)
 
-        await permission_operations.publicise_remote_file(self.reader, self.writer, permission_component, self.client_config, self.session_master, self.end_connection)
-    
     @require_auth_state(state=True)
     async def do_hide(self, arg: str) -> None:
         '''
         HIDE [filename] [directory] [modifiers]
         '''
-        tokens: list[str] = arg.split()
-        permission_component: BasePermissionComponent = parsers.parse_generic_permission_command(tokens, include_user=False)
-        self.end_connection = parsers.parse_modifiers(tokens)
-
-        await permission_operations.hide_remote_file(self.reader, self.writer, permission_component, self.client_config, self.session_master, self.end_connection)
-    
