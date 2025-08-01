@@ -182,13 +182,26 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                client_config=self.client_config, session_manager=self.session_master,
                                                read_limit=parsed_args.limit, chunked_display=parsed_args.chunked)
     
-    def do_write(self, arg: str) -> None:
+    async def do_write(self, args: str) -> None:
         '''
-        WRITE [filename] [directory] [--chunk] [--pos] [modifiers]
+        WRITE [filename] [directory] [data] [--chunk-size] [--pos] [modifiers]
         Write into a file in a remote directory, overwriting previous contents
         If not specified, remote directory is determined based on remote session
         '''
-        ...
+        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args))
+        if not parsed_args.write_data:
+            raise cmd_errors.CommandException('Missing write data for WRITE operation')
+        
+        file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory,
+                                                              chunk_size=parsed_args.chunk_size, write_data=None,
+                                                              cursor_position=parsed_args.pos)
+
+        await file_operations.write_remote_file(reader=self.reader, writer=self.writer,
+                                                write_data=parsed_args.write_data,
+                                                file_component=file_component,
+                                                client_config=self.client_config, session_manager=self.session_master)
+
+        
     
     def do_append(self, filename: str, directory: Optional[str] = None) -> None:
         '''
