@@ -51,3 +51,6 @@ def parse_username_arg(arg: str) -> str:
         raise ValueError(f'Invalid username format: {arg}')
         
     return arg
+
+def parse_write_data(arg: str) -> memoryview:
+    return memoryview(arg.encode('utf-8'))
