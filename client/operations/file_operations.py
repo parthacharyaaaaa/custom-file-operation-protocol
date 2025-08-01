@@ -17,6 +17,40 @@ from models.flags import CategoryFlag, FileFlags
 from models.response_codes import SuccessFlags, IntermediaryFlags
 from models.request_model import BaseHeaderComponent, BaseFileComponent
 
+async def write_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                            write_data: Union[str, bytes, bytearray, memoryview],
+                            file_component: BaseFileComponent,
+                            client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager) -> None:
+    if isinstance(write_data, str):
+        write_data = write_data.encode('utf-8')
+    
+    write_view: memoryview = write_data if isinstance(write_data, memoryview) else memoryview(write_data)
+    view_length = len(write_view)
+
+    file_component.chunk_size = min(REQUEST_CONSTANTS.file.max_bytesize, min(view_length, file_component.chunk_size or REQUEST_CONSTANTS.file.chunk_max_size))
+    valid_responses: tuple[str] = (SuccessFlags.SUCCESSFUL_AMEND.value, IntermediaryFlags.PARTIAL_AMEND.value)
+
+    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.WRITE)
+    for offset in range(0, view_length, file_component.chunk_size):
+        end_reached: bool = offset + file_component.chunk_size >= view_length
+        file_component.write_data = write_view[offset:offset+file_component.chunk_size]
+        
+        file_component.cursor_keepalive = not end_reached
+
+        await send_request(writer=writer,
+                           header_component=header_component,
+                           auth_component=session_manager.auth_component,
+                           body_component=file_component)
+
+        response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
+        if response_header.code not in valid_responses:
+            await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.APPEND, response_header.code))
+            return
+        file_component.cursor_position += len(file_component.write_data)
+    
+    await display(file_messages.successful_file_amendment(file_component.subject_file_owner, file_component.subject_file, SuccessFlags.SUCCESSFUL_AMEND.value))
+
+
 async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              write_data: Union[str, bytes, bytearray, memoryview],
                              remote_directory: str, remote_filename,
