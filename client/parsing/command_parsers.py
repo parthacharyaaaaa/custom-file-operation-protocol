@@ -19,6 +19,12 @@ filedir_parser.add_argument('directory', type=arg_parsers.parse_dir)
 ### File operations ###
 
 file_command_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='file_command_parser', parents=[filedir_parser], add_help=False)
+file_command_parser.add_argument('write_data', default='-', type=arg_parsers.parse_write_data)
+
+# Awful hack alert
+added_action = next(filter(lambda action : action.dest == 'write_data', file_command_parser._actions))
+added_action.required = False
+
 file_command_parser.add_argument('--chunk-size', required=False, type=arg_parsers.parse_non_negative_int, default=REQUEST_CONSTANTS.file.chunk_max_size)
 file_command_parser.add_argument('--limit', required=False, type=arg_parsers.parse_non_negative_int)
 file_command_parser.add_argument('--pos', required=False, type=arg_parsers.parse_non_negative_int, default=0)
