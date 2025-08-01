@@ -54,3 +54,12 @@ def parse_username_arg(arg: str) -> str:
 
 def parse_write_data(arg: str) -> memoryview:
     return memoryview(arg.encode('utf-8'))
+
+def parse_chunk_size(arg: str) -> int:
+    if not arg.isnumeric():
+        raise ValueError(f'Non-numeric value given for chunk size: {arg}')
+    chunk_size: int = int(arg)
+    if chunk_size <= 0:
+        raise ValueError('Chunk size must be a positive integer')
+    
+    return min(REQUEST_CONSTANTS.file.chunk_max_size, chunk_size)

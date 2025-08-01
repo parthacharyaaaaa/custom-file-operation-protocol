@@ -25,7 +25,7 @@ file_command_parser.add_argument('write_data', default=memoryview(b''), type=arg
 added_action = next(filter(lambda action : action.dest == 'write_data', file_command_parser._actions))
 added_action.required = False
 
-file_command_parser.add_argument('--chunk-size', required=False, type=arg_parsers.parse_non_negative_int, default=REQUEST_CONSTANTS.file.chunk_max_size)
+file_command_parser.add_argument('--chunk-size', required=False, type=arg_parsers.parse_chunk_size, default=REQUEST_CONSTANTS.file.chunk_max_size)
 file_command_parser.add_argument('--limit', required=False, type=arg_parsers.parse_non_negative_int)
 file_command_parser.add_argument('--pos', required=False, type=arg_parsers.parse_non_negative_int, default=0)
 file_command_parser.add_argument('--chunked', required=False, action='store_true', default=True)
