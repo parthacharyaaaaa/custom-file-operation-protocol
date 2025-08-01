@@ -48,45 +48,42 @@ async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
     await display(file_messages.successful_file_amendment(remote_directory, remote_filename, SuccessFlags.SUCCESSFUL_AMEND.value))
 
 async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                           remote_directory: str, remote_filename: str,
+                           file_component: BaseFileComponent,
                            client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
-                           chunk_size: Optional[int] = None, read_limit: Optional[int] = None, chunked_display: bool = True) -> bytearray:
+                           read_limit: Optional[int] = None, chunked_display: bool = True) -> bytearray:
     read_data: bytearray = bytearray()
-
-    if not chunk_size:
-        chunk_size = REQUEST_CONSTANTS.file.chunk_max_size
-    else:
-        chunk_size = min(REQUEST_CONSTANTS.file.chunk_max_size, abs(chunk_size))
     
-    remote_cursor_position: int = 0
+    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.READ)
     valid_responses: tuple[str, str] = (IntermediaryFlags.PARTIAL_READ.value, SuccessFlags.SUCCESSFUL_READ.value)
 
     if not read_limit:
         read_limit = math.inf
     while len(read_data) < read_limit:
-        file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=remote_directory,
-                                                              chunk_size=chunk_size, cursor_position=remote_cursor_position,
-                                                              cursor_keepalive=True)
-        await send_request(writer, header_component=BaseHeaderComponent(client_config.version, category=CategoryFlag.FILE_OP, subcategory=FileFlags.READ),
+        file_component.cursor_keepalive = (read_limit - len(read_data)) < REQUEST_CONSTANTS.file.chunk_max_size
+
+        await send_request(writer,
+                           header_component=header_component,
                            auth_component=session_manager.auth_component,
                            body_component=file_component)
         response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
         # TODO: Add notice/suspension for ongoing amendments
 
         if response_header.code not in valid_responses:
-            await display(file_messages.failed_file_operation(remote_directory, remote_filename, FileFlags.READ, code=response_header.code))
+            await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.READ, code=response_header.code))
             return
         
+        remote_read_data: bytes = response_body.contents.get('read')
+        file_component.cursor_position += len(remote_read_data)
         read_finished: bool = response_header.code == SuccessFlags.SUCCESSFUL_READ.value
-        remote_read_data: bytes = response_body.get('read')
 
         if remote_read_data is None and not read_finished:
             await display(general_messages.missing_response_claim('read'))
+            break
 
-        if not chunked_display:
-            read_data.append(remote_read_data)
-        else:
+        if chunked_display:
             await display(remote_read_data)
+        else:
+            read_data.append(remote_read_data)
 
         if read_finished:
             break
