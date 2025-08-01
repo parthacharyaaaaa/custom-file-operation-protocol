@@ -19,7 +19,7 @@ filedir_parser.add_argument('directory', type=arg_parsers.parse_dir)
 ### File operations ###
 
 file_command_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='file_command_parser', parents=[filedir_parser], add_help=False)
-file_command_parser.add_argument('write_data', default='-', type=arg_parsers.parse_write_data)
+file_command_parser.add_argument('write_data', default=memoryview(b''), type=arg_parsers.parse_write_data)
 
 # Awful hack alert
 added_action = next(filter(lambda action : action.dest == 'write_data', file_command_parser._actions))
