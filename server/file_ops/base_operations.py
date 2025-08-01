@@ -119,7 +119,7 @@ async def write_file(root: os.PathLike, fpath: str, data: Union[bytes, str], del
         
         return cursor_position + len(data)
         
-    writer: AsyncBufferedReader = await aiofiles.open(fpath, mode='+wb')
+    writer: AsyncBufferedReader = await aiofiles.open(abs_fpath, mode='+wb')
     await writer.seek(cursor_position)
     try:
         await writer.write(data)

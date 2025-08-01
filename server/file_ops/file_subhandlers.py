@@ -123,25 +123,25 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     keepalive_accepted: bool = False
 
     if header_component.subcategory & FileFlags.WRITE:
+        print(1)
         cursor_position = await base_ops.write_file(root=config.root_directory, fpath=fpath,
                                                     data=file_component.write_data.encode('utf-8'),
                                                     deleted_cache=delete_cache, amendment_cache=amendment_cache,
                                                     cursor_position=file_component.cursor_position or 0, writer_keepalive=file_component.cursor_keepalive, purge_writer=header_component.finish,
-                                                    identifier=auth_component.identity, cached=True)
-        keepalive_accepted = cache_ops.get_reader(amendment_cache, fpath, auth_component.identity) 
+                                                    identifier=auth_component.identity, cached=file_component.cursor_keepalive)
     else:
         cursor_position = await base_ops.append_file(root=config.root_directory, fpath=fpath,
                                            data=file_component.write_data.encode('utf-8'),
                                            deleted_cache=delete_cache, amendment_cache=amendment_cache,
                                            append_writer_keepalive=file_component.cursor_keepalive, purge_append_writer=header_component.finish,
-                                           identifier=auth_component.identity, cached=True)
-        keepalive_accepted = cache_ops.get_reader(amendment_cache, fpath, auth_component.identity) 
+                                           identifier=auth_component.identity, cached=file_component.cursor_keepalive)
     
+    keepalive_accepted = cache_ops.get_reader(amendment_cache, fpath, auth_component.identity)
     if not keepalive_accepted:
         file_locks.pop(fpath)
     
     return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_AMEND, ended_connection=header_component.finish, config=config),
-            ResponseBody(cursor_position=cursor_position, keepalive_accepted=keepalive_accepted))
+            ResponseBody(cursor_position=cursor_position, cursor_keepalive_accepted=bool(keepalive_accepted)))
 
 async def handle_read(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
                       config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
