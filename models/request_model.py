@@ -34,9 +34,9 @@ class BaseFileComponent(BaseModel):
     subject_file_owner: Annotated[str, Field(max_length=1024)]
 
     # Sequencing logic
-    cursor_position: Annotated[Optional[int], Field(ge=0, frozen=True, default=None)]
+    cursor_position: Annotated[Optional[int], Field(ge=0, default=None)]
     chunk_size: Annotated[Optional[int], Field(ge=1, le=REQUEST_CONSTANTS.file.chunk_max_size, default=None)]  # For read operations. If specified, must be atleast 1 byte
-    write_data: Annotated[Optional[str], Field(min_length=1, max_length=REQUEST_CONSTANTS.file.chunk_max_size, frozen=True, default=None)]    # For write operations, must be atleast 1 character if specified
+    write_data: Annotated[Optional[str], Field(min_length=1, max_length=REQUEST_CONSTANTS.file.chunk_max_size, default=None)]    # For write operations, must be atleast 1 character if specified
     
     # Attributes exclusive to file reads
     return_partial: Annotated[Optional[bool], Field(default=True)]
