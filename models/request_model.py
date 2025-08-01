@@ -1,5 +1,5 @@
 '''Module for defining schema of incoming requests'''
-from pydantic import BaseModel, Field, model_validator, IPvAnyAddress
+from pydantic import BaseModel, Field, model_validator, IPvAnyAddress, field_serializer
 from typing import Annotated, Optional, Literal, Union, TypeAlias
 from models.constants import REQUEST_CONSTANTS
 from models.flags import CategoryFlag, PermissionFlags, AuthFlags, FileFlags
@@ -36,11 +36,21 @@ class BaseFileComponent(BaseModel):
     # Sequencing logic
     cursor_position: Annotated[Optional[int], Field(ge=0, default=None)]
     chunk_size: Annotated[Optional[int], Field(ge=1, le=REQUEST_CONSTANTS.file.chunk_max_size, default=None)]  # For read operations. If specified, must be atleast 1 byte
-    write_data: Annotated[Optional[str], Field(min_length=1, max_length=REQUEST_CONSTANTS.file.chunk_max_size, default=None)]    # For write operations, must be atleast 1 character if specified
+    write_data: Annotated[Optional[Union[str, bytes, memoryview]], Field(min_length=1, max_length=REQUEST_CONSTANTS.file.chunk_max_size, default=None)]    # For write operations, must be atleast 1 character if specified
     
     # Attributes exclusive to file reads
     return_partial: Annotated[Optional[bool], Field(default=True)]
     cursor_keepalive: Annotated[Optional[bool], Field(default=False)]
+
+    model_config = {
+        'arbitrary_types_allowed' : True      
+    }
+
+    @field_serializer('write_data', when_used='json-unless-none')
+    def serialize_write_data(self, write_data: Union[str, bytes, memoryview]) -> bytes:
+        if isinstance(write_data, str): return write_data.encode('utf-8')
+        elif isinstance(write_data, memoryview): return bytes(write_data)
+        return write_data
 
 class BasePermissionComponent(BaseModel):
     # Request subjects
