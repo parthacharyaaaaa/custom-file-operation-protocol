@@ -94,7 +94,8 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
 async def handle_amendment(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
                            config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
                            file_locks: TTLCache[str, bytes], connection_master: ConnectionPoolManager,
-                           delete_cache: TTLCache, amendment_cache: TTLCache) -> tuple[ResponseHeader, ResponseBody]:
+                           delete_cache: TTLCache[str, str], 
+                           amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> tuple[ResponseHeader, ResponseBody]:
     # Check permissions
     if not await permission_subhandlers.check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner,
                                                               grantee=auth_component.identity, connection_master=connection_master,
@@ -144,11 +145,17 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
 
 async def handle_read(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
                       config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
+                      connection_master: ConnectionPoolManager,
                       file_locks: TTLCache[str, bytes],
-                      delete_cache: TTLCache, read_cache: TTLCache) -> tuple[ResponseHeader, ResponseBody]:    
+                      delete_cache: TTLCache[str, str],
+                      read_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> tuple[ResponseHeader, ResponseBody]:    
     # Check permissions
-    if not await base_ops.check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner, grantee=auth_component.identity,
-                                       check_for=FilePermissions.READ.value, check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
+    if not await permission_subhandlers.check_file_permission(filename=file_component.subject_file,
+                                                              owner=file_component.subject_file_owner,
+                                                              grantee=auth_component.identity,
+                                                              connection_master=connection_master,
+                                                              check_for=FilePermissions.READ.value,
+                                                              check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
         err_str: str = f'User {auth_component.identity} does not have read permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
         asyncio.create_task(
             enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
