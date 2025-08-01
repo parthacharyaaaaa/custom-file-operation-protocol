@@ -36,7 +36,12 @@ async def preemptive_eof_check(reader: AsyncBufferedReader) -> bool:
     await reader.seek(-1)
     return True
 
-async def read_file(root: os.PathLike, fpath: str, deleted_cache: TTLCache[str], read_cache: TTLCache[str, dict[str, AsyncBufferedReader]], cursor_position: int, nbytes: int = -1, reader_keepalive: bool = False, purge_reader: bool = False, identifier: Optional[str] = None, cached: bool = False) -> tuple[bytes, int, bool]:
+async def read_file(root: os.PathLike, fpath: str,
+                    deleted_cache: TTLCache[str],
+                    read_cache: TTLCache[str, dict[str, AsyncBufferedReader]],
+                    cursor_position: int, nbytes: int = -1,
+                    reader_keepalive: bool = False, purge_reader: bool = False,
+                    identifier: Optional[str] = None, cached: bool = False) -> tuple[bytes, int, bool]:
     abs_fpath: os.PathLike = os.path.join(root, fpath)
     if deleted_cache.get(fpath) or not os.path.isfile(abs_fpath):
         raise FileNotFoundError
@@ -50,7 +55,7 @@ async def read_file(root: os.PathLike, fpath: str, deleted_cache: TTLCache[str],
             await reader.seek(cursor_position)
         if not reader:
             # Fallback to cursor_position
-            reader: AsyncBufferedReader = await aiofiles.open(file=fpath, mode='rb')
+            reader: AsyncBufferedReader = await aiofiles.open(file=abs_fpath, mode='rb')
             await reader.seek(cursor_position)
 
         # Reader is now ready
@@ -71,7 +76,7 @@ async def read_file(root: os.PathLike, fpath: str, deleted_cache: TTLCache[str],
         return data, cursor_position, eof_reached
     
     # Reader does not exist in cache
-    reader: AsyncBufferedReader = await aiofiles.open(fpath, 'rb')
+    reader: AsyncBufferedReader = await aiofiles.open(abs_fpath, 'rb')
     try:
         data: bytes = await reader.read()
         cursor_position = await reader.tell()
