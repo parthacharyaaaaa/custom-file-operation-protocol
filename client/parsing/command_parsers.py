@@ -1,8 +1,9 @@
 '''Parsers for client shell's commands'''
 from client.parsing.explicit_argument_parser import ExplicitArgumentParser
-
 from client.cmd.commands import GeneralModifierCommands, FileModifierCommands, AuthModifierCommands, PermissionModifierCommands
 from client.parsing import arg_parsers
+
+from models.constants import REQUEST_CONSTANTS
 
 __all__ = ('generic_modifier_parser', 'file_command_parser', 'permission_command_parser', 'auth_command_parser')
 
@@ -18,9 +19,10 @@ filedir_parser.add_argument('directory', type=arg_parsers.parse_dir)
 ### File operations ###
 
 file_command_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='file_command_parser', parents=[filedir_parser], add_help=False)
-file_command_parser.add_argument('--chunk', required=False, type=arg_parsers.parse_non_negative_int)
-file_command_parser.add_argument('--until', required=False, type=arg_parsers.parse_non_negative_int)
-file_command_parser.add_argument('--pos', required=False, type=arg_parsers.parse_non_negative_int)
+file_command_parser.add_argument('--chunk-size', required=False, type=arg_parsers.parse_non_negative_int, default=REQUEST_CONSTANTS.file.chunk_max_size)
+file_command_parser.add_argument('--limit', required=False, type=arg_parsers.parse_non_negative_int)
+file_command_parser.add_argument('--pos', required=False, type=arg_parsers.parse_non_negative_int, default=0)
+file_command_parser.add_argument('--chunked', required=False, action='store_true', default=True)
 
 for file_modifier in FileModifierCommands:
     file_command_parser.add_argument(f'-{file_modifier.value.lower()}', help=None, action='store_true')
