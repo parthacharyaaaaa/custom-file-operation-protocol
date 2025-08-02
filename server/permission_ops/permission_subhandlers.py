@@ -226,35 +226,46 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
 async def revoke_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
                             config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
                             connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, ResponseBody]:
-    allowed_permission: FilePermissions = FilePermissions.MANAGE_RW
-    if (permission_component.permission_flags & PermissionFlags.MANAGER.value): # If request is to revoke a user's manager role, then only the owner of this file is allowed
-        allowed_permission = FilePermissions.MANAGE_SUPER
-    
     proxy: ConnectionProxy = await connection_master.request_connection(level=2)
     try:
-        if not await check_file_permission(permission_component.subject_file, permission_component.subject_file_owner, permission_component.subject_user,
-                                           check_for=allowed_permission, check_until=datetime.fromtimestamp(header_component.sender_timestamp) , proxy=proxy):
-            raise errors.InsufficientPermissions
-        
+        # If request is to revoke a user's manager role, then only the owner of this file is allowed
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute('''SELECT role, granted_by, granted_at, grantee
                                  FROM file_permissions
-                                 WHERE file_owner = %s AND filename = %s AND grantee = %s AND granted_until > %s
+                                 WHERE file_owner = %s AND filename = %s AND grantee = %s AND (granted_until > %s OR granted_until IS NULL)
                                  FOR UPDATE NOWAIT;''',
-                                 (permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user, datetime.now(),))
-            permission_mapping: dict[str, str] = await cursor.fetchone()
+                                 (permission_component.subject_file_owner,
+                                  permission_component.subject_file,
+                                  permission_component.subject_user,
+                                  datetime.now(),))
 
+            permission_mapping: dict[str, str] = await cursor.fetchone()
             if not permission_mapping:
                 raise errors.OperationalConflict(f'User {permission_component.subject_user} does not have any permission on file {permission_component.subject_file} owned by {permission_component.subject_file_owner}')
-            
             # Revoking a role also follows same logic as granting one. If the role was granted by the owner, then only the owner is permitted to revoke it.
             if (permission_mapping['granted_by'] == permission_component.subject_file_owner) and (auth_component.identity != permission_component.subject_file_owner):
                 raise errors.InsufficientPermissions
+            
+            check_permission: FilePermissions = FilePermissions.MANAGE_SUPER if (permission_mapping['role'] == RoleTypes.MANAGER.value) else FilePermissions.MANAGE_RW 
+        
+        if not await check_file_permission(filename=permission_component.subject_file,
+                                           owner=permission_component.subject_file_owner,
+                                           grantee=auth_component.identity,
+                                           check_for=check_permission.value,
+                                           connection_master=connection_master,
+                                           check_until=datetime.fromtimestamp(header_component.sender_timestamp),
+                                           proxy=proxy):
+            raise errors.InsufficientPermissions
 
-            await cursor.execute('''DELETE FROM file_permissions
-                                 WHERE file_owner = %s AND filename = %s AND grantee = %s''',
-                                 (permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user,))
+        await proxy.execute('''DELETE FROM file_permissions
+                                WHERE file_owner = %s AND filename = %s AND grantee = %s''',
+                                (permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user,))
         await proxy.commit()
+        return (ResponseHeader.from_server(config=config,
+                                           version=header_component.version,
+                                           code=SuccessFlags.SUCCESSFUL_REVOKE,
+                                           ended_connection=header_component.finish),
+                ResponseBody(contents={'revoked_role_data' : permission_mapping}))
     except pg_exc.LockNotAvailable:
         raise errors.OperationContested
     except pg_exc.Error as e:
@@ -263,14 +274,11 @@ async def revoke_permission(header_component: BaseHeaderComponent, auth_componen
                                 log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
                                                           log_category=db_models.LogType.DATABASE,
                                                           log_details=format_exception_only(e)[0],
-                                                          reported_severity=db_models.Seveirty.NON_CRITICAL_FAILURE)))
+                                                          reported_severity=db_models.Severity.NON_CRITICAL_FAILURE)))
         
         raise errors.DatabaseFailure('Failed to revoke permission')
     finally:
         await connection_master.reclaim_connection(proxy)
-    
-    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_REVOKE, ended_connection=header_component.finish),
-            ResponseBody(contents={'revoked_role_data' : permission_mapping}))
 
 async def transfer_ownership(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
                              config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[db_models.ActivityLog, int],
