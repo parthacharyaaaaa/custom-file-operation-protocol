@@ -46,7 +46,7 @@ async def top_permission_handler(reader: asyncio.StreamReader, header_component:
     if not auth_component.auth_logical_check(flag='authentication'):
         raise InvalidAuthSemantic('Permission operations require an auth component with ONLY the following: identity, token, refresh_digest')
     
-    await dependency_registry.user_master.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
+    await dependency_registry.user_manager.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
     if header_component.subcategory not in PermissionFlags._value2member_map_:
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.PERMISSION._name_}')
     
@@ -54,7 +54,8 @@ async def top_permission_handler(reader: asyncio.StreamReader, header_component:
     permission_component: BasePermissionComponent = await process_component(n_bytes=header_component.body_size, reader=reader,
                                                                             component_type='permission', timeout=dependency_registry.server_config.read_timeout)
     
-    subhandler = _PERMISSION_SUBHANDLER_MAPPING[header_component.subcategory]
+    # For permission operations, we'll need to mask the role bits 
+    subhandler = _PERMISSION_SUBHANDLER_MAPPING[header_component.subcategory & ~PermissionFlags.ROLE_EXTRACTION_BITMASK]
     prepped_subhandler = dependency_registry.inject_global_singletons(func=subhandler,
                                                                       header_component=header_component,
                                                                       auth_component=auth_component,
