@@ -82,7 +82,7 @@ class BaseHeaderComponent(BaseModel):
     sender_timestamp: Annotated[float, Field(frozen=True)]
 
     # Connection status
-    finish: Annotated[bool, Field(frozen=True, default=True)]
+    finish: Annotated[bool, Field(default=False)]
 
     # Message category
     category: Annotated[CategoryFlag, Field(frozen=True, ge=1)]
