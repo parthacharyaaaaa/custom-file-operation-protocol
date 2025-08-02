@@ -4,7 +4,7 @@ from typing import Optional
 from models.flags import CategoryFlag
 from models.response_codes import ClientErrorFlags, ServerErrorFlags
 
-__all__ = ('ProtocolException', 'SlowStreamRate', 'InvalidHeaderSemantic', 'InvalidHeaderValues', 'InvalidAuthSemantic', 'InvalidAuthData', 'InvalidFileData', 'UnsupportedOperation', 'UserAuthenticationError', 'InsufficientPermissions', 'OperationalConflict', 'OperationContested', 'Banned', 'FileNotFound', 'FileConflict', 'FileContested', 'InternalServerError', 'DatabaseFailure')
+__all__ = ('ProtocolException', 'SlowStreamRate', 'InvalidHeaderSemantic', 'InvalidHeaderValues', 'InvalidAuthSemantic', 'InvalidAuthData', 'InvalidFileData', 'UnsupportedOperation', 'UserAuthenticationError', 'UserNotFound', 'InsufficientPermissions', 'OperationalConflict', 'OperationContested', 'Banned', 'FileNotFound', 'FileConflict', 'FileContested', 'InternalServerError', 'DatabaseFailure')
 
 class ProtocolException(ABC, Exception):
     '''Abstract base exception class for all protocol specific exceptions. Contains all the bare minimum data required to construct and send a response to an erroneous request'''
@@ -49,6 +49,10 @@ class UnsupportedOperation(ProtocolException):
 class UserAuthenticationError(ProtocolException):
     code: str = ClientErrorFlags.USER_AUTHENTICATION_ERROR.value
     description: str = 'User authentication error'
+
+class UserNotFound(ProtocolException):
+    code: str = ClientErrorFlags.USER_NOT_FOUMD.value
+    description: str = "User not found"
 
 class InsufficientPermissions(ProtocolException):
     code: str = ClientErrorFlags.INSUFFICIENT_PERMISSIONS.value

@@ -50,6 +50,7 @@ class ClientErrorFlags(Flag):
 
     # Auth related
     USER_AUTHENTICATION_ERROR = "2:auth"
+    USER_NOT_FOUMD = "2:unf"
     INVALID_AUTH_SEMANTIC = "2:ias"
     INCORRECT_AUTH_DATA = "2:iad"
     EXPIRED_AUTH_TOKEN = "2:exp"
