@@ -2,6 +2,7 @@
 
 import re
 from models.constants import REQUEST_CONSTANTS
+from models.permissions import RoleTypes
 
 def parse_filename(filename: str) -> str:
     if not re.match(r'(.\w*)+', (filename:=filename.strip())):
@@ -71,3 +72,12 @@ def parse_grant_duration(arg: str) -> int:
     if not REQUEST_CONSTANTS.permission.effect_duration_range[0] < duration < REQUEST_CONSTANTS.permission.effect_duration_range[1]:
         raise ValueError(f'Permission effect duration must be between {REQUEST_CONSTANTS.permission.effect_duration_range}, got: {duration}')
     return duration
+
+def parse_granted_role(arg: str) -> RoleTypes:
+    try:
+        role_type: RoleTypes = RoleTypes(arg.lower())
+        if role_type == RoleTypes.OWNER:
+            raise TypeError(f'Owner role cannot be granted using the GRANT command')
+        return role_type
+    except ValueError:
+        raise ValueError('Invalid role type provided')
