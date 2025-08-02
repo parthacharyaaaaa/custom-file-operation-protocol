@@ -10,10 +10,10 @@ from client.parsing import command_parsers
 from client.cmd import operational_utils as op_utils
 from client.cmd import errors as cmd_errors 
 from client.config import constants as client_constants
-from client.operations import auth_operations, file_operations, info_operations
+from client.operations import auth_operations, file_operations, permission_operations, info_operations
 
 from models.constants import REQUEST_CONSTANTS
-from models.request_model import BaseAuthComponent, BaseFileComponent
+from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent
 
 class ClientWindow(async_cmd.AsyncCmd):
     def inject_default_dirname(self) -> None:
@@ -230,11 +230,19 @@ class ClientWindow(async_cmd.AsyncCmd):
         '''
 
     @require_auth_state(state=True)
-    async def do_grant(self, arg: str) -> None:
+    async def do_grant(self, args: str) -> None:
         '''
-        GRANT [filename] [directory] [user] [role] [optional: duration] [modifiers]
+        GRANT [filename] [directory] [user] [role] [--duration] [modifiers]
         Grant role to user on a given file
         '''
+        parsed_args: argparse.Namespace = command_parsers.permission_command_parser.parse_args(shlex.split(args))
+        permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory,
+                                                                                subject_user=parsed_args.user, effect_duration=parsed_args.duration)
+        
+        await permission_operations.grant_permission(reader=self.reader, writer=self.writer,
+                                                     permission_component=permission_component, role=parsed_args.role,
+                                                     client_config=self.client_config, session_manager=self.session_master,
+                                                     end_connection=parsed_args.bye)
 
     @require_auth_state(state=True)
     async def do_revoke(self, arg: str) -> None:

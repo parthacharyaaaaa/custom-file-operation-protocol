@@ -1,25 +1,43 @@
 import asyncio
-from typing import Optional, Sequence
+from typing import Sequence
 
-from client.config import constants as client_constants
 from client import session_manager
+from client.config import constants as client_constants
 from client.cmd.cmd_utils import display
 from client.cmd.message_strings import permission_messages, general_messages
 from client.communication.incoming import process_response
 from client.communication.outgoing import send_request
+from client.communication import utils as comms_utils
 
-from models.constants import REQUEST_CONSTANTS
 from models.permissions import RoleTypes, ROLE_MAPPING
 from models.response_codes import SuccessFlags
 from models.request_model import BasePermissionComponent, BaseHeaderComponent
 from models.flags import CategoryFlag, PermissionFlags
 
 async def grant_permission(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                           subcategory_bits: int, permission_component: BasePermissionComponent,
-                           client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager) -> None:
-    header_component: BaseHeaderComponent = BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=subcategory_bits)
-
-    await send_request(writer, header_component, session_manager.auth_component, permission_component)
+                           permission_component: BasePermissionComponent, role: RoleTypes,
+                           client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
+                           end_connection: bool = False) -> None:
+    if role == RoleTypes.OWNER:
+        raise ValueError('GRANT permission cannot be used to change ownership of a file')
+    
+    subcategory_bits: int = PermissionFlags.GRANT.value
+    for perm_flag, role_type in ROLE_MAPPING.items():
+        if role == role_type:
+            subcategory_bits |= perm_flag
+            break
+    else:
+        raise ValueError('Invalid role')
+    
+    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config=client_config,
+                                                                              session_manager=session_manager,
+                                                                              category=CategoryFlag.PERMISSION,
+                                                                              subcategory=subcategory_bits,
+                                                                              finish=end_connection)
+    await send_request(writer=writer,
+                       header_component=header_component,
+                       auth_component=session_manager.auth_component,
+                       body_component=permission_component)
     response_header, _ = await process_response(reader, writer, client_config.read_timeout)
 
     if response_header.code != SuccessFlags.SUCCESSFUL_GRANT.value:
@@ -27,7 +45,7 @@ async def grant_permission(reader: asyncio.StreamReader, writer: asyncio.StreamW
         return
     
     await display(permission_messages.successful_granted_role(permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user,
-                                                              permission=ROLE_MAPPING[(subcategory_bits&PermissionFlags.ROLE_EXTRACTION_BITMASK.value)].value))
+                                                              permission=ROLE_MAPPING[PermissionFlags(subcategory_bits & PermissionFlags.ROLE_EXTRACTION_BITMASK.value)].value))
 
 async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                             permission_component: BasePermissionComponent,
