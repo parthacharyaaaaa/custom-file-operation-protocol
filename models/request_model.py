@@ -56,13 +56,13 @@ class BasePermissionComponent(BaseModel):
     # Request subjects
     subject_file: Annotated[str, Field(frozen=True, pattern=REQUEST_CONSTANTS.file.filename_regex)]
     subject_file_owner: Annotated[str, Field(frozen=True, pattern=REQUEST_CONSTANTS.auth.username_regex,
-                                             le=REQUEST_CONSTANTS.auth.username_range[0], ge=REQUEST_CONSTANTS.auth.username_range[1])]
+                                             min_length=REQUEST_CONSTANTS.auth.username_range[0], max_length=REQUEST_CONSTANTS.auth.username_range[1])]
     
     subject_user: Annotated[Optional[str], Field(frozen=True, pattern=REQUEST_CONSTANTS.auth.username_regex,
-                                                 le=REQUEST_CONSTANTS.auth.username_range[0], ge=REQUEST_CONSTANTS.auth.username_range[1])]
+                                                 min_length=REQUEST_CONSTANTS.auth.username_range[0], max_length=REQUEST_CONSTANTS.auth.username_range[1])]
     
     # Permission data
-    effect_duration: Annotated[Optional[int], Field(le=REQUEST_CONSTANTS.permission.effect_duration_range[0], ge=REQUEST_CONSTANTS.permission.effect_duration_range[1], frozen=True, default=0)]
+    effect_duration: Annotated[Optional[int], Field(ge=REQUEST_CONSTANTS.permission.effect_duration_range[0], le=REQUEST_CONSTANTS.permission.effect_duration_range[1], frozen=True, default=0)]
 
     @staticmethod
     def check_higher_role(permission_bits: int) -> bool:
