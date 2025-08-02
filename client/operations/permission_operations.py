@@ -51,14 +51,16 @@ async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.Stream
                             permission_component: BasePermissionComponent,
                             client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                             end_connection: bool = False) -> None:
-    await send_request(writer,
-                       BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.REVOKE, finish=end_connection),
-                       session_manager.auth_component, permission_component)
+    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.PERMISSION, PermissionFlags.REVOKE)
+    await send_request(writer=writer,
+                       header_component=header_component,
+                       auth_component=session_manager.auth_component,
+                       body_component=permission_component)
     
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
 
     if response_header.code != SuccessFlags.SUCCESSFUL_REVOKE.value:
-        await display(permission_messages.failed_permission_operation(permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user, response_body.code))
+        await display(permission_messages.failed_permission_operation(permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user, response_header.code))
         return
     
     await display(permission_messages.successful_revoked_role(permission_component.subject_file_owner, permission_component.subject_file, response_body.contents))
