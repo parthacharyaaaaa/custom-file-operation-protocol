@@ -100,7 +100,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         Create a new remote user. This does not create a remote session
         '''
         parsed_args: argparse.Namespace = command_parsers.auth_command_parser.parse_args(args.split())
-        auth_component: BaseAuthComponent = op_utils.make_auth_component(username=parsed_args.username, password=parsed_args.password)
+        auth_component: BaseAuthComponent = await op_utils.make_auth_component(username=parsed_args.username, password=parsed_args.password)
         display_credentials, self.end_connection = parsed_args.dc, parsed_args.bye
 
         await auth_operations.create_remote_user(reader=self.reader, writer=self.writer,
@@ -201,15 +201,26 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                 file_component=file_component,
                                                 client_config=self.client_config, session_manager=self.session_master)
 
-        
-    
-    def do_append(self, filename: str, directory: Optional[str] = None) -> None:
+    @require_auth_state(state=True)
+    async def do_append(self, args: str) -> None:
         '''
-        APPEND [filename] [directory] [--chunk] [modifiers]
+        APPEND [filename] [directory] [write data] [--chunk-size] [modifiers]
         Append to a file from a remote directory.
-        If not specified, remote directory is determined based on remote session
         '''
-        ...
+        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args))
+        if not parsed_args.write_data:
+            raise cmd_errors.CommandException('Missing write data for APPEND operation')
+        
+        file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory,
+                                                              chunk_size=parsed_args.chunk_size, write_data=None,
+                                                              cursor_position=parsed_args.pos)
+
+        await file_operations.append_remote_file(reader=self.reader, writer=self.writer,
+                                                 write_data=parsed_args.write_data,
+                                                 file_component=file_component,
+                                                 chunk_size=parsed_args.chunk_size,
+                                                 client_config=self.client_config, session_manager=self.session_master,
+                                                 end_connection=parsed_args.bye)
     
     @require_auth_state(state=True)
     async def do_upload(self, arg: str) -> None:
