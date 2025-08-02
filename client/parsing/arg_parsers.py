@@ -63,3 +63,11 @@ def parse_chunk_size(arg: str) -> int:
         raise ValueError('Chunk size must be a positive integer')
     
     return min(REQUEST_CONSTANTS.file.chunk_max_size, chunk_size)
+
+def parse_grant_duration(arg: str) -> int:
+    if not arg.isnumeric():
+        raise ValueError(f'Non-numeric value given for chunk size: {arg}')
+    duration: int = int(arg)
+    if not REQUEST_CONSTANTS.permission.effect_duration_range[0] < duration < REQUEST_CONSTANTS.permission.effect_duration_range[1]:
+        raise ValueError(f'Permission effect duration must be between {REQUEST_CONSTANTS.permission.effect_duration_range}, got: {duration}')
+    return duration

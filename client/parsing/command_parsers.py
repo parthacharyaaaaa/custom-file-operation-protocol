@@ -37,7 +37,7 @@ for file_modifier in FileModifierCommands:
 
 permission_command_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='permission_command_parser', parents=[filedir_parser], add_help=False)
 permission_command_parser.add_argument('user', type=arg_parsers.parse_username_arg, default=None)
-
+permission_command_parser.add_argument('--duration', type=arg_parsers.parse_grant_duration, default=REQUEST_CONSTANTS.permission.effect_duration_range[0])
 for permisison_modifier in PermissionModifierCommands:
     permission_command_parser.add_argument(f'-{permisison_modifier.value.lower()}', help=None, action='store_true')
 
