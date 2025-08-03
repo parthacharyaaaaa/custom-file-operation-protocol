@@ -286,16 +286,11 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
                                                         connection_master=connection_master,
                                                         proxy=proxy):
                 # TODO: Log tampered identity claim in auth component
-                raise errors.InsufficientPermissions(f'Only file owner {permission_component.subject_file_owner} is permitted to transfer ownership of file {permission_component.subject_file}')
+                raise errors.InsufficientPermissions(f'Only file owner is permitted to transfer ownership of file {permission_component.subject_file}')
             
             # Check user existence
-            await cursor.execute('''SELECT username
-                           FROM users
-                           WHERE username = %s;''',
-                           (permission_component.subject_user,)
-                           )
-            if not await cursor.fetchone():
-                raise errors.UserNotFound
+            if not await db_utils.get_user(permission_component.subject_user, connection_master, proxy, check_existence=True):
+                raise errors.UserNotFound(f'User {permission_component.subject_user} not found')
 
             # Proceed to transfer ownership 
             await cursor.execute('''SELECT *
@@ -326,13 +321,22 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
                                   permission_component.subject_file,
                                   auth_component.identity))
             await cursor.execute('''UPDATE file_permissions
-                                  SET file_owner = %s, filename = %s
+                                  SET file_owner = %s, filename = %s, grantee = %s
                                   WHERE file_owner = %s AND filename = %s;''',
                                   (permission_component.subject_user,
                                    new_fname,
                                    auth_component.identity,
+                                   auth_component.identity,
                                    permission_component.subject_file,))
-        await proxy.commit()
+            await cursor.execute('''INSERT INTO file_permissions
+                                 (file_owner, filename, grantee, role, granted_by)
+                                 VALUES (%s, %s, %s, %s, %s)''',
+                                 (permission_component.subject_user,
+                                  new_fname,
+                                  permission_component.subject_user,
+                                  RoleTypes.MANAGER.value,
+                                  permission_component.subject_user))
+            await proxy.commit()
 
         return (ResponseHeader.from_server(config=config,
                                     version=header_component.version,
