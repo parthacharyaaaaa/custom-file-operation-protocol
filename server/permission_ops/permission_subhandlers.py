@@ -178,6 +178,9 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
                                      permission_component.subject_user,))
             else:
                 # Adding a new role
+                if not await db_utils.get_user(permission_component.subject_user, connection_master, proxy, check_existence=True):
+                    raise errors.UserNotFound(f'User {permission_component.subject_user} not found')
+                
                 await cursor.execute('''INSERT INTO file_permissions (file_owner, filename, grantee, role, granted_at, granted_by, granted_until)
                                      VALUES (%s, %s, %s, %s, %s, %s, %s);''',
                                      (permission_component.subject_file_owner,
