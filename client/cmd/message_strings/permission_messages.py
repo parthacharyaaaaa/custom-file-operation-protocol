@@ -17,7 +17,7 @@ def successful_file_publicise(remote_directory: str, remote_file: str, code: Opt
     return f'{code or SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value}: Publicised file {remote_directory}/{remote_file}, all remote users now have read access'
 
 def successful_ownership_trasnfer(remote_directory: str, remote_file: str, new_fpath: str, datetime_string: Optional[str] = None, code: Optional[SuccessFlags] = None) -> str:
-    f'''{code or SuccessFlags.SUCCESSFUL_OWNERSHIP_TRANSFER.value}: Transferred ownership of file {remote_file} to {remote_directory}. You now have manager rights to this file.
+    return f'''{code or SuccessFlags.SUCCESSFUL_OWNERSHIP_TRANSFER.value}: Transferred ownership of file {remote_file} to {remote_directory}. You now have manager rights to this file.
     New Filepath: {new_fpath},
     transferred at: {datetime_string or "N/A"}'''
 
