@@ -37,6 +37,8 @@ class AsyncCmd(cmd.Cmd):
             if self.session_master.identity:
                 self.session_master.clear_auth_data()
             
+            self.prompt = "not connected>"
+            
             return True
 
     async def cmdloop(self, intro = None):

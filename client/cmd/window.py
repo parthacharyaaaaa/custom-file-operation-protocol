@@ -177,6 +177,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory,
                                                               chunk_size=parsed_args.chunk_size, write_data=None, return_partial=None,
                                                               cursor_position=parsed_args.pos)
+        self.end_connection = parsed_args.bye
         await file_operations.read_remote_file(reader=self.reader, writer=self.writer,
                                                file_component=file_component,
                                                client_config=self.client_config, session_manager=self.session_master,
@@ -195,7 +196,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory,
                                                               chunk_size=parsed_args.chunk_size, write_data=None,
                                                               cursor_position=parsed_args.pos)
-
+        self.end_connection = parsed_args.bye
         await file_operations.write_remote_file(reader=self.reader, writer=self.writer,
                                                 write_data=parsed_args.write_data,
                                                 file_component=file_component,
@@ -214,7 +215,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory,
                                                               chunk_size=parsed_args.chunk_size, write_data=None,
                                                               cursor_position=parsed_args.pos)
-
+        self.end_connection = parsed_args.bye
         await file_operations.append_remote_file(reader=self.reader, writer=self.writer,
                                                  write_data=parsed_args.write_data,
                                                  file_component=file_component,
@@ -238,7 +239,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         parsed_args: argparse.Namespace = command_parsers.permission_command_parser.parse_args(shlex.split(args))
         permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory,
                                                                                 subject_user=parsed_args.user, effect_duration=parsed_args.duration)
-        
+        self.end_connection = parsed_args.bye
         await permission_operations.grant_permission(reader=self.reader, writer=self.writer,
                                                      permission_component=permission_component, role=parsed_args.role,
                                                      client_config=self.client_config, session_manager=self.session_master,
@@ -253,7 +254,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         parsed_args: argparse.Namespace = command_parsers.permission_command_parser.parse_args(shlex.split(args))
         permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory,
                                                                                 subject_user=parsed_args.user)
-        
+        self.end_connection = parsed_args.bye
         await permission_operations.revoke_permission(reader=self.reader, writer=self.writer,
                                                      permission_component=permission_component,
                                                      client_config=self.client_config, session_manager=self.session_master,
@@ -275,6 +276,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         '''
         parsed_args: argparse.Namespace = command_parsers.filedir_parser.parse_args(shlex.split(args))
         permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=parsed_args.file, subject_file_owner=self.session_master.identity)
+        self.end_connection = parsed_args.bye
         await permission_operations.publicise_remote_file(reader=self.reader, writer=self.writer,
                                                           permission_component=permission_component,
                                                           client_config=self.client_config, session_manager=self.session_master,
@@ -288,6 +290,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         '''
         parsed_args: argparse.Namespace = command_parsers.filedir_parser.parse_args(shlex.split(args))
         permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=parsed_args.file, subject_file_owner=self.session_master.identity)
+        self.end_connection = parsed_args.bye
         await permission_operations.hide_remote_file(reader=self.reader, writer=self.writer,
                                                      permission_component=permission_component,
                                                      client_config=self.client_config, session_manager=self.session_master,
