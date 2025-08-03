@@ -5,7 +5,7 @@ from traceback import format_exception
 
 __all__ = ('successful_file_hide', 'successful_file_publicise', 'successful_granted_role', 'successful_revoked_role', 'successful_ownership_trasnfer', 'failed_permission_operation')
 
-def successful_file_hide(remote_dir: str, remote_file: str, revoked_info: Sequence[dict[str, str]], code: Optional[SuccessFlags]) -> str:
+def successful_file_hide(remote_dir: str, remote_file: str, revoked_info: Sequence[dict[str, str]], code: Optional[SuccessFlags] = None) -> str:
     revoked_info_str: str = '\n- '.join(f"{mapping['grantee']} : {mapping['role']}" for mapping in revoked_info)
     return (
     f'''{code or SuccessFlags.SUCCESSFUL_FILE_HIDE.value}: Hid file {remote_dir}/{remote_file}, all remote users with public read access have had their permissions revoked.

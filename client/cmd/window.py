@@ -282,7 +282,13 @@ class ClientWindow(async_cmd.AsyncCmd):
 
 
     @require_auth_state(state=True)
-    async def do_hide(self, arg: str) -> None:
+    async def do_hide(self, args: str) -> None:
         '''
         HIDE [filename] [directory] [modifiers]
         '''
+        parsed_args: argparse.Namespace = command_parsers.filedir_parser.parse_args(shlex.split(args))
+        permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=parsed_args.file, subject_file_owner=self.session_master.identity)
+        await permission_operations.hide_remote_file(reader=self.reader, writer=self.writer,
+                                                     permission_component=permission_component,
+                                                     client_config=self.client_config, session_manager=self.session_master,
+                                                     end_connection=parsed_args.bye)

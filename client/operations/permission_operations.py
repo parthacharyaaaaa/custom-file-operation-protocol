@@ -109,16 +109,17 @@ async def hide_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
                            permission_component: BasePermissionComponent,
                            client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                            end_connection: bool = False):
-    await send_request(writer,
-                       BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.HIDE, finish=end_connection),
-                       session_manager.auth_component,
-                       permission_component)
+    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.PERMISSION, PermissionFlags.HIDE, finish=end_connection)
+    await send_request(writer=writer,
+                       header_component=header_component,
+                       auth_component=session_manager.auth_component,
+                       body_component=permission_component)
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
-    if response_header.code != SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value:
+    if response_header.code != SuccessFlags.SUCCESSFUL_FILE_HIDE.value:
         await display(permission_messages.failed_permission_operation(permission_component.subject_file_owner, permission_component.subject_file, code=response_header.code))
         return
     
-    revoked_info: list[dict[str, str]] = response_body.get('revoked_grantee_info')
+    revoked_info: list[dict[str, str]] = response_body.contents.get('revoked_grantee_info')
     if not revoked_info:
         await display(general_messages.malformed_response_body('revoked_grantee_info'))
     
