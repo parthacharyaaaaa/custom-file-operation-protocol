@@ -23,30 +23,10 @@ from server import errors
 from server import logging
 from server.config import server_config
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
-from server.database import models as db_models
+from server.database import models as db_models, utils as db_utils
 from server.file_ops import base_operations as base_ops
 
-__all__ = ('check_file_permission', 'publicise_file', 'hide_file', 'grant_permission', 'revoke_permission', 'transfer_ownership')
-
-async def check_file_permission(filename: str, owner: str, grantee: str, check_for: FilePermissions, connection_master: ConnectionPoolManager, proxy: Optional[ConnectionProxy] = None, level: Optional[Literal[1,2,3]] = 1, check_until: Optional[datetime] = None) -> bool:
-    reclaim_after: bool = proxy is None
-    if not proxy:
-        proxy: ConnectionProxy = await connection_master.request_connection(level=level)
-    try:
-        async with proxy.cursor(row_factory=dict_row) as cursor:
-            await cursor.execute('''SELECT roles.permission
-                                 FROM roles
-                                 INNER JOIN file_permissions fp
-                                 ON roles.role = fp.role
-                                 WHERE fp.file_owner = %s AND fp.filename = %s AND fp.grantee = %s AND (fp.granted_until > %s OR fp.granted_until IS NULL)
-                                 AND roles.permission = %s;''',
-                                 (owner, filename, grantee, check_until or datetime.now(), check_for,))
-            role_mapping: dict[str, FilePermissions] = await cursor.fetchone()
-    finally:
-        if reclaim_after:
-            await connection_master.reclaim_connection(proxy)
-    
-    return bool(role_mapping)
+__all__ = ('publicise_file', 'hide_file', 'grant_permission', 'revoke_permission', 'transfer_ownership')
 
 async def publicise_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
                          config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
@@ -156,13 +136,13 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
     
     proxy: ConnectionProxy = await connection_master.request_connection(level=2)
     try:
-        if not await check_file_permission(filename=permission_component.subject_file,
-                                           owner=permission_component.subject_file_owner,
-                                           grantee=auth_component.identity,
-                                           check_for=allowed_permission.value,
-                                           connection_master=connection_master,
-                                           check_until=datetime.fromtimestamp(header_component.sender_timestamp),
-                                           proxy=proxy):
+        if not await db_utils.check_file_permission(filename=permission_component.subject_file,
+                                                    owner=permission_component.subject_file_owner,
+                                                    grantee=auth_component.identity,
+                                                    check_for=allowed_permission.value,
+                                                    connection_master=connection_master,
+                                                    check_until=datetime.fromtimestamp(header_component.sender_timestamp),
+                                                    proxy=proxy):
             raise errors.InsufficientPermissions
         
         async with proxy.cursor(row_factory=dict_row) as cursor:
@@ -251,13 +231,13 @@ async def revoke_permission(header_component: BaseHeaderComponent, auth_componen
             
             check_permission: FilePermissions = FilePermissions.MANAGE_SUPER if (permission_mapping['role'] == RoleTypes.MANAGER.value) else FilePermissions.MANAGE_RW 
         
-        if not await check_file_permission(filename=permission_component.subject_file,
-                                           owner=permission_component.subject_file_owner,
-                                           grantee=auth_component.identity,
-                                           check_for=check_permission.value,
-                                           connection_master=connection_master,
-                                           check_until=datetime.fromtimestamp(header_component.sender_timestamp),
-                                           proxy=proxy):
+        if not await db_utils.check_file_permission(filename=permission_component.subject_file,
+                                                    owner=permission_component.subject_file_owner,
+                                                    grantee=auth_component.identity,
+                                                    check_for=check_permission.value,
+                                                    connection_master=connection_master,
+                                                    check_until=datetime.fromtimestamp(header_component.sender_timestamp),
+                                                    proxy=proxy):
             raise errors.InsufficientPermissions
 
         await proxy.execute('''DELETE FROM file_permissions
@@ -299,12 +279,12 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
     try:
         async with proxy.cursor(row_factory=dict_row) as cursor:
             # Auth component can easily be tampered to reflect same username as file owner, check against database
-            if not await check_file_permission(filename=permission_component.subject_file,
-                                               owner=auth_component.identity,
-                                               grantee=auth_component.identity,
-                                               check_for=FilePermissions.MANAGE_SUPER.value,
-                                               connection_master=connection_master,
-                                               proxy=proxy):
+            if not await db_utils.check_file_permission(filename=permission_component.subject_file,
+                                                        owner=auth_component.identity,
+                                                        grantee=auth_component.identity,
+                                                        check_for=FilePermissions.MANAGE_SUPER.value,
+                                                        connection_master=connection_master,
+                                                        proxy=proxy):
                 # TODO: Log tampered identity claim in auth component
                 raise errors.InsufficientPermissions(f'Only file owner {permission_component.subject_file_owner} is permitted to transfer ownership of file {permission_component.subject_file}')
             

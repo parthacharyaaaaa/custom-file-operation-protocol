@@ -15,12 +15,11 @@ from psycopg.rows import dict_row
 
 from server.config import server_config
 from server.connectionpool import ConnectionProxy, ConnectionPoolManager
-from server.database import models as db_models
+from server.database import models as db_models, utils as db_utils
 from server.file_ops import base_operations as base_ops
 from server.file_ops import cache_ops
 from server import errors
 from server.logging import enqueue_log
-from server.permission_ops import permission_subhandlers
 
 from cachetools import TTLCache
 
@@ -97,9 +96,9 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
                            delete_cache: TTLCache[str, str], 
                            amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> tuple[ResponseHeader, ResponseBody]:
     # Check permissions
-    if not await permission_subhandlers.check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner,
-                                                              grantee=auth_component.identity, connection_master=connection_master,
-                                                              check_for=FilePermissions.WRITE.value, check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
+    if not await db_utils.check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner,
+                                                grantee=auth_component.identity, connection_master=connection_master,
+                                                check_for=FilePermissions.WRITE.value, check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
         err_str: str = f'User {auth_component.identity} does not have write permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
         asyncio.create_task(
             enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
@@ -123,7 +122,6 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     keepalive_accepted: bool = False
 
     if header_component.subcategory & FileFlags.WRITE:
-        print(1)
         cursor_position = await base_ops.write_file(root=config.root_directory, fpath=fpath,
                                                     data=file_component.write_data.encode('utf-8'),
                                                     deleted_cache=delete_cache, amendment_cache=amendment_cache,
@@ -150,12 +148,12 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
                       delete_cache: TTLCache[str, str],
                       read_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> tuple[ResponseHeader, ResponseBody]:    
     # Check permissions
-    if not await permission_subhandlers.check_file_permission(filename=file_component.subject_file,
-                                                              owner=file_component.subject_file_owner,
-                                                              grantee=auth_component.identity,
-                                                              connection_master=connection_master,
-                                                              check_for=FilePermissions.READ.value,
-                                                              check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
+    if not await db_utils.check_file_permission(filename=file_component.subject_file,
+                                                owner=file_component.subject_file_owner,
+                                                grantee=auth_component.identity,
+                                                connection_master=connection_master,
+                                                check_for=FilePermissions.READ.value,
+                                                check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
         err_str: str = f'User {auth_component.identity} does not have read permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
         asyncio.create_task(
             enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
