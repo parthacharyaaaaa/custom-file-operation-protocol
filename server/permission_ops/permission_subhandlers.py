@@ -51,7 +51,7 @@ async def check_file_permission(filename: str, owner: str, grantee: str, check_f
 async def publicise_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
                          config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
                          connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
-    proxy: ConnectionProxy = connection_master.request_connection(level=1)
+    proxy: ConnectionProxy = await connection_master.request_connection(level=1)
     try:
         async with proxy.cursor(row_factory=dict_row) as cursor:
             # Only owner is allowed to publicise/hide files
@@ -86,7 +86,7 @@ async def publicise_file(header_component: BaseHeaderComponent, auth_component: 
     finally:
         connection_master.reclaim_connection(proxy)
 
-    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value, ended_connection=header_component.finish),
+    return (ResponseHeader.from_server(config=config, version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value, ended_connection=header_component.finish),
             None)
 
 async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
