@@ -230,7 +230,7 @@ def transfer_file(root: os.PathLike, previous_owner: str, file: os.PathLike, new
             file = new_name
         new_fpath: os.PathLike = os.path.join(root, new_owner, file)
         if os.path.isfile(new_fpath):
-            file = '_'.join(uuid4().hex, file)
+            file = '_'.join((uuid4().hex, file))
             new_fpath = os.path.join(root, new_owner, file)
         
         os.replace(src=prev_fpath, dst=new_fpath)
