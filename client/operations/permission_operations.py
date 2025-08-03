@@ -69,13 +69,14 @@ async def transfer_ownership(reader: asyncio.StreamReader, writer: asyncio.Strea
                              permission_component: BasePermissionComponent,
                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                              end_connection: bool = False) -> str:
-    await send_request(writer,
-                       BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.TRANSFER, finish=end_connection),
-                       session_manager.auth_component,
-                       permission_component)
+    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.PERMISSION, PermissionFlags.TRANSFER, finish=end_connection)
+    await send_request(writer=writer,
+                       header_component=header_component,
+                       auth_component=session_manager.auth_component,
+                       body_component=permission_component)
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_OWNERSHIP_TRANSFER.value:
-        await display(permission_messages.failed_permission_operation(permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user, response_body.code))
+        await display(permission_messages.failed_permission_operation(permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user, response_header.code))
         return
     
     new_fpath: str = response_body.contents.get('new_filepath')
@@ -86,7 +87,11 @@ async def transfer_ownership(reader: asyncio.StreamReader, writer: asyncio.Strea
     if not transfer_iso_datetime:
         await display(general_messages.missing_response_claim('transfer_datetime'))
     
-    await display(permission_messages.successful_ownership_trasnfer(permission_component.subject_file_owner, permission_component.subject_file, new_fpath, transfer_iso_datetime, response_header.code))
+    print(new_fpath, transfer_iso_datetime, permission_component)
+    await display(permission_messages.successful_ownership_trasnfer(remote_directory=permission_component.subject_file_owner,
+                                                                    remote_file=permission_component.subject_file,
+                                                                    new_fpath=new_fpath,
+                                                                    datetime_string=transfer_iso_datetime))
 
 async def publicise_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                                 permission_component: BasePermissionComponent,

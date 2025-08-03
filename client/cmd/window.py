@@ -261,11 +261,22 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                      end_connection=parsed_args.bye)
 
     @require_auth_state(state=True)
-    async def do_transfer(self, arg: str) -> None:
+    async def do_transfer(self, args: str) -> None:
         '''
         TRANSFER [filename] [directory] [user] [modifiers]
         Transfer ownership of a file to another user.
         '''
+        parsed_args: argparse.Namespace = command_parsers.permission_command_parser.parse_args(shlex.split(args))
+        if not parsed_args.user:
+            raise ValueError('User needs to be specified')
+        permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=parsed_args.file,
+                                                                                subject_file_owner=self.session_master.identity,
+                                                                                subject_user=parsed_args.user)
+        self.end_connection = parsed_args.bye
+        await permission_operations.transfer_ownership(reader=self.reader, writer=self.writer,
+                                                       permission_component=permission_component,
+                                                       client_config=self.client_config, session_manager=self.session_master,
+                                                       end_connection=parsed_args.bye)
 
     @require_auth_state(state=True)
     async def do_publicise(self, args: str) -> None:
@@ -281,7 +292,6 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                           permission_component=permission_component,
                                                           client_config=self.client_config, session_manager=self.session_master,
                                                           end_connection=parsed_args.bye)
-
 
     @require_auth_state(state=True)
     async def do_hide(self, args: str) -> None:
