@@ -267,11 +267,19 @@ class ClientWindow(async_cmd.AsyncCmd):
         '''
 
     @require_auth_state(state=True)
-    async def do_publicise(self, arg: str) -> None:
+    async def do_publicise(self, args: str) -> None:
         '''
-        PUBLISICE [filename] [directory] [modifiers]
-        Publicise a given file and grant every remote user read access, without overriding any previosuly granted permissions
+        PUBLISICE [filename] [modifiers]
+        Publicise a given file and grant every remote user read access, without overriding any previosuly granted permissions.
+        This operation can only be performed on the files in the user's own directory
         '''
+        parsed_args: argparse.Namespace = command_parsers.filedir_parser.parse_args(shlex.split(args))
+        permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=parsed_args.file, subject_file_owner=self.session_master.identity)
+        await permission_operations.publicise_remote_file(reader=self.reader, writer=self.writer,
+                                                          permission_component=permission_component,
+                                                          client_config=self.client_config, session_manager=self.session_master,
+                                                          end_connection=parsed_args.bye)
+
 
     @require_auth_state(state=True)
     async def do_hide(self, arg: str) -> None:

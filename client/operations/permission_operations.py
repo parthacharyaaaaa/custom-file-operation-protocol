@@ -92,10 +92,11 @@ async def publicise_remote_file(reader: asyncio.StreamReader, writer: asyncio.St
                                 permission_component: BasePermissionComponent,
                                 client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                                 end_connection: bool = False) -> None:
-    await send_request(writer,
-                       BaseHeaderComponent(version=client_config.version, category=CategoryFlag.PERMISSION, subcategory=PermissionFlags.PUBLICISE, finish=end_connection),
-                       session_manager.auth_component,
-                       permission_component)
+    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.PERMISSION, PermissionFlags.PUBLICISE, finish=end_connection)
+    await send_request(writer=writer,
+                       header_component=header_component,
+                       auth_component=session_manager.auth_component,
+                       body_component=permission_component)
     
     response_header, _ = await process_response(reader, writer, client_config.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value:
