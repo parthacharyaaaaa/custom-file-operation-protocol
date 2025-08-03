@@ -59,7 +59,8 @@ class BasePermissionComponent(BaseModel):
                                              min_length=REQUEST_CONSTANTS.auth.username_range[0], max_length=REQUEST_CONSTANTS.auth.username_range[1])]
     
     subject_user: Annotated[Optional[str], Field(frozen=True, pattern=REQUEST_CONSTANTS.auth.username_regex,
-                                                 min_length=REQUEST_CONSTANTS.auth.username_range[0], max_length=REQUEST_CONSTANTS.auth.username_range[1])]
+                                                 min_length=REQUEST_CONSTANTS.auth.username_range[0], max_length=REQUEST_CONSTANTS.auth.username_range[1],
+                                                 default=None)]
     
     # Permission data
     effect_duration: Annotated[Optional[int], Field(ge=REQUEST_CONSTANTS.permission.effect_duration_range[0], le=REQUEST_CONSTANTS.permission.effect_duration_range[1], frozen=True, default=0)]
