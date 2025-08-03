@@ -33,11 +33,11 @@ CREATE TABLE IF NOT EXISTS file_permissions(
     grantee             VARCHAR(128) NOT NULL REFERENCES users(username) ON DELETE CASCADE,
     role                role_type NOT NULL,
     granted_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    granted_by          VARCHAR(128) NOT NULL REFERENCES users(username) ON DELETE NO ACTION,
+    granted_by          VARCHAR(128) REFERENCES users(username) ON DELETE SET NULL,
     granted_until       TIMESTAMP,
 
     PRIMARY KEY (file_owner, filename, grantee),
-    FOREIGN KEY (file_owner, filename) REFERENCES files(owner, filename) ON DELETE CASCADE
+    FOREIGN KEY (file_owner, filename) REFERENCES files(owner, filename) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS ban_logs(
