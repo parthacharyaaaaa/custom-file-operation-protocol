@@ -2,10 +2,10 @@ import asyncio
 from datetime import datetime
 import os
 import time
-from typing import Any, Optional, Literal, Union
+from typing import Any, Optional, Literal
 from traceback import format_exception_only
 
-from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncIndirectBufferedIOBase
+from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 
 from cachetools import TTLCache
 
@@ -284,9 +284,11 @@ async def revoke_permission(header_component: BaseHeaderComponent, auth_componen
         await connection_master.reclaim_connection(proxy)
 
 async def transfer_ownership(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
-                             config: server_config.ServerConfig, log_queue: asyncio.PriorityQueue[db_models.ActivityLog, int],
+                             config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
                              connection_master: ConnectionPoolManager,
-                             deleted_cache: TTLCache[str, True], **cache_mapping: TTLCache[str, Union[AsyncIndirectBufferedIOBase, AsyncBufferedReader]]) -> tuple[ResponseHeader, ResponseBody]:
+                             deleted_cache: TTLCache[str, str],
+                             read_cache: TTLCache[str, dict[str, AsyncBufferedReader]],
+                             amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> tuple[ResponseHeader, ResponseBody]:
     if auth_component.identity != permission_component.subject_file_owner:
         raise errors.InsufficientPermissions(f'Only file owner {permission_component.subject_file_owner} is permitted to transfer ownership of file {permission_component.subject_file}')
     if permission_component.subject_file_owner == permission_component.subject_user:
@@ -294,14 +296,27 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
     
     proxy: ConnectionProxy = await connection_master.request_connection(level=3)
     new_fname: str = None
-    transfer_datetime_iso: str = None
     try:
         async with proxy.cursor(row_factory=dict_row) as cursor:
             # Auth component can easily be tampered to reflect same username as file owner, check against database
-            if not await check_file_permission(permission_component.subject_file, permission_component.subject_file_owner, permission_component.subject_user, ['owner'], proxy):
+            if not await check_file_permission(filename=permission_component.subject_file,
+                                               owner=auth_component.identity,
+                                               grantee=auth_component.identity,
+                                               check_for=FilePermissions.MANAGE_SUPER.value,
+                                               connection_master=connection_master,
+                                               proxy=proxy):
                 # TODO: Log tampered identity claim in auth component
                 raise errors.InsufficientPermissions(f'Only file owner {permission_component.subject_file_owner} is permitted to transfer ownership of file {permission_component.subject_file}')
             
+            # Check user existence
+            await cursor.execute('''SELECT username
+                           FROM users
+                           WHERE username = %s;''',
+                           (permission_component.subject_user,)
+                           )
+            if not await cursor.fetchone():
+                raise errors.UserNotFound
+
             # Proceed to transfer ownership 
             await cursor.execute('''SELECT *
                                  FROM file_permissions
@@ -315,24 +330,37 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
                 asyncio.to_thread(base_ops.transfer_file,
                                   root=config.root_directory, file=permission_component.subject_file,
                                   previous_owner=permission_component.subject_file_owner, new_owner=permission_component.subject_user,
-                                  deleted_cache=deleted_cache, **cache_mapping),
+                                  deleted_cache=deleted_cache,
+                                  read_cache=read_cache, amendment_cache=amendment_cache),
                 timeout=config.file_transfer_timeout)
             if not new_fname:   # Failed to transfer file
                 raise errors.FileConflict(f'Failed to perform file transfer from {permission_component.subject_file_owner} to {permission_component.subject_user}')
             
             # It is important to rely on returned filename from transfer_file, because the new owner may have a file with the same name already in their directory. 
             # In such cases, a new filename is determined by prefixing the file with a UUID. Hence, filename must also be updated
-            await cursor.execute('''UPDATE file_permissions
-                                  SET file_owner = %s, filename = %s
-                                  WHERE file_owner = %s AND filename = %s;''',
-                                  (permission_component.subject_user, new_fname, permission_component.subject_file_owner, permission_component.subject_file,))
-
             await cursor.execute('''UPDATE files
                                  SET filename = %s, owner = %s
                                  WHERE filename = %s AND owner = %s;''',
-                                 (new_fname, permission_component.subject_user, permission_component.subject_file_owner, permission_component.subject_user,))
+                                 (new_fname,
+                                  permission_component.subject_user,
+                                  permission_component.subject_file,
+                                  auth_component.identity))
+            await cursor.execute('''UPDATE file_permissions
+                                  SET file_owner = %s, filename = %s
+                                  WHERE file_owner = %s AND filename = %s;''',
+                                  (permission_component.subject_user,
+                                   new_fname,
+                                   auth_component.identity,
+                                   permission_component.subject_file,))
         await proxy.commit()
-        transfer_datetime_iso = datetime.now().isoformat()
+
+        return (ResponseHeader.from_server(config=config,
+                                    version=header_component.version,
+                                    code=SuccessFlags.SUCCESSFUL_OWNERSHIP_TRANSFER,
+                                    ended_connection=header_component.finish),
+        ResponseBody(contents={'old_filepath' : os.path.join(permission_component.subject_file_owner, permission_component.subject_file),
+                                'new_filepath' : os.path.join(permission_component.subject_user, new_fname),
+                                'transfer_datetime' : datetime.now().isoformat()}))
     except Exception as e:
         # Before re-raising the same exception or a new corresponding ProtocolException, we need to rollback any file changes
         if new_fname:   # new_fname being not None implies the file was transferred, but an error occured at the database level
@@ -340,7 +368,8 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
                 asyncio.to_thread(base_ops.transfer_file,
                                   root=config.root_directory, file=new_fname, new_name=permission_component.subject_file,
                                   previous_owner=permission_component.subject_user, new_owner=permission_component.subject_file_owner,
-                                  deleted_cache=deleted_cache, **cache_mapping),
+                                  deleted_cache=deleted_cache,
+                                  read_cache=read_cache, amendment_cache=amendment_cache),
                 timeout=config.file_transfer_timeout)
             
         if isinstance(e, pg_exc.LockNotAvailable):
@@ -351,14 +380,9 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
                             log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
                                             log_category=db_models.LogType.DATABASE,
                                             log_details=format_exception_only(e)[0],
-                                            reported_severity=db_models.Seveirty.NON_CRITICAL_FAILURE)))
+                                            reported_severity=db_models.Severity.NON_CRITICAL_FAILURE)))
             
             raise errors.DatabaseFailure(f'Failed to transfer ownership of file {permission_component.subject_file} to {permission_component.subject_user}')
         raise e
     finally:
         await connection_master.reclaim_connection(proxy)
-
-    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_OWNERSHIP_TRANSFER, ended_connection=header_component.finish),
-            ResponseBody(contents={'old_filepath' : os.path.join(permission_component.subject_file_owner, permission_component.subject_file),
-                                   'new_filepath' : os.path.join(permission_component.subject_user, new_fname),
-                                   'transfer_datetime' : transfer_datetime_iso}))
