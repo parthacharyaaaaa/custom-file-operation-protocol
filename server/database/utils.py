@@ -1,11 +1,14 @@
-from typing import Optional, Literal
+from typing import Any, Optional, Literal
 from datetime import datetime
 
 from models.permissions import FilePermissions
 
 from psycopg.rows import dict_row
+from psycopg import sql
 
 from server.connectionpool import ConnectionPoolManager, ConnectionProxy
+
+__all__ = ('check_file_permission', 'get_user')
 
 async def check_file_permission(filename: str, owner: str, grantee: str,
                                 check_for: FilePermissions,
@@ -29,3 +32,27 @@ async def check_file_permission(filename: str, owner: str, grantee: str,
             await connection_master.reclaim_connection(proxy)
     
     return bool(role_mapping)
+
+async def get_user(username: str,
+                   connection_master: ConnectionPoolManager, proxy: Optional[ConnectionProxy] = None,
+                   reclaim_after: bool = False,
+                   lock_record: bool = False,
+                   level: Literal[1,2,3] = 1,
+                   check_existence: bool = False) -> Optional[dict[str, Any]]:
+    if not proxy:
+        reclaim_after = True
+        proxy: ConnectionProxy = await connection_master.request_connection(level)
+    query: sql.SQL = (sql.SQL('''SELECT {projection}
+                             FROM users
+                             WHERE username = {username}
+                             {lock};''')
+                             .format(projection=sql.SQL("username" if check_existence else "*"),
+                                     username=sql.Literal(username),
+                                     lock=sql.SQL('FOR UPDATE' if lock_record else '')))
+    try:
+        async with proxy.cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(query)
+            return await cursor.fetchone()
+    finally:
+        if reclaim_after:
+            await connection_master.reclaim_connection(proxy)
