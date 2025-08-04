@@ -145,6 +145,10 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
                                                     proxy=proxy):
             raise errors.InsufficientPermissions
         
+        if not await db_utils.get_user(username=permission_component.subject_user,
+                                       connection_master=connection_master, proxy=proxy, check_existence=True):
+            raise errors.UserNotFound(f'User {permission_component.subject_user} not found')
+        
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute('''SELECT role, granted_by
                                  FROM file_permissions
