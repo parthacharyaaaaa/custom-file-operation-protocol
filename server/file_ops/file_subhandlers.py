@@ -167,16 +167,22 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
     fpath: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
     read_data, cursor_position, eof_reached = await base_ops.read_file(root=config.root_directory, fpath=fpath,
                                                                        deleted_cache=delete_cache, read_cache=read_cache,
-                                                                       cursor_position=file_component.cursor_position, nbytes=file_component.chunk_size, reader_keepalive=file_component.cursor_keepalive,
-                                                                       purge_reader=header_component.finish, identifier=auth_component.identity, cached=True)
+                                                                       cursor_position=file_component.cursor_position, nbytes=file_component.chunk_size,
+                                                                       reader_keepalive=file_component.cursor_keepalive,
+                                                                       identifier=auth_component.identity, reader_cached=file_component.cursor_cached)
     
     ongoing_amendment: bool = bool(file_locks.get(fpath))
+    if (cursor_killed:=eof_reached and not file_component.cursor_keepalive):
+        cache_ops.remove_reader(read_cache, fpath, auth_component.identity)
 
-    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_READ, ended_connection=header_component.finish, config=config),
+    return (ResponseHeader.from_server(config=config,
+                                       version=header_component.version,
+                                       code=SuccessFlags.SUCCESSFUL_READ,
+                                       ended_connection=header_component.finish),
             ResponseBody(contents={'read' : read_data, 'ongoing_amendment' : ongoing_amendment},
-                         operation_ended=not eof_reached,
+                         operation_ended=eof_reached,
                          cursor_position=cursor_position,
-                         keepalive_accepted=bool(cache_ops.get_reader(read_cache, fpath, auth_component.identity))))
+                         keepalive_accepted=not cursor_killed))
 
 async def handle_creation(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
                           config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
