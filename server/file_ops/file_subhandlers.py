@@ -88,7 +88,7 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
                                     user_concerned=auth_component.identity)))
     
     return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_DELETION.value, ended_connection=header_component.finish, config=config),
-            ResponseBody(contents={'revoked_info' : revoked_info, 'deletion_time' : deletion_time.isoformat()}, return_partial=False))
+            ResponseBody(contents={'revoked_info' : revoked_info, 'deletion_time' : deletion_time.isoformat()}))
 
 async def handle_amendment(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
                            config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
@@ -174,7 +174,7 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
 
     return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_READ, ended_connection=header_component.finish, config=config),
             ResponseBody(contents={'read' : read_data, 'ongoing_amendment' : ongoing_amendment},
-                         return_partial=not eof_reached,
+                         operation_ended=not eof_reached,
                          cursor_position=cursor_position,
                          keepalive_accepted=bool(cache_ops.get_reader(read_cache, fpath, auth_component.identity))))
 
@@ -218,4 +218,4 @@ async def handle_creation(header_component: BaseHeaderComponent, auth_component:
         raise errors.FileConflict(file_component.subject_file, username=auth_component.identity)
     
     return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_CREATION.value, ended_connection=header_component.finish, config=config),
-            ResponseBody(return_partial=False, keepalive_accepted=False, contents={'path' : fpath, 'iso_epoch' : datetime.fromtimestamp(epoch).isoformat()}))
+            ResponseBody(operation_ended=True, keepalive_accepted=False, contents={'path' : fpath, 'iso_epoch' : datetime.fromtimestamp(epoch).isoformat()}))
