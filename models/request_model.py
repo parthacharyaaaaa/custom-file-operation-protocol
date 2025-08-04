@@ -39,7 +39,6 @@ class BaseFileComponent(BaseModel):
     write_data: Annotated[Optional[Union[str, bytes, memoryview]], Field(min_length=1, max_length=REQUEST_CONSTANTS.file.chunk_max_size, default=None)]    # For write operations, must be atleast 1 character if specified
     
     # Attributes exclusive to file reads
-    return_partial: Annotated[Optional[bool], Field(default=True)]
     cursor_keepalive: Annotated[Optional[bool], Field(default=False)]
 
     model_config = {

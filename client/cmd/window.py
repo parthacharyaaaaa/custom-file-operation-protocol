@@ -175,7 +175,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         '''
         parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args))
         file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory,
-                                                              chunk_size=parsed_args.chunk_size, write_data=None, return_partial=None,
+                                                              chunk_size=parsed_args.chunk_size, write_data=None,
                                                               cursor_position=parsed_args.pos)
         self.end_connection = parsed_args.bye
         await file_operations.read_remote_file(reader=self.reader, writer=self.writer,

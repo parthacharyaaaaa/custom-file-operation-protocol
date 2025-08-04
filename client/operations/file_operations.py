@@ -50,7 +50,6 @@ async def write_remote_file(reader: asyncio.StreamReader, writer: asyncio.Stream
     
     await display(file_messages.successful_file_amendment(file_component.subject_file_owner, file_component.subject_file, SuccessFlags.SUCCESSFUL_AMEND.value))
 
-
 async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              write_data: Union[str, bytes, bytearray, memoryview],
                              file_component: BaseFileComponent, chunk_size: int,
@@ -213,7 +212,7 @@ async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
             eof_reached: bool = len(contents) < chunk_size
             file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=session_manager.identity,
                                                                   chunk_size=chunk_size, write_data=contents,
-                                                                  return_partial=True, cursor_keepalive=eof_reached)
+                                                                  cursor_keepalive=eof_reached)
 
             await send_request(writer, BaseHeaderComponent(client_config.version, finish=eof_reached, category=CategoryFlag.FILE_OP, subcategory=FileFlags.APPEND), session_manager.auth_component, file_component)
 
