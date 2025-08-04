@@ -33,7 +33,7 @@ async def acquire_file_lock(file_locks: asyncio.PriorityQueue[tuple[db_models.Ac
 async def preemptive_eof_check(reader: AsyncBufferedReader) -> bool:
     if not await reader.read(1):
         return False
-    await reader.seek(-1)
+    await reader.seek(await reader.tell() - 1)
     return True
 
 async def read_file(root: os.PathLike, fpath: str,
