@@ -89,15 +89,16 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
                            client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                            read_limit: Optional[int] = None, chunked_display: bool = True) -> bytearray:
     read_data: bytearray = bytearray()
+    bytes_read: int = 0
     
     header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.READ)
-    valid_responses: tuple[str, str] = (IntermediaryFlags.PARTIAL_READ.value, SuccessFlags.SUCCESSFUL_READ.value)
 
     if not read_limit:
         read_limit = math.inf
-    while len(read_data) < read_limit:
+    while bytes_read < read_limit:
         file_component.cursor_keepalive = (read_limit - len(read_data)) < REQUEST_CONSTANTS.file.chunk_max_size
-
+        file_component.chunk_size = min(read_limit-bytes_read, file_component.chunk_size)
+        
         await send_request(writer,
                            header_component=header_component,
                            auth_component=session_manager.auth_component,
@@ -105,24 +106,25 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
         response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
         # TODO: Add notice/suspension for ongoing amendments
 
-        if response_header.code not in valid_responses:
+        if response_header.code != SuccessFlags.SUCCESSFUL_READ.value:
             await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.READ, code=response_header.code))
             return
         
         remote_read_data: bytes = response_body.contents.get('read')
-        file_component.cursor_position += len(remote_read_data)
-        read_finished: bool = response_header.code == SuccessFlags.SUCCESSFUL_READ.value
-
-        if remote_read_data is None and not read_finished:
+        if remote_read_data is None:
             await display(general_messages.missing_response_claim('read'))
-            break
+            return
+        
+        file_component.cursor_position += len(remote_read_data)
+        file_component.cursor_cached = True
+        bytes_read += len(remote_read_data)
 
         if chunked_display:
             await display(remote_read_data)
         else:
             read_data.append(remote_read_data)
-
-        if read_finished:
+        
+        if response_body.operation_ended:
             break
     
     if not chunked_display:
