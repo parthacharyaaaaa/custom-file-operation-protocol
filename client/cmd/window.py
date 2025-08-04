@@ -170,13 +170,13 @@ class ClientWindow(async_cmd.AsyncCmd):
 
     async def do_read(self, args: str) -> None:
         '''
-        READ [filename] [directory] [--limit] [--chunk-size] [--pos] [--chunked] [modifiers]
+        READ [filename] [directory] [--limit] [--chunk-size] [--pos] [--chunked] [--post-keepalive] [modifiers]
         Read a file from a remote directory.
         '''
         parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args))
         file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory,
-                                                              chunk_size=parsed_args.chunk_size, write_data=None,
-                                                              cursor_position=parsed_args.pos)
+                                                              chunk_size=parsed_args.chunk_size,
+                                                              cursor_position=parsed_args.pos, post_operation_cursor_keepalive=parsed_args.post_keepalive)
         self.end_connection = parsed_args.bye
         await file_operations.read_remote_file(reader=self.reader, writer=self.writer,
                                                file_component=file_component,

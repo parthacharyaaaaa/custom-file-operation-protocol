@@ -31,6 +31,7 @@ file_command_parser.add_argument('--chunk-size', required=False, type=arg_parser
 file_command_parser.add_argument('--limit', required=False, type=arg_parsers.parse_non_negative_int)
 file_command_parser.add_argument('--pos', required=False, type=arg_parsers.parse_non_negative_int, default=0)
 file_command_parser.add_argument('--chunked', required=False, action='store_true', default=True)
+file_command_parser.add_argument('--post-keepalive', required=False, action='store_true', default=False)
 
 for file_modifier in FileModifierCommands:
     file_command_parser.add_argument(f'-{file_modifier.value.lower()}', help=None, action='store_true')
