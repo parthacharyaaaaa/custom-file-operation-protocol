@@ -79,15 +79,8 @@ async def transfer_ownership(reader: asyncio.StreamReader, writer: asyncio.Strea
         await display(permission_messages.failed_permission_operation(permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user, response_header.code))
         return
     
-    new_fpath: str = response_body.contents.get('new_filepath')
-    if not new_fpath:
-        await display(general_messages.missing_response_claim('new_filepath'))
-    
-    transfer_iso_datetime: str = response_body.contents.get('transfer_datetime')
-    if not transfer_iso_datetime:
-        await display(general_messages.missing_response_claim('transfer_datetime'))
-    
-    print(new_fpath, transfer_iso_datetime, permission_component)
+
+    new_fpath, transfer_iso_datetime = await comms_utils.filter_claims(response_body.contents, "new_filepath", "transfer_datetime")    
     await display(permission_messages.successful_ownership_trasnfer(remote_directory=permission_component.subject_file_owner,
                                                                     remote_file=permission_component.subject_file,
                                                                     new_fpath=new_fpath,

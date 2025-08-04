@@ -143,10 +143,8 @@ async def create_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     if response_header.code != SuccessFlags.SUCCESSFUL_FILE_CREATION.value:
         await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.CREATE, response_header.code))
         return
-
-    iso_epoch: str = response_body.contents.get('iso_epoch')
-    if not iso_epoch:
-        await display(general_messages.missing_response_claim('iso_epoch'))
+    
+    iso_epoch, = await comms_utils.filter_claims(response_body.contents, "iso_epoch", default="N\A")
 
     await display(file_messages.succesful_file_creation(file_component.subject_file_owner, file_component.subject_file, iso_epoch, response_header.code))
 
@@ -177,6 +175,8 @@ async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     if not deletion_iso_datetime:
         await display(general_messages.malformed_response_body('deletion_time'))
 
+    deletion_iso_datetime, = await comms_utils.filter_claims(response_body.contents, "deletion_time")
+
     await display(file_messages.succesful_file_deletion(file_component.subject_file_owner, file_component.subject_file, revoked_info, deletion_iso_datetime, response_header.code))
 
 async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
@@ -202,9 +202,7 @@ async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
         await display(file_messages.failed_file_operation(session_manager.identity, remote_filename, FileFlags.CREATE, response_header.code))
         return
     
-    iso_epoch: str = creation_response_body.contents.get('iso_epoch')
-    if not iso_epoch:
-        await display(general_messages.missing_response_claim('iso_epoch'))
+    iso_epoch, = await comms_utils.filter_claims(response_body.contents, "iso_epoch")
 
     await display(file_messages.succesful_file_creation(session_manager.identity, remote_filename, iso_epoch or 'N\A'))
 

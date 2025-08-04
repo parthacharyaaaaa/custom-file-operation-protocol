@@ -6,6 +6,7 @@ from client.config import constants as client_constants
 from client.communication import utils as comm_utils 
 from client.communication.outgoing import send_request
 from client.communication.incoming import process_response
+from client.communication import utils as comms_utils
 from client.cmd.cmd_utils import display, format_dict
 from client.cmd.message_strings import auth_messages
 from client.cmd.message_strings import general_messages
@@ -31,13 +32,7 @@ async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
         await display(auth_messages.failed_auth_operation(operation=AuthFlags.REGISTER, code=response_header.code))
         return
     
-    epoch: float = response_body.contents.get('epoch')
-    if not epoch:
-        await display(general_messages.missing_response_claim('epoch'))
-    username: str = response_body.contents.get('username')
-    if not username:
-        await display(general_messages.missing_response_claim('username'))
-
+    epoch, username = await comms_utils.filter_claims(response_body.contents, "epoch", "username")
     await display(auth_messages.successful_user_creation(username or auth_component.identity, epoch))
 
 async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
@@ -54,12 +49,7 @@ async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
         await display(auth_messages.failed_auth_operation(AuthFlags.DELETE, response_header.code))
         return
 
-    deleted_count: int = response_body.contents.get('deleted_count')
-    if deleted_count is None:
-        await display(general_messages.missing_response_claim('deleted_count'))
-    deleted_files: list[str] = response_body.contents.get('deleted_files')
-    if deleted_files is None:
-        await display(general_messages.missing_response_claim('deleted_files'))
+    deleted_count, deleted_files = await comms_utils.filter_claims(response_body.contents, "deleted_count", "deleted_files")
     if actual_fcount:=len(deleted_files) != deleted_count:
         await display(general_messages.malformed_response_body(message=auth_messages.filecount_mismatch(deleted_count, actual_fcount)))
 
@@ -103,18 +93,11 @@ async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         await display(auth_messages.failed_auth_operation(AuthFlags.REFRESH, response_header.code))
         return
     
-    new_digest: bytes = response_body.contents.get('digest')
-    iteration: int = response_body.contents.get('iteration')
-
+    new_digest, iteration = await comms_utils.filter_claims(response_body.contents, "digest", "iteration")
     if not new_digest:
-        await display(auth_messages.failed_auth_operation(AuthFlags.REFRESH, ServerErrorFlags.INTERNAL_SERVER_ERROR.value),
-                      general_messages.missing_response_claim('digest'),
-                      sep=b'\n')
+        await display(auth_messages.failed_auth_operation(AuthFlags.REFRESH, ServerErrorFlags.INTERNAL_SERVER_ERROR.value))
         return
     
-    if not iteration:
-        await display(general_messages.missing_response_claim('iteration'))
-
     session_manager.session_metadata.update_digest(new_digest=new_digest)
 
     if iteration != session_manager.session_metadata.iteration + 1:
