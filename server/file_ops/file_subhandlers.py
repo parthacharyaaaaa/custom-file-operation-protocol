@@ -96,9 +96,12 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
                            delete_cache: TTLCache[str, str], 
                            amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> tuple[ResponseHeader, ResponseBody]:
     # Check permissions
-    if not await db_utils.check_file_permission(filename=file_component.subject_file, owner=file_component.subject_file_owner,
-                                                grantee=auth_component.identity, connection_master=connection_master,
-                                                check_for=FilePermissions.WRITE.value, check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
+    if not await db_utils.check_file_permission(filename=file_component.subject_file,
+                                                owner=file_component.subject_file_owner,
+                                                grantee=auth_component.identity,
+                                                connection_master=connection_master,
+                                                check_for=FilePermissions.WRITE.value,
+                                                check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
         err_str: str = f'User {auth_component.identity} does not have write permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
         asyncio.create_task(
             enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
@@ -126,13 +129,13 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
                                                     data=file_component.write_data.encode('utf-8'),
                                                     deleted_cache=delete_cache, amendment_cache=amendment_cache,
                                                     cursor_position=file_component.cursor_position or 0, writer_keepalive=file_component.cursor_keepalive, purge_writer=header_component.finish,
-                                                    identifier=auth_component.identity, cached=file_component.cursor_keepalive)
+                                                    identifier=auth_component.identity, writer_cached=file_component.cursor_cached)
     else:
         cursor_position = await base_ops.append_file(root=config.root_directory, fpath=fpath,
                                            data=file_component.write_data.encode('utf-8'),
                                            deleted_cache=delete_cache, amendment_cache=amendment_cache,
                                            append_writer_keepalive=file_component.cursor_keepalive, purge_append_writer=header_component.finish,
-                                           identifier=auth_component.identity, cached=file_component.cursor_keepalive)
+                                           identifier=auth_component.identity, writer_cached=file_component.cursor_keepalive)
     
     keepalive_accepted = cache_ops.get_reader(amendment_cache, fpath, auth_component.identity)
     if not keepalive_accepted:
