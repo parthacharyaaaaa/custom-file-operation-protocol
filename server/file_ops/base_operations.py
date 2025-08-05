@@ -76,52 +76,40 @@ async def read_file(root: os.PathLike, fpath: str,
 
 async def write_file(root: os.PathLike, fpath: str, data: bytes,
                      deleted_cache: TTLCache[str], amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]],
-                     cursor_position: int, writer_keepalive: bool = False,
-                     purge_writer: bool = False, identifier: Optional[str] = None, cached: bool = False) -> int:
+                     cursor_position: int,
+                     writer_keepalive: bool = False, purge_writer: bool = False, writer_cached: bool = False,
+                     identifier: Optional[str] = None) -> int:
     abs_fpath: os.PathLike = os.path.join(root, fpath)
     if deleted_cache.get(fpath) or not os.path.isfile(abs_fpath):
         raise FileNotFoundError()
     
-    # Only one coroutine is allowed to write to a file at a given time
-    if cached:
-        if not identifier: raise ValueError('Cached usage requires identifier for writer')
-        writer: AsyncBufferedIOBase = get_reader(amendment_cache, fpath, identifier)
-        writer_found: bool = writer is not None
-
-        if not writer_found:
-            writer: AsyncBufferedIOBase = await aiofiles.open(abs_fpath, 'wb')
+    writer: AsyncBufferedIOBase = None
+    if writer_cached:
+        if not identifier:
+            raise ValueError('Cached usage requires identifier for writer')
+        
+        writer = get_reader(amendment_cache, fpath, identifier)
+        if not writer:
+            writer = await aiofiles.open(abs_fpath, 'wb')
 
         if await writer.tell() != cursor_position:
             await writer.seek(cursor_position)
+    else:
+        writer = await aiofiles.open(abs_fpath, 'wb')
 
-        # Writer is ready now
-        try:
-            await writer.write(data)
-            if not (writer_found or purge_writer):
-                amendment_cache.setdefault(fpath, {}).update({identifier:writer})
-            if purge_writer:
-                remove_reader(amendment_cache, fpath, identifier)
-                await writer.close()
-        except IOError:
-            remove_reader(amendment_cache, fpath, identifier)
-            await writer.close()
-        
-        return cursor_position + len(data)
-        
-    writer: AsyncBufferedReader = await aiofiles.open(abs_fpath, mode='wb')
-    await writer.seek(cursor_position)
+    # Writer is ready now
     try:
         await writer.write(data)
-        if writer_keepalive:
+        if writer_keepalive and not writer_cached:
             amendment_cache.setdefault(fpath, {}).update({identifier:writer})
+        if purge_writer:
+            remove_reader(amendment_cache, fpath, identifier)
+            await writer.close()
     except IOError:
         remove_reader(amendment_cache, fpath, identifier)
         await writer.close()
-    finally:
-        if not (writer_keepalive or writer.closed):
-            await writer.close()
     
-    return cursor_position + len(data)
+    return await writer.tell()
 
 async def append_file(root: os.PathLike, fpath: str, data: Union[bytes, str], deleted_cache: TTLCache[str], amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]], append_writer_keepalive: bool = False, purge_append_writer: bool = False, identifier: Optional[str] = None, cached: bool = False) -> int:
     abs_fpath: os.PathLike = os.path.join(root, fpath)
