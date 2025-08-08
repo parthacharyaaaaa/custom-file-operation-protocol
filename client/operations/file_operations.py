@@ -17,10 +17,11 @@ from models.constants import REQUEST_CONSTANTS
 from models.cursor_flag import CursorFlag
 from models.flags import CategoryFlag, FileFlags
 from models.response_codes import SuccessFlags, IntermediaryFlags
-from models.request_model import BaseHeaderComponent, BaseFileComponent
+from models.request_model import BaseHeaderComponent, BaseFileComponent, BaseAuthComponent
 
 async def send_amendment_chunks(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                                 header_component: BaseHeaderComponent,
+                                auth_component: BaseAuthComponent,
                                 file_component: BaseFileComponent,
                                 write_view: memoryview,
                                 client_config: client_constants.ClientConfig,
@@ -35,7 +36,7 @@ async def send_amendment_chunks(reader: asyncio.StreamReader, writer: asyncio.St
 
         await send_request(writer=writer,
                             header_component=header_component,
-                            auth_component=session_manager.auth_component,
+                            auth_component=auth_component,
                             body_component=file_component)
 
         response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
@@ -54,10 +55,9 @@ async def replace_remote_file(reader: asyncio.StreamReader, writer: asyncio.Stre
 
     file_component.chunk_size = min(REQUEST_CONSTANTS.file.max_bytesize, min(view_length, file_component.chunk_size or REQUEST_CONSTANTS.file.chunk_max_size))
     file_component.write_data = write_view[:file_component.chunk_size]
-    end_reached: bool = len(file_component.write_data) == view_length
-    if not end_reached:
-        file_component.end_operation = False
-        file_component.cursor_bitfield |= CursorFlag.CURSOR_KEEPALIVE
+    file_component.end_operation = len(file_component.write_data) == view_length
+    if file_component.end_operation and post_op_cursor_keepalive:
+        file_component.cursor_bitfield |= CursorFlag.POST_OPERATION_CURSOR_KEEPALIVE
 
     # Initial header component would be file overwrite to truncate the previous file
     header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.OVERWRITE)
@@ -71,10 +71,17 @@ async def replace_remote_file(reader: asyncio.StreamReader, writer: asyncio.Stre
         await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.OVERWRITE, response_header.code))
         return
     
-    if not end_reached:
+    if not file_component.end_operation:
         header_component.subcategory = FileFlags.APPEND
-        file_component.cursor_bitfield |= CursorFlag.POST_OPERATION_CURSOR_KEEPALIVE
-        success: bool = await send_amendment_chunks(reader, writer, header_component, file_component, write_view[file_component.chunk_size:], client_config, post_op_cursor_keepalive, end_connection)
+        file_component.cursor_bitfield &= CursorFlag.POST_OPERATION_CURSOR_KEEPALIVE
+        success: bool = await send_amendment_chunks(reader=reader, writer=writer,
+                                                    header_component=header_component,
+                                                    file_component=file_component,
+                                                    auth_component=session_manager.auth_component,
+                                                    write_view=write_view[file_component.chunk_size:],
+                                                    client_config=client_config,
+                                                    post_op_cursor_keepalive=post_op_cursor_keepalive,
+                                                    end_connection=end_connection)
         if not success:
             await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.APPEND, response_header.code))
             return
