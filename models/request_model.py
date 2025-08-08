@@ -43,9 +43,10 @@ class BaseFileComponent(BaseModel):
     
     # Attributes exclusive to file operations
     cursor_bitfield: Annotated[Optional[int], Field(ge=0, default=0)]
+    end_operation: Annotated[bool, Field(default=True)]
 
     model_config = {
-        'arbitrary_types_allowed' : True      
+        'arbitrary_types_allowed' : True
     }
 
     @field_serializer('write_data', when_used='json-unless-none')
