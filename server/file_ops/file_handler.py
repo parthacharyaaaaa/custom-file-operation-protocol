@@ -22,8 +22,8 @@ FILE_SUBHANDLERS: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent, 
 _FILE_SUBHANDLER_MAPPING: MappingProxyType[int, FILE_SUBHANDLERS] = MappingProxyType(
     dict(
         zip(
-            FileFlags._member_map_.values(),
-            [handle_creation, handle_read, handle_amendment, handle_amendment, handle_deletion]
+            [FileFlags.CREATE, FileFlags.READ, FileFlags.WRITE, FileFlags.OVERWRITE, FileFlags.APPEND, FileFlags.DELETE],
+            [handle_creation, handle_read, handle_amendment, handle_amendment, handle_amendment, handle_deletion]
         )
     )
 )
