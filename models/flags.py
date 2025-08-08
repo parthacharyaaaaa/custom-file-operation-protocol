@@ -36,8 +36,9 @@ class PermissionFlags(IntFlag):
 
 class FileFlags(IntFlag):
     '''Supported subcategories for file-related operations'''
-    CREATE = 0b00000001
-    READ = 0b00000010
-    WRITE = 0b00000100
-    APPEND = 0b00001000
-    DELETE = 0b00010000
+    CREATE      = 0b00000001
+    READ        = 0b00000010
+    WRITE       = 0b00000100
+    OVERWRITE   = 0b00001000
+    APPEND      = 0b00010000
+    DELETE      = 0b00100000
