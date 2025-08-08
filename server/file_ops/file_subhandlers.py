@@ -5,6 +5,7 @@ import os
 from traceback import format_exception_only
 from typing import Any
 
+from models.cursor_flag import CursorFlag
 from models.flags import FileFlags
 from models.response_models import ResponseHeader, ResponseBody
 from models.response_codes import SuccessFlags
@@ -124,18 +125,22 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     cursor_position: int = None
     keepalive_accepted: bool = False
 
-    if header_component.subcategory & FileFlags.WRITE:
+    if header_component.subcategory & (FileFlags.WRITE | FileFlags.OVERWRITE):
         cursor_position = await base_ops.write_file(root=config.root_directory, fpath=fpath,
-                                                    data=file_component.write_data.encode('utf-8'),
+                                                    data=file_component.write_data,
                                                     deleted_cache=delete_cache, amendment_cache=amendment_cache,
-                                                    cursor_position=file_component.cursor_position or 0, writer_keepalive=file_component.cursor_keepalive, purge_writer=header_component.finish,
-                                                    identifier=auth_component.identity, writer_cached=file_component.cursor_cached)
+                                                    cursor_position=file_component.cursor_position or 0,
+                                                    writer_keepalive=file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE,
+                                                    purge_writer=file_component.end_operation or (file_component.cursor_bitfield & CursorFlag.PURGE_CURSOR),
+                                                    identifier=auth_component.identity,
+                                                    trunacate=header_component.subcategory & FileFlags.OVERWRITE)
     else:
         cursor_position = await base_ops.append_file(root=config.root_directory, fpath=fpath,
-                                           data=file_component.write_data.encode('utf-8'),
-                                           deleted_cache=delete_cache, amendment_cache=amendment_cache,
-                                           append_writer_keepalive=file_component.cursor_keepalive, purge_append_writer=header_component.finish,
-                                           identifier=auth_component.identity, writer_cached=file_component.cursor_keepalive)
+                                                     data=file_component.write_data,
+                                                     deleted_cache=delete_cache, amendment_cache=amendment_cache,
+                                                     append_writer_keepalive=file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE,
+                                                     purge_append_writer=file_component.end_operation or (file_component.cursor_bitfield & CursorFlag.PURGE_CURSOR),
+                                                     identifier=auth_component.identity)
     
     keepalive_accepted = cache_ops.get_reader(amendment_cache, fpath, auth_component.identity)
     if not keepalive_accepted:
