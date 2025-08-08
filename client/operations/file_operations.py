@@ -42,6 +42,7 @@ async def send_amendment_chunks(reader: asyncio.StreamReader, writer: asyncio.St
         response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
         if response_header.code != SuccessFlags.SUCCESSFUL_AMEND.value:
             return False
+        file_component.cursor_position += len(file_component.write_data)
     return True
 
 async def replace_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
@@ -87,6 +88,32 @@ async def replace_remote_file(reader: asyncio.StreamReader, writer: asyncio.Stre
             return
     
     await display(file_messages.successful_file_amendment(file_component.subject_file_owner, file_component.subject_file, SuccessFlags.SUCCESSFUL_AMEND.value))
+
+async def patch_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                              write_data: Union[str, bytes, bytearray],
+                              file_component: BaseFileComponent,
+                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
+                              post_op_cursor_keepalive: bool = False, end_connection: bool = False) -> None:
+    write_view: memoryview = op_utils.cast_as_memoryview(write_data)
+    view_length = len(write_view)
+
+    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.WRITE)
+    file_component.chunk_size = min(REQUEST_CONSTANTS.file.max_bytesize, min(view_length, file_component.chunk_size or REQUEST_CONSTANTS.file.chunk_max_size))
+    file_component.cursor_position = 0
+    success: bool = await send_amendment_chunks(reader=reader, writer=writer,
+                                                header_component=header_component,
+                                                auth_component=session_manager.auth_component,
+                                                file_component=file_component,
+                                                write_view=write_view,
+                                                client_config=client_config,
+                                                post_op_cursor_keepalive=post_op_cursor_keepalive,
+                                                end_connection=end_connection)
+    if not success:
+        await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.WRITE))
+        return
+    
+    await display(file_messages.successful_file_amendment(file_component.subject_file_owner, file_component.subject_file, SuccessFlags.SUCCESSFUL_AMEND.value))
+
 
 async def write_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                             write_data: Union[str, bytes, bytearray, memoryview],

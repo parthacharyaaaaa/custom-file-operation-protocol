@@ -202,9 +202,9 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                   client_config=self.client_config, session_manager=self.session_master,
                                                   post_op_cursor_keepalive=parsed_args.post_keepalive, end_connection=parsed_args.bye)
 
-    async def do_write(self, args: str) -> None:
+    async def do_patch(self, args: str) -> None:
         '''
-        WRITE [filename] [directory] [data] [--chunk-size] [--pos] [modifiers]
+        PATCH [filename] [directory] [data] [--chunk-size] [--pos] [--post-keepalive] [modifiers]
         Write into a file in a remote directory, overwriting previous contents
         If not specified, remote directory is determined based on remote session
         '''
@@ -216,10 +216,11 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                               chunk_size=parsed_args.chunk_size, write_data=None,
                                                               cursor_position=parsed_args.pos)
         self.end_connection = parsed_args.bye
-        await file_operations.write_remote_file(reader=self.reader, writer=self.writer,
+        await file_operations.patch_remote_file(reader=self.reader, writer=self.writer,
                                                 write_data=parsed_args.write_data,
                                                 file_component=file_component,
-                                                client_config=self.client_config, session_manager=self.session_master)
+                                                client_config=self.client_config, session_manager=self.session_master,
+                                                post_op_cursor_keepalive=parsed_args.post_keepalive, end_connection=parsed_args.bye)
 
     @require_auth_state(state=True)
     async def do_append(self, args: str) -> None:
