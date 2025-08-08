@@ -168,6 +168,7 @@ class ClientWindow(async_cmd.AsyncCmd):
                                           file_component=file_component,
                                           client_config=self.client_config, session_manager=self.session_master)
 
+    @require_auth_state(state=True)
     async def do_read(self, args: str) -> None:
         '''
         READ [filename] [directory] [--limit] [--chunk-size] [--pos] [--chunked] [--post-keepalive] [modifiers]
@@ -183,6 +184,7 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                client_config=self.client_config, session_manager=self.session_master,
                                                read_limit=parsed_args.limit, chunked_display=parsed_args.chunked)
     
+    @require_auth_state(state=True)
     async def do_replace(self, args: str) -> None:
         '''
         REPLACE [filename] [directory] [data] [--chunk-size] [--post-keepalive] [modifiers]
@@ -202,6 +204,7 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                   client_config=self.client_config, session_manager=self.session_master,
                                                   post_op_cursor_keepalive=parsed_args.post_keepalive, end_connection=parsed_args.bye)
 
+    @require_auth_state(state=True)
     async def do_patch(self, args: str) -> None:
         '''
         PATCH [filename] [directory] [data] [--chunk-size] [--pos] [--post-keepalive] [modifiers]
