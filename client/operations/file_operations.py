@@ -29,6 +29,7 @@ async def send_amendment_chunks(reader: asyncio.StreamReader, writer: asyncio.St
         file_component.write_data = write_view[offset:offset+file_component.chunk_size]
         end_reached = offset + file_component.chunk_size >= len(write_view)
         if end_reached:
+            file_component.end_operation = True
             file_component.cursor_bitfield |= CursorFlag.POST_OPERATION_CURSOR_KEEPALIVE if post_op_cursor_keepalive else 0
             header_component.finish = end_connection
 
@@ -54,7 +55,9 @@ async def replace_remote_file(reader: asyncio.StreamReader, writer: asyncio.Stre
     file_component.chunk_size = min(REQUEST_CONSTANTS.file.max_bytesize, min(view_length, file_component.chunk_size or REQUEST_CONSTANTS.file.chunk_max_size))
     file_component.write_data = write_view[:file_component.chunk_size]
     end_reached: bool = len(file_component.write_data) == view_length
-    file_component.cursor_bitfield |= CursorFlag.CURSOR_KEEPALIVE if not end_reached else 0
+    if not end_reached:
+        file_component.end_operation = False
+        file_component.cursor_bitfield |= CursorFlag.CURSOR_KEEPALIVE
 
     # Initial header component would be file overwrite to truncate the previous file
     header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.OVERWRITE)
