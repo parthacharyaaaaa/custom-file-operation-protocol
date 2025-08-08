@@ -1,8 +1,11 @@
 '''Module for defining schema of incoming requests'''
-from pydantic import BaseModel, Field, model_validator, IPvAnyAddress, field_serializer
 from typing import Annotated, Optional, Literal, Union, TypeAlias
+
 from models.constants import REQUEST_CONSTANTS
 from models.flags import CategoryFlag, PermissionFlags, AuthFlags, FileFlags
+from models.cursor_flag import CURSOR_BITS_CHECK
+
+from pydantic import BaseModel, Field, model_validator, IPvAnyAddress, field_serializer, field_validator
 
 RequestComponentType: TypeAlias = Union['BaseHeaderComponent', 'BaseAuthComponent', 'BaseFileComponent', 'BasePermissionComponent']
 
@@ -38,10 +41,8 @@ class BaseFileComponent(BaseModel):
     chunk_size: Annotated[Optional[int], Field(ge=1, le=REQUEST_CONSTANTS.file.chunk_max_size, default=None)]  # For read operations. If specified, must be atleast 1 byte
     write_data: Annotated[Optional[Union[str, bytes, memoryview]], Field(min_length=1, max_length=REQUEST_CONSTANTS.file.chunk_max_size, default=None)]    # For write operations, must be atleast 1 character if specified
     
-    # Attributes exclusive to file reads
-    cursor_cached: Annotated[Optional[bool], Field(default=False)]
-    cursor_keepalive: Annotated[Optional[bool], Field(default=False)]
-    post_operation_cursor_keepalive: Annotated[Optional[bool], Field(default=False)]
+    # Attributes exclusive to file operations
+    cursor_bitfield: Annotated[Optional[int], Field(ge=0, default=0)]
 
     model_config = {
         'arbitrary_types_allowed' : True      
@@ -52,6 +53,13 @@ class BaseFileComponent(BaseModel):
         if isinstance(write_data, str): return write_data.encode('utf-8')
         elif isinstance(write_data, memoryview): return bytes(write_data)
         return write_data
+
+    @field_validator('cursor_bitfield', mode='after')
+    @classmethod
+    def validate_cursor_bitfield(cls, bits: int) -> int:
+        if bits & CURSOR_BITS_CHECK:
+            raise ValueError(f'Unrecognised flags provided in cursor bitfield')
+        return bits
 
 class BasePermissionComponent(BaseModel):
     # Request subjects
@@ -87,9 +95,8 @@ class BaseHeaderComponent(BaseModel):
     finish: Annotated[bool, Field(default=False)]
 
     # Message category
-    category: Annotated[CategoryFlag, Field(frozen=True, ge=1)]
-    subcategory: Annotated[Union[AuthFlags, PermissionFlags, FileFlags], Field(frozen=True, ge=1)]
-
+    category: Annotated[CategoryFlag, Field(ge=1)]
+    subcategory: Annotated[Union[AuthFlags, PermissionFlags, FileFlags], Field(ge=1)]
 
     model_config = {
         'use_enum_values' : True
