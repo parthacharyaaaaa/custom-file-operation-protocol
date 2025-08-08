@@ -8,14 +8,75 @@ from client.cmd.cmd_utils import display
 from client.cmd.message_strings import file_messages, general_messages
 from client.communication.outgoing import send_request
 from client.communication.incoming import process_response
+from client.operations import utils as op_utils
 from client.communication import utils as comms_utils
 from client.config import constants as client_constants
 from client import session_manager
 
 from models.constants import REQUEST_CONSTANTS
+from models.cursor_flag import CursorFlag
 from models.flags import CategoryFlag, FileFlags
 from models.response_codes import SuccessFlags, IntermediaryFlags
 from models.request_model import BaseHeaderComponent, BaseFileComponent
+
+async def send_amendment_chunks(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                                header_component: BaseHeaderComponent,
+                                file_component: BaseFileComponent,
+                                write_view: memoryview,
+                                client_config: client_constants.ClientConfig,
+                                post_op_cursor_keepalive: bool = False, end_connection: bool = False):
+    for offset in range(0, len(write_view), file_component.chunk_size):
+        file_component.write_data = write_view[offset:offset+file_component.chunk_size]
+        end_reached = offset + file_component.chunk_size >= len(write_view)
+        if end_reached:
+            file_component.cursor_bitfield |= CursorFlag.POST_OPERATION_CURSOR_KEEPALIVE if post_op_cursor_keepalive else 0
+            header_component.finish = end_connection
+
+        await send_request(writer=writer,
+                            header_component=header_component,
+                            auth_component=session_manager.auth_component,
+                            body_component=file_component)
+
+        response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
+        if response_header.code != SuccessFlags.SUCCESSFUL_AMEND.value:
+            return False
+    return True
+
+async def replace_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                              write_data: Union[str, bytes, bytearray],
+                              file_component: BaseFileComponent,
+                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
+                              post_op_cursor_keepalive: bool = False, end_connection: bool = False) -> None:
+    '''Completely replace the contents of an existing remote file'''
+    write_view: memoryview = op_utils.cast_as_memoryview(write_data)
+    view_length = len(write_view)
+
+    file_component.chunk_size = min(REQUEST_CONSTANTS.file.max_bytesize, min(view_length, file_component.chunk_size or REQUEST_CONSTANTS.file.chunk_max_size))
+    file_component.write_data = write_view[:file_component.chunk_size]
+    end_reached: bool = len(file_component.write_data) == view_length
+    file_component.cursor_bitfield |= CursorFlag.CURSOR_KEEPALIVE if not end_reached else 0
+
+    # Initial header component would be file overwrite to truncate the previous file
+    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.OVERWRITE)
+    await send_request(writer=writer,
+                       header_component=header_component,
+                       auth_component=session_manager.auth_component,
+                       body_component=file_component)
+    
+    response_header, response_body = await process_response(reader=reader, writer=writer, timeout=client_config.read_timeout)
+    if response_header.code != SuccessFlags.SUCCESSFUL_AMEND.value:
+        await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.OVERWRITE, response_header.code))
+        return
+    
+    if not end_reached:
+        header_component.subcategory = FileFlags.APPEND
+        file_component.cursor_bitfield |= CursorFlag.POST_OPERATION_CURSOR_KEEPALIVE
+        success: bool = await send_amendment_chunks(reader, writer, header_component, file_component, write_view[file_component.chunk_size:], client_config, post_op_cursor_keepalive, end_connection)
+        if not success:
+            await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.APPEND, response_header.code))
+            return
+    
+    await display(file_messages.successful_file_amendment(file_component.subject_file_owner, file_component.subject_file, SuccessFlags.SUCCESSFUL_AMEND.value))
 
 async def write_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                             write_data: Union[str, bytes, bytearray, memoryview],
@@ -34,14 +95,14 @@ async def write_remote_file(reader: asyncio.StreamReader, writer: asyncio.Stream
     for offset in range(0, view_length, file_component.chunk_size):
         end_reached: bool = offset + file_component.chunk_size >= view_length
         file_component.write_data = write_view[offset:offset+file_component.chunk_size]
-        
-        file_component.cursor_keepalive = not end_reached
+        file_component.cursor_bitfield
 
         await send_request(writer=writer,
                            header_component=header_component,
                            auth_component=session_manager.auth_component,
                            body_component=file_component)
 
+        header_component.subcategory = FileFlags.APPEND
         response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
         if response_header.code not in valid_responses:
             await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.APPEND, response_header.code))
