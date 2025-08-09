@@ -4,14 +4,15 @@ import os
 import math
 from typing import Optional, Union, Any, Sequence
 
+from client import session_manager
 from client.cmd.cmd_utils import display
 from client.cmd.message_strings import file_messages, general_messages
 from client.communication.outgoing import send_request
 from client.communication.incoming import process_response
-from client.operations import utils as op_utils
 from client.communication import utils as comms_utils
 from client.config import constants as client_constants
-from client import session_manager
+from client.operations import utils as op_utils
+from client.operations import info_operations
 
 from models.constants import REQUEST_CONSTANTS
 from models.cursor_flag import CursorFlag
@@ -144,7 +145,8 @@ async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
 async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                            file_component: BaseFileComponent,
                            client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
-                           read_limit: Optional[int] = None, chunked_display: bool = True) -> bytearray:
+                           read_limit: Optional[int] = None,
+                           chunked_display: bool = True, end_connection: bool = False) -> bytearray:
     read_data: bytearray = bytearray()
     bytes_read: int = 0
     
@@ -153,9 +155,10 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
     if not read_limit:
         read_limit = math.inf
     while bytes_read < read_limit:
-        file_component.cursor_keepalive = (read_limit - len(read_data)) < REQUEST_CONSTANTS.file.chunk_max_size
         file_component.chunk_size = min(read_limit-bytes_read, file_component.chunk_size)
-        
+        if file_component.chunk_size+bytes_read >= read_limit:  # End reached
+            header_component.finish = end_connection
+
         await send_request(writer,
                            header_component=header_component,
                            auth_component=session_manager.auth_component,
@@ -165,6 +168,8 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
 
         if response_header.code != SuccessFlags.SUCCESSFUL_READ.value:
             await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.READ, code=response_header.code))
+            if not chunked_display:
+                await display(b'bytes read:', read_data or b'None')
             return
         
         remote_read_data: bytes = response_body.contents.get('read')
@@ -173,7 +178,6 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
             return
         
         file_component.cursor_position += len(remote_read_data)
-        file_component.cursor_cached = True
         bytes_read += len(remote_read_data)
 
         if chunked_display:
@@ -186,6 +190,10 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
     
     if not chunked_display:
         await display(read_data)
+    
+    if end_connection and not header_component.finish:
+        # Send empty heartbeat to end connection
+        await info_operations.send_heartbeat(reader, writer, client_config, session_manager, True)
 
 async def create_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                       file_component: BaseFileComponent,
