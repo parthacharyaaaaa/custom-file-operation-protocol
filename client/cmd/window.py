@@ -145,7 +145,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         Filename must include file extension
         '''
         parsed_args: argparse.Namespace = command_parsers.filedir_parser.parse_args(shlex.split(args))
-        file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory)
+        file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=self.session_master.identity)
         self.end_connection = parsed_args.bye
 
         await file_operations.create_file(reader=self.reader, writer=self.writer,
@@ -161,7 +161,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         Filename must include file extension
         '''
         parsed_args: argparse.Namespace = command_parsers.filedir_parser.parse_args(shlex.split(args))
-        file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory)
+        file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=self.session_master.identity)
         self.end_connection = parsed_args.bye
 
         await file_operations.delete_file(reader=self.reader, writer=self.writer,
@@ -319,7 +319,7 @@ class ClientWindow(async_cmd.AsyncCmd):
     @require_auth_state(state=True)
     async def do_hide(self, args: str) -> None:
         '''
-        HIDE [filename] [directory] [modifiers]
+        HIDE [filename] [modifiers]
         '''
         parsed_args: argparse.Namespace = command_parsers.filedir_parser.parse_args(shlex.split(args))
         permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=parsed_args.file, subject_file_owner=self.session_master.identity)
