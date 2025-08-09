@@ -2,7 +2,7 @@ import asyncio
 import argparse
 import functools
 import shlex
-from typing import Optional, Callable, Any
+from typing import Callable, Any
 
 from client import session_manager
 from client.cmd import async_cmd
@@ -17,11 +17,9 @@ from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermi
 
 class ClientWindow(async_cmd.AsyncCmd):
     def inject_default_dirname(self) -> None:
-        for action in command_parsers.filedir_parser._actions:
-            if action.dest == 'directory':
-                action.default = self.session_master.identity
-                action.required = False
-                break
+        directory_action: argparse.Action = next(filter(lambda action : action.dest == 'directory', command_parsers.filedir_parser._actions))
+        directory_action.required = False
+        directory_action.default = self.session_master.identity
 
     # Overrides
     def __init__(self, host: str, port: int,
