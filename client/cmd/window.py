@@ -228,7 +228,7 @@ class ClientWindow(async_cmd.AsyncCmd):
     @require_auth_state(state=True)
     async def do_append(self, args: str) -> None:
         '''
-        APPEND [filename] [directory] [write data] [--chunk-size] [modifiers]
+        APPEND [filename] [directory] [write data] [--chunk-size] [--post-keepalive] [modifiers]
         Append to a file from a remote directory.
         '''
         parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args))
@@ -244,7 +244,7 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                  file_component=file_component,
                                                  chunk_size=parsed_args.chunk_size,
                                                  client_config=self.client_config, session_manager=self.session_master,
-                                                 end_connection=parsed_args.bye)
+                                                 end_connection=parsed_args.bye, post_op_cursor_keepalive=parsed_args.post_keepalive)
     
     @require_auth_state(state=True)
     async def do_upload(self, arg: str) -> None:
