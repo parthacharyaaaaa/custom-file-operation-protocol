@@ -176,8 +176,8 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
     read_data, cursor_position, eof_reached = await base_ops.read_file(root=config.root_directory, fpath=fpath,
                                                                        deleted_cache=delete_cache, read_cache=read_cache,
                                                                        cursor_position=file_component.cursor_position, nbytes=file_component.chunk_size,
-                                                                       reader_keepalive=file_component.cursor_keepalive,
-                                                                       identifier=auth_component.identity, reader_cached=file_component.cursor_cached)
+                                                                       reader_keepalive=file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE,
+                                                                       identifier=auth_component.identity)
     
     ongoing_amendment: bool = bool(file_locks.get(fpath))
     if (cursor_killed:=eof_reached and not file_component.cursor_keepalive):
