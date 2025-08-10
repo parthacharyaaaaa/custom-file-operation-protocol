@@ -1,9 +1,11 @@
 import argparse
-from types import SimpleNamespace
 import sys
+from typing import Optional, Final
 
 class ExplicitArgumentParser(argparse.ArgumentParser):
     '''Wrapper over argparse.ArgumentParser to allow parsing errors to raise exceptions to be handled explicitly'''
+    exclusion_message: Final[str] = 'Note: Argument "{arg}" accepted but not used for this operation.'
+
     def parse_known_args(self, args=None, namespace=None):
         if args is None:
             # args default to the system args
@@ -39,7 +41,7 @@ class ExplicitArgumentParser(argparse.ArgumentParser):
             delattr(namespace, argparse._UNRECOGNIZED_ARGS_ATTR)
         return namespace, args
     
-    def parse_args(self, args=None, namespace=None):
+    def parse_args(self, args=None, namespace=None, exclusion_set: Optional[set[str]] = None):
         '''Parse args (yep)
         
         Raises:
@@ -50,4 +52,11 @@ class ExplicitArgumentParser(argparse.ArgumentParser):
         args, argv = self.parse_known_args(args, namespace)
         if argv:
             raise argparse.ArgumentError(None, f'unrecognized arguments: {", ".join(argv)}')
+        
+        if exclusion_set:
+            display_strings: tuple[str] = tuple(ExplicitArgumentParser.exclusion_message.format(arg=excluded_arg)
+                                                for excluded_arg in 
+                                                exclusion_set.intersection(set(key for key, value in args.__dict__.items() if value is not None)))
+            if display_strings:
+                print(*display_strings, sep='\n')
         return args
