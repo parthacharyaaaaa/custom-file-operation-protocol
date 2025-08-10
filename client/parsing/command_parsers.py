@@ -2,7 +2,7 @@
 import argparse
 
 from client.parsing.explicit_argument_parser import ExplicitArgumentParser
-from client.cmd.commands import GeneralModifierCommands, FileModifierCommands, AuthModifierCommands, PermissionModifierCommands
+from client.cmd.commands import GeneralModifierCommands, AuthModifierCommands, FileModifierCommands, PermissionModifierCommands
 from client.parsing import arg_parsers
 
 from models.constants import REQUEST_CONSTANTS
@@ -19,25 +19,20 @@ filedir_parser.add_argument('file', type=arg_parsers.parse_filename)
 filedir_parser.add_argument('directory', type=arg_parsers.parse_dir)
 
 ### File operations ###
-
 file_command_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='file_command_parser', parents=[filedir_parser], add_help=False)
-file_command_parser.add_argument('write_data', default=memoryview(b''), type=arg_parsers.parse_write_data)
+file_command_parser.add_argument(FileModifierCommands.WRITE_DATA.value, default=memoryview(b''), type=arg_parsers.parse_write_data)
 
 # Awful hack alert
-added_action = next(filter(lambda action : action.dest == 'write_data', file_command_parser._actions))
+added_action = next(filter(lambda action : action.dest == FileModifierCommands.WRITE_DATA.value, file_command_parser._actions))
 added_action.required = False
 
-file_command_parser.add_argument('--chunk-size', required=False, type=arg_parsers.parse_chunk_size, default=REQUEST_CONSTANTS.file.chunk_max_size)
-file_command_parser.add_argument('--limit', required=False, type=arg_parsers.parse_non_negative_int)
-file_command_parser.add_argument('--pos', required=False, type=arg_parsers.parse_non_negative_int, default=0)
-file_command_parser.add_argument('--chunked', required=False, action='store_true', default=True)
-file_command_parser.add_argument('--post-keepalive', required=False, action='store_true', default=False)
-
-for file_modifier in FileModifierCommands:
-    file_command_parser.add_argument(f'-{file_modifier.value.lower()}', help=None, action='store_true')
+file_command_parser.add_argument(f'--{FileModifierCommands.CHUNK_SIZE.value}', required=False, type=arg_parsers.parse_chunk_size, default=REQUEST_CONSTANTS.file.chunk_max_size)
+file_command_parser.add_argument(f'--{FileModifierCommands.LIMIT.value}', required=False, type=arg_parsers.parse_non_negative_int)
+file_command_parser.add_argument(f'--{FileModifierCommands.POSITION.value}', required=False, type=arg_parsers.parse_non_negative_int)
+file_command_parser.add_argument(f'--{FileModifierCommands.CHUNKED.value}', required=False, action='store_true', default=True)
+file_command_parser.add_argument(f'--{FileModifierCommands.POST_OPERATION_CURSOR_KEEPALIVE.value}', required=False, action='store_true', default=False)
 
 ### Permission operations ###
-
 permission_command_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='permission_command_parser', parents=[filedir_parser], add_help=False)
 permission_command_parser.add_argument('user', type=arg_parsers.parse_username_arg, default=None)
 permission_command_parser.add_argument('role', type=arg_parsers.parse_granted_role)

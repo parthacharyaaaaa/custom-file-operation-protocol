@@ -9,12 +9,13 @@ class AuthCommands(Enum):
     SREF: str = 'SREF'
 
 class FileCommands(Enum):
-    CREATE: str = 'CREATE'
-    DELETE: str = 'DELETE'
-    UPLOAD: str = 'UPLOAD'
-    READ: str = 'READ'
-    APPEND: str = 'APPEND'
-    WRITE: str = 'WRITE'
+    CREATE      = 'create'
+    DELETE      = 'delete'
+    UPLOAD      = 'upload'
+    READ        = 'read'
+    APPEND      = 'append'
+    PATCH       = 'patch'
+    REPLACE     = 'replace'
 
 class PermissionCommands(Enum):
     GRANT: str = 'GRANT'
@@ -26,12 +27,19 @@ class PermissionCommands(Enum):
 class HeartbeatCommands(Enum):
     HEARTBEAT: str = 'HEARTBEAT'
 
+class FileModifierCommands(Enum):
+    WRITE_DATA                          = 'write_data'
+    CURSOR_KEEPALIVE                    = 'keepalive'
+    POST_OPERATION_CURSOR_KEEPALIVE     = 'post-keepalive'
+    PURGE_CURSOR                        = 'purge'
+    CHUNK_SIZE                          = 'chunk-size'
+    CHUNKED                             = 'chunked'
+    POSITION                            = 'position'
+    LIMIT                               = 'limit'
+
+
 class GeneralModifierCommands(Enum):
     END_CONNECTION: str = 'BYE'
-    CURSOR_KEEPALIVE: str = 'CK'
-
-class FileModifierCommands(Enum):
-    RETURNED_PARTIAL: str = 'RP'
 
 class AuthModifierCommands(Enum):
     DISPLAY_CREDENTIALS: str = 'DC'
