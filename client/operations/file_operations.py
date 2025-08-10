@@ -127,6 +127,7 @@ async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
 
     header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.APPEND)
     file_component.chunk_size = min(REQUEST_CONSTANTS.file.chunk_max_size, chunk_size)
+    file_component.cursor_position = 0  # In case passed file_component has the default None value to cursor_position, causing it's updation to break later in _send_amendmend_chunks
 
     success: bool = await _send_amendment_chunks(reader=reader, writer=writer,
                                                  header_component=header_component,
