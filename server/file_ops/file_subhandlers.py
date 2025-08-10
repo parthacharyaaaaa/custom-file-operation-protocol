@@ -180,7 +180,7 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
                                                                        identifier=auth_component.identity)
     
     ongoing_amendment: bool = bool(file_locks.get(fpath))
-    if (cursor_killed:=eof_reached and not file_component.cursor_keepalive):
+    if (cursor_killed:=eof_reached and not (file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE)):
         cache_ops.remove_reader(read_cache, fpath, auth_component.identity)
 
     return (ResponseHeader.from_server(config=config,
