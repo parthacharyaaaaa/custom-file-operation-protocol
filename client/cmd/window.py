@@ -6,16 +6,20 @@ from typing import Callable, Any
 
 from client import session_manager
 from client.cmd import async_cmd
-from client.parsing import command_parsers
-from client.cmd import operational_utils as op_utils
 from client.cmd import errors as cmd_errors 
+from client.cmd import operational_utils as op_utils
+from client.cmd.commands import FileModifierCommands
 from client.config import constants as client_constants
 from client.operations import auth_operations, file_operations, permission_operations, info_operations
+from client.parsing import command_parsers
 
-from models.constants import REQUEST_CONSTANTS
 from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent
 
 class ClientWindow(async_cmd.AsyncCmd):
+
+    REPLACE_APPEND_EXCLUSION_SET: frozenset[str] = frozenset((FileModifierCommands.CHUNKED.value, FileModifierCommands.LIMIT.value, FileModifierCommands.POSITION.value))
+    PATCH_EXCLUSION_SET: frozenset[str] = frozenset((FileModifierCommands.LIMIT.value, FileModifierCommands.CHUNKED.value))
+
     def inject_default_dirname(self) -> None:
         directory_action: argparse.Action = next(filter(lambda action : action.dest == 'directory', command_parsers.filedir_parser._actions))
         directory_action.required = False
@@ -175,7 +179,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args))
         file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory,
                                                               chunk_size=parsed_args.chunk_size,
-                                                              cursor_position=parsed_args.pos)
+                                                              cursor_position=parsed_args.position)
         self.end_connection = parsed_args.bye
         await file_operations.read_remote_file(reader=self.reader, writer=self.writer,
                                                file_component=file_component,
@@ -189,7 +193,8 @@ class ClientWindow(async_cmd.AsyncCmd):
         Write into a file in a remote directory, overwriting previous contents
         If not specified, remote directory is determined based on remote session
         '''
-        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args))
+        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args),
+                                                                                         exclusion_set=ClientWindow.REPLACE_APPEND_EXCLUSION_SET)
         if not parsed_args.write_data:
             raise cmd_errors.CommandException('Missing write data for WRITE operation')
         
@@ -205,17 +210,18 @@ class ClientWindow(async_cmd.AsyncCmd):
     @require_auth_state(state=True)
     async def do_patch(self, args: str) -> None:
         '''
-        PATCH [filename] [directory] [data] [--chunk-size] [--pos] [--post-keepalive] [modifiers]
+        PATCH [filename] [directory] [data] [--chunk-size] [--position] [--post-keepalive] [modifiers]
         Write into a file in a remote directory, overwriting previous contents
         If not specified, remote directory is determined based on remote session
         '''
-        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args))
+        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args),
+                                                                                         exclusion_set=ClientWindow.PATCH_EXCLUSION_SET)
         if not parsed_args.write_data:
             raise cmd_errors.CommandException('Missing write data for WRITE operation')
         
         file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory,
                                                               chunk_size=parsed_args.chunk_size, write_data=None,
-                                                              cursor_position=parsed_args.pos)
+                                                              cursor_position=parsed_args.position)
         self.end_connection = parsed_args.bye
         await file_operations.patch_remote_file(reader=self.reader, writer=self.writer,
                                                 write_data=parsed_args.write_data,
@@ -229,13 +235,13 @@ class ClientWindow(async_cmd.AsyncCmd):
         APPEND [filename] [directory] [write data] [--chunk-size] [--post-keepalive] [modifiers]
         Append to a file from a remote directory.
         '''
-        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args))
+        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args),
+                                                                                         exclusion_set=ClientWindow.REPLACE_APPEND_EXCLUSION_SET)
         if not parsed_args.write_data:
             raise cmd_errors.CommandException('Missing write data for APPEND operation')
         
         file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=parsed_args.directory,
-                                                              chunk_size=parsed_args.chunk_size, write_data=None,
-                                                              cursor_position=parsed_args.pos)
+                                                              chunk_size=parsed_args.chunk_size, write_data=None)
         self.end_connection = parsed_args.bye
         await file_operations.append_remote_file(reader=self.reader, writer=self.writer,
                                                  write_data=parsed_args.write_data,
