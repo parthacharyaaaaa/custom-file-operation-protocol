@@ -249,11 +249,18 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                  end_connection=parsed_args.bye, post_op_cursor_keepalive=parsed_args.post_keepalive)
     
     @require_auth_state(state=True)
-    async def do_upload(self, arg: str) -> None:
+    async def do_upload(self, args: str) -> None:
         '''
-        UPLOAD [local_fpath] [filename] [--chunk] [modifiers]
+        UPLOAD [local_fpath] [--remote-filename] [--chunk-size] [--remote-fpath] [modifiers]
         Upload a local file to a remote directory.
         '''
+        parsed_args: argparse.Namespace = command_parsers.local_filedir_parser.parse_args(shlex.split(args))
+        self.end_connection = parsed_args.bye
+        await file_operations.upload_remote_file(reader=self.reader, writer=self.writer,
+                                                 local_fpath=parsed_args.local_filepath, remote_filename=parsed_args.remote_filename,
+                                                 client_config=self.client_config, session_manager=self.session_master,
+                                                 chunk_size=parsed_args.chunk_size, end_connection=parsed_args.bye)
+
 
     @require_auth_state(state=True)
     async def do_grant(self, args: str) -> None:
