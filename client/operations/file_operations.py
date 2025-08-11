@@ -2,6 +2,7 @@ import asyncio
 import aiofiles
 import os
 import math
+import mmap
 from typing import Optional, Union, Any, Sequence
 
 from client import session_manager
@@ -17,7 +18,7 @@ from client.operations import info_operations
 from models.constants import REQUEST_CONSTANTS
 from models.cursor_flag import CursorFlag
 from models.flags import CategoryFlag, FileFlags
-from models.response_codes import SuccessFlags, IntermediaryFlags
+from models.response_codes import SuccessFlags
 from models.request_model import BaseHeaderComponent, BaseFileComponent, BaseAuthComponent
 
 __all__ = ('replace_remote_file', 'patch_remote_file', 'append_remote_file', 'read_remote_file', 'create_file', 'delete_file', 'upload_remote_file')
@@ -247,46 +248,51 @@ async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     await display(file_messages.succesful_file_deletion(file_component.subject_file_owner, file_component.subject_file, revoked_info, deletion_iso_datetime, response_header.code))
 
 async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                             local_fpath: str, 
                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
-                             remote_filename: Optional[str] = None, chunk_size: Optional[int] = None,
-                             end_connection: bool = False, cursor_keepalive: bool = False) -> None:
-    if not os.path.isfile(local_fpath):
-        await display(file_messages.file_not_found(local_fpath))
-    
+                             local_fpath: str, remote_filename: Optional[str] = None, chunk_size: Optional[int] = None,
+                             end_connection: bool = False, post_op_cursor_keepalive: bool = True) -> None:    
     if not remote_filename:
         remote_filename = os.path.basename(local_fpath)
 
-    # Create remote file
-    file_creation_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=session_manager.identity, cursor_keepalive=cursor_keepalive)
-    await send_request(writer,
-                       BaseHeaderComponent(version=client_config.version, finish=end_connection, category=CategoryFlag.FILE_OP, subcategory=FileFlags.CREATE),
-                       session_manager.auth_component,
-                       file_creation_component)
+    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.CREATE)
+    file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=session_manager.identity)
+    await send_request(writer=writer,
+                       header_component=header_component,
+                       auth_component=session_manager.auth_component,
+                       body_component=file_component)
 
     creation_response_header, creation_response_body = await process_response(reader, writer, client_config.read_timeout)
-    if creation_response_header != SuccessFlags.SUCCESSFUL_FILE_CREATION:
-        await display(file_messages.failed_file_operation(session_manager.identity, remote_filename, FileFlags.CREATE, response_header.code))
+    if creation_response_header.code != SuccessFlags.SUCCESSFUL_FILE_CREATION.value:
+        await display(file_messages.failed_file_operation(session_manager.identity, remote_filename, FileFlags.CREATE, creation_response_header.code))
         return
     
-    iso_epoch, = await comms_utils.filter_claims(response_body.contents, "iso_epoch")
-
+    iso_epoch, = await comms_utils.filter_claims(creation_response_body.contents, "iso_epoch")
     await display(file_messages.succesful_file_creation(session_manager.identity, remote_filename, iso_epoch or 'N\A'))
 
-    chunk_size = max(REQUEST_CONSTANTS.file.max_bytesize, (chunk_size or -1))
-    valid_responses: tuple[str] = (SuccessFlags.SUCCESSFUL_AMEND.value, IntermediaryFlags.PARTIAL_AMEND.value)
+    file_component.chunk_size = max(REQUEST_CONSTANTS.file.max_bytesize, (chunk_size or -1))
+    file_component.cursor_position = 0
+    header_component.subcategory = FileFlags.APPEND
+
+    success: bool = False
     async with aiofiles.open(local_fpath, 'rb') as src_file:
-        while contents := await src_file.read(chunk_size):
-            eof_reached: bool = len(contents) < chunk_size
-            file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=session_manager.identity,
-                                                                  chunk_size=chunk_size, write_data=contents,
-                                                                  cursor_keepalive=eof_reached)
-
-            await send_request(writer, BaseHeaderComponent(client_config.version, finish=eof_reached, category=CategoryFlag.FILE_OP, subcategory=FileFlags.APPEND), session_manager.auth_component, file_component)
-
-            response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
-            if response_header.code not in valid_responses:
-                await display(file_messages.successful_file_amendment(session_manager.identity, remote_filename, response_header.code))
-                return
+        file_mmap: mmap.mmap = mmap.mmap(src_file.fileno(), 0, access=mmap.ACCESS_READ)
+        try:
+            write_view: memoryview = memoryview(file_mmap)
+            success = await _send_amendment_chunks(reader=reader, writer=writer,
+                                                   header_component=header_component,
+                                                   auth_component=session_manager.auth_component,
+                                                   file_component=file_component,
+                                                   write_view=write_view,
+                                                   client_config=client_config,
+                                                   post_op_cursor_keepalive=post_op_cursor_keepalive,
+                                                   end_connection=end_connection)
+        finally:
+            write_view.release()
+            file_component.write_data = None
+            file_mmap.close()
+        
+        if not success:
+            await display(file_messages.successful_file_amendment(session_manager.identity, remote_filename))
+            return
     
     await display(file_messages.successful_file_amendment(session_manager.identity, remote_filename))
