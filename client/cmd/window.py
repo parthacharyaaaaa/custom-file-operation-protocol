@@ -8,7 +8,7 @@ from client import session_manager
 from client.cmd import async_cmd
 from client.cmd import errors as cmd_errors 
 from client.cmd import operational_utils as op_utils
-from client.cmd.commands import FileModifierCommands
+from client.cmd.commands import FileModifierCommands, FileCommands
 from client.config import constants as client_constants
 from client.operations import auth_operations, file_operations, permission_operations, info_operations
 from client.parsing import command_parsers
@@ -19,11 +19,6 @@ class ClientWindow(async_cmd.AsyncCmd):
 
     REPLACE_APPEND_EXCLUSION_SET: frozenset[str] = frozenset((FileModifierCommands.CHUNKED.value, FileModifierCommands.LIMIT.value, FileModifierCommands.POSITION.value))
     PATCH_EXCLUSION_SET: frozenset[str] = frozenset((FileModifierCommands.LIMIT.value, FileModifierCommands.CHUNKED.value))
-
-    def inject_default_dirname(self) -> None:
-        directory_action: argparse.Action = next(filter(lambda action : action.dest == 'directory', command_parsers.filedir_parser._actions))
-        directory_action.required = False
-        directory_action.default = self.session_master.identity
 
     # Overrides
     def __init__(self, host: str, port: int,
@@ -37,8 +32,9 @@ class ClientWindow(async_cmd.AsyncCmd):
         self.session_master: session_manager.SessionManager = session_master
         self.connection_ended: bool = False
 
-        # Update filedir argument parser to include default value of directory as user identity
-        self.inject_default_dirname()
+        # Update file-related argument parsers to include default value of directory as user identity
+        command_parsers.filedir_parser.inject_default_argument('directory', default=self.session_master.identity, required=False)
+        command_parsers.local_filedir_parser.inject_default_argument('directory', default=self.session_master.identity, required=False)
 
         self.prompt = f'{host}:{port}>'
         super().__init__(completekey, stdin, stdout)
@@ -82,7 +78,9 @@ class ClientWindow(async_cmd.AsyncCmd):
                                         auth_component=auth_component,
                                         client_config=self.client_config, session_manager=self.session_master,
                                         display_credentials=parsed_args.dc, end_connection=self.end_connection)
-        self.inject_default_dirname()
+        
+        command_parsers.filedir_parser.inject_default_argument('directory', default=self.session_master.identity, required=False)
+        command_parsers.local_filedir_parser.inject_default_argument('directory', default=self.session_master.identity, required=False)
 
     @require_auth_state(state=True)
     async def do_sterm(self, args: str) -> None:

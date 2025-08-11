@@ -1,5 +1,6 @@
 import argparse
 import sys
+import warnings
 from typing import Optional, Final
 
 class ExplicitArgumentParser(argparse.ArgumentParser):
@@ -60,3 +61,11 @@ class ExplicitArgumentParser(argparse.ArgumentParser):
             if display_strings:
                 print(*display_strings, sep='\n')
         return args
+    
+    def inject_default_argument(self, positional_argument: str, **action_kw) -> None:
+        target_action: argparse.Action = next(filter(lambda action : action.dest == positional_argument, self._actions))
+        for attr_name, attr_value in action_kw.items():
+            if not hasattr(target_action, attr_name):
+                warnings.warn(f'Argument parser {self} has no attribute: {attr_name}')
+                continue
+            setattr(target_action, attr_name, attr_value)
