@@ -6,6 +6,7 @@ import mmap
 from typing import Optional, Union, Any, Sequence
 
 from client import session_manager
+from client.auxillary.typing import SupportsBuffer
 from client.cmd.cmd_utils import display
 from client.cmd.message_strings import file_messages, general_messages
 from client.communication.outgoing import send_request
@@ -50,7 +51,7 @@ async def _send_amendment_chunks(reader: asyncio.StreamReader, writer: asyncio.S
     return True
 
 async def replace_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                              write_data: Union[str, bytes, bytearray],
+                              write_data: Union[str, SupportsBuffer],
                               file_component: BaseFileComponent,
                               client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                               post_op_cursor_keepalive: bool = False, end_connection: bool = False) -> None:
@@ -94,7 +95,7 @@ async def replace_remote_file(reader: asyncio.StreamReader, writer: asyncio.Stre
     await display(file_messages.successful_file_amendment(file_component.subject_file_owner, file_component.subject_file, SuccessFlags.SUCCESSFUL_AMEND.value))
 
 async def patch_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                              write_data: Union[str, bytes, bytearray],
+                              write_data: Union[str, SupportsBuffer],
                               file_component: BaseFileComponent,
                               client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                               post_op_cursor_keepalive: bool = False, end_connection: bool = False) -> None:
@@ -119,7 +120,7 @@ async def patch_remote_file(reader: asyncio.StreamReader, writer: asyncio.Stream
     await display(file_messages.successful_file_amendment(file_component.subject_file_owner, file_component.subject_file, SuccessFlags.SUCCESSFUL_AMEND.value))
 
 async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                             write_data: Union[str, bytes, bytearray],
+                             write_data: Union[str, SupportsBuffer],
                              file_component: BaseFileComponent, chunk_size: int,
                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                              post_op_cursor_keepalive: bool = False, end_connection: bool = False) -> None:
