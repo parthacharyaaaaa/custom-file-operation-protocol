@@ -1,8 +1,9 @@
 import asyncio
 
 from client import session_manager
+from client.auxillary import operational_utils
 from client.config import constants as client_constants
-from client.communication import incoming, outgoing, utils as comm_utils
+from client.communication import incoming, outgoing
 from client.cmd import cmd_utils
 
 from models.request_model import BaseHeaderComponent
@@ -13,7 +14,7 @@ async def send_heartbeat(reader: asyncio.StreamReader, writer: asyncio.StreamWri
                          client_config: client_constants.ClientConfig, session_master: session_manager.SessionManager,
                          end_connection: bool = False) -> None:
     
-    header_component: BaseHeaderComponent = comm_utils.make_header_component(client_config, session_master, finish=end_connection, category=CategoryFlag.HEARTBEAT, subcategory=1)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_master, finish=end_connection, category=CategoryFlag.HEARTBEAT, subcategory=1)
 
     await outgoing.send_request(writer, header_component)
 

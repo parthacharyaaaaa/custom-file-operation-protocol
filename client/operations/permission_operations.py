@@ -2,12 +2,12 @@ import asyncio
 from typing import Sequence
 
 from client import session_manager
+from client.auxillary import operational_utils
 from client.config import constants as client_constants
 from client.cmd.cmd_utils import display
 from client.cmd.message_strings import permission_messages, general_messages
 from client.communication.incoming import process_response
 from client.communication.outgoing import send_request
-from client.communication import utils as comms_utils
 
 from models.permissions import RoleTypes, ROLE_MAPPING
 from models.response_codes import SuccessFlags
@@ -29,11 +29,11 @@ async def grant_permission(reader: asyncio.StreamReader, writer: asyncio.StreamW
     else:
         raise ValueError('Invalid role')
     
-    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config=client_config,
-                                                                              session_manager=session_manager,
-                                                                              category=CategoryFlag.PERMISSION,
-                                                                              subcategory=subcategory_bits,
-                                                                              finish=end_connection)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config=client_config,
+                                                                                    session_manager=session_manager,
+                                                                                    category=CategoryFlag.PERMISSION,
+                                                                                    subcategory=subcategory_bits,
+                                                                                    finish=end_connection)
     await send_request(writer=writer,
                        header_component=header_component,
                        auth_component=session_manager.auth_component,
@@ -51,7 +51,7 @@ async def revoke_permission(reader: asyncio.StreamReader, writer: asyncio.Stream
                             permission_component: BasePermissionComponent,
                             client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                             end_connection: bool = False) -> None:
-    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.PERMISSION, PermissionFlags.REVOKE)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.PERMISSION, PermissionFlags.REVOKE)
     await send_request(writer=writer,
                        header_component=header_component,
                        auth_component=session_manager.auth_component,
@@ -69,7 +69,7 @@ async def transfer_ownership(reader: asyncio.StreamReader, writer: asyncio.Strea
                              permission_component: BasePermissionComponent,
                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                              end_connection: bool = False) -> str:
-    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.PERMISSION, PermissionFlags.TRANSFER, finish=end_connection)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.PERMISSION, PermissionFlags.TRANSFER, finish=end_connection)
     await send_request(writer=writer,
                        header_component=header_component,
                        auth_component=session_manager.auth_component,
@@ -80,7 +80,7 @@ async def transfer_ownership(reader: asyncio.StreamReader, writer: asyncio.Strea
         return
     
 
-    new_fpath, transfer_iso_datetime = await comms_utils.filter_claims(response_body.contents, "new_filepath", "transfer_datetime")    
+    new_fpath, transfer_iso_datetime = await operational_utils.filter_claims(response_body.contents, "new_filepath", "transfer_datetime")    
     await display(permission_messages.successful_ownership_trasnfer(remote_directory=permission_component.subject_file_owner,
                                                                     remote_file=permission_component.subject_file,
                                                                     new_fpath=new_fpath,
@@ -90,7 +90,7 @@ async def publicise_remote_file(reader: asyncio.StreamReader, writer: asyncio.St
                                 permission_component: BasePermissionComponent,
                                 client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                                 end_connection: bool = False) -> None:
-    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.PERMISSION, PermissionFlags.PUBLICISE, finish=end_connection)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.PERMISSION, PermissionFlags.PUBLICISE, finish=end_connection)
     await send_request(writer=writer,
                        header_component=header_component,
                        auth_component=session_manager.auth_component,
@@ -107,7 +107,7 @@ async def hide_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
                            permission_component: BasePermissionComponent,
                            client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                            end_connection: bool = False):
-    header_component: BaseHeaderComponent = comms_utils.make_header_component(client_config, session_manager, CategoryFlag.PERMISSION, PermissionFlags.HIDE, finish=end_connection)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.PERMISSION, PermissionFlags.HIDE, finish=end_connection)
     await send_request(writer=writer,
                        header_component=header_component,
                        auth_component=session_manager.auth_component,

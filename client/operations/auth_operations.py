@@ -2,11 +2,10 @@ import asyncio
 from typing import Any
 
 from client import session_manager
+from client.auxillary import operational_utils
 from client.config import constants as client_constants
-from client.communication import utils as comm_utils 
 from client.communication.outgoing import send_request
 from client.communication.incoming import process_response
-from client.communication import utils as comms_utils
 from client.cmd.cmd_utils import display, format_dict
 from client.cmd.message_strings import auth_messages
 from client.cmd.message_strings import general_messages
@@ -22,7 +21,7 @@ async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
                              auth_component: BaseAuthComponent,
                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                              display_credentials: bool = False, end_connection: bool = False) -> None:
-    header_component: BaseHeaderComponent = comm_utils.make_header_component(client_config, session_manager, CategoryFlag.AUTH, AuthFlags.REGISTER, finish=end_connection)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.AUTH, AuthFlags.REGISTER, finish=end_connection)
     await send_request(writer=writer,
                        header_component=header_component,
                        auth_component=auth_component)
@@ -32,14 +31,14 @@ async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
         await display(auth_messages.failed_auth_operation(operation=AuthFlags.REGISTER, code=response_header.code))
         return
     
-    epoch, username = await comms_utils.filter_claims(response_body.contents, "epoch", "username")
+    epoch, username = await operational_utils.filter_claims(response_body.contents, "epoch", "username")
     await display(auth_messages.successful_user_creation(username or auth_component.identity, epoch))
 
 async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              auth_component: BaseAuthComponent,
                              client_config: client_constants.ClientConfig, session_master: session_manager.SessionManager,
                              end_connection: bool = False) -> None:
-    header_component: BaseHeaderComponent = comm_utils.make_header_component(client_config, session_master, CategoryFlag.AUTH, AuthFlags.DELETE, finish=end_connection)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_master, CategoryFlag.AUTH, AuthFlags.DELETE, finish=end_connection)
     await send_request(writer,
                        header_component=header_component,
                        auth_component=auth_component)
@@ -49,7 +48,7 @@ async def delete_remote_user(reader: asyncio.StreamReader, writer: asyncio.Strea
         await display(auth_messages.failed_auth_operation(AuthFlags.DELETE, response_header.code))
         return
 
-    deleted_count, deleted_files = await comms_utils.filter_claims(response_body.contents, "deleted_count", "deleted_files")
+    deleted_count, deleted_files = await operational_utils.filter_claims(response_body.contents, "deleted_count", "deleted_files")
     if actual_fcount:=len(deleted_files) != deleted_count:
         await display(general_messages.malformed_response_body(message=auth_messages.filecount_mismatch(deleted_count, actual_fcount)))
 
@@ -59,7 +58,7 @@ async def authorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                     auth_component: BaseAuthComponent,
                     client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                     display_credentials: bool = False, end_connection: bool = False) -> None:
-    header_component: BaseHeaderComponent = comm_utils.make_header_component(client_config,  session_manager, CategoryFlag.AUTH, AuthFlags.LOGIN)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config,  session_manager, CategoryFlag.AUTH, AuthFlags.LOGIN)
     await send_request(writer=writer,
                        header_component=header_component,
                        auth_component=auth_component)
@@ -93,7 +92,7 @@ async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         await display(auth_messages.failed_auth_operation(AuthFlags.REFRESH, response_header.code))
         return
     
-    new_digest, iteration = await comms_utils.filter_claims(response_body.contents, "digest", "iteration")
+    new_digest, iteration = await operational_utils.filter_claims(response_body.contents, "digest", "iteration")
     if not new_digest:
         await display(auth_messages.failed_auth_operation(AuthFlags.REFRESH, ServerErrorFlags.INTERNAL_SERVER_ERROR.value))
         return
@@ -111,7 +110,7 @@ async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 async def end_remote_session(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                              display_credentials: bool = False, end_connection: bool = False) -> None:
-    header_component: BaseHeaderComponent = comm_utils.make_header_component(client_config, session_manager, CategoryFlag.AUTH, AuthFlags.LOGOUT, finish=end_connection)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.AUTH, AuthFlags.LOGOUT, finish=end_connection)
     await send_request(writer=writer,
                        header_component=header_component,
                        auth_component=session_manager.auth_component)

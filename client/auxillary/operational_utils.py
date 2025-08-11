@@ -1,16 +1,21 @@
-'''Helper functions for client communcication'''
+'''Auxillary functions for client operations'''
 import time
 from typing import Any, Optional, Union, Mapping
 
-from client.session_manager import SessionManager
-from client.config.constants import ClientConfig
-
-from models.request_model import BaseHeaderComponent
-from models.flags import CategoryFlag, AuthFlags, PermissionFlags, FileFlags
-from client.cmd.message_strings import general_messages
+from client.auxillary.typing import SupportsBuffer
 from client.cmd import cmd_utils
+from client.cmd.message_strings import general_messages
+from client.config.constants import ClientConfig
+from client.session_manager import SessionManager
 
-__all__ = ('make_header_component',)
+from models.flags import CategoryFlag, AuthFlags, PermissionFlags, FileFlags
+from models.request_model import BaseHeaderComponent
+
+__all__ = ('cast_as_memoryview', 'make_header_component', 'filter_claims')
+
+def cast_as_memoryview(arg: Union[str, SupportsBuffer]):
+    if isinstance(arg, str): return memoryview(arg.encode(encoding='utf-8'))
+    return memoryview(arg)
 
 def make_header_component(client_config: ClientConfig, session_manager: SessionManager,
                           category: CategoryFlag, subcategory: Union[AuthFlags, PermissionFlags, FileFlags] ,
