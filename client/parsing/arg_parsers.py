@@ -1,5 +1,5 @@
 '''Parsers for individual arguments'''
-
+import os
 import re
 from models.constants import REQUEST_CONSTANTS
 from models.permissions import RoleTypes
@@ -13,6 +13,11 @@ def parse_dir(dir: str) -> str:
     if not (dir:=dir.strip()).isalnum():
         raise ValueError('Invalid directory name')
     return dir
+
+def parse_filepath(fpath: str) -> str:
+    if not (os.path.isfile(fpath)):
+        raise FileNotFoundError(f'{fpath} not found in local file system')
+    return fpath
 
 def parse_non_negative_int(arg: str) -> int:
     if not (arg:=arg.strip()).isnumeric():

@@ -18,6 +18,14 @@ filedir_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='filedir_pa
 filedir_parser.add_argument('file', type=arg_parsers.parse_filename)
 filedir_parser.add_argument('directory', type=arg_parsers.parse_dir)
 
+local_filedir_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='local_filedir_parser', parents=[generic_modifier_parser], add_help=False)
+local_filedir_parser.add_argument('local_filepath', type=arg_parsers.parse_filepath)
+local_filedir_parser.add_argument('--directory', type=arg_parsers.parse_dir)
+local_filedir_parser.add_argument('--remote-filename', type=arg_parsers.parse_filename)
+local_filedir_parser.add_argument(f'--{FileModifierCommands.CHUNK_SIZE.value}', required=False, type=arg_parsers.parse_chunk_size, default=REQUEST_CONSTANTS.file.chunk_max_size)
+local_filedir_parser.add_argument(f'--{FileModifierCommands.POSITION.value}', required=False, type=arg_parsers.parse_non_negative_int)
+local_filedir_parser.add_argument(f'--{FileModifierCommands.POST_OPERATION_CURSOR_KEEPALIVE.value}', required=False, action='store_true', default=False)
+
 ### File operations ###
 file_command_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='file_command_parser', parents=[filedir_parser], add_help=False)
 file_command_parser.add_argument(FileModifierCommands.WRITE_DATA.value, default=memoryview(b''), type=arg_parsers.parse_write_data)
