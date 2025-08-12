@@ -4,6 +4,7 @@ from typing import Annotated, Optional, Literal, Union, TypeAlias
 from models.constants import REQUEST_CONSTANTS
 from models.flags import CategoryFlag, PermissionFlags, AuthFlags, FileFlags
 from models.cursor_flag import CURSOR_BITS_CHECK
+from models.typing import SubcategoryFlags
 
 from pydantic import BaseModel, Field, model_validator, IPvAnyAddress, field_serializer, field_validator
 
@@ -104,7 +105,7 @@ class BaseHeaderComponent(BaseModel):
 
     # Message category
     category: Annotated[CategoryFlag, Field(ge=1)]
-    subcategory: Annotated[Union[AuthFlags, PermissionFlags, FileFlags], Field(ge=1)]
+    subcategory: Annotated[SubcategoryFlags, Field(ge=1)]
 
     model_config = {
         'use_enum_values' : True

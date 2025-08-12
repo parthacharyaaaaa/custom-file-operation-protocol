@@ -2,20 +2,22 @@
 from time import time
 from typing import Annotated, Optional, Any
 
-from server.errors import ProtocolException
 
-from models.constants import REQUEST_CONSTANTS, RESPONSE_CONSTANTS
+from models.constants import REQUEST_CONSTANTS
 from models.response_codes import CODES
-from server.config.server_config import ServerConfig
+from models.typing import ResponseCode
 
 from pydantic import BaseModel, IPvAnyAddress, Field
+
+from server.config.server_config import ServerConfig
+from server.errors import ProtocolException
 
 class ResponseHeader(BaseModel):
     # Protocol metadata
     version: Annotated[str, Field(min_length=5, max_length=12, pattern=REQUEST_CONSTANTS.header.version_regex)]
     
     # Response metadata
-    code: Annotated[str, Field(min_length=3, pattern=RESPONSE_CONSTANTS.header.code_regex)]
+    code: Annotated[ResponseCode, Field(frozen=True)]
 
     # Responder metadata
     responder_hostname: Annotated[IPvAnyAddress, Field(frozen=True)]
@@ -27,6 +29,10 @@ class ResponseHeader(BaseModel):
     
     # Connection status
     ended_connection: Annotated[bool, Field(default=False)]
+
+    model_config = {
+        'use_enum_values' : True
+    }
 
     def validate_code(self) -> bool:
         for response_category in CODES:
