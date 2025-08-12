@@ -1,14 +1,17 @@
 import asyncio
 import argparse
 import functools
+import mmap
 import shlex
-from typing import Callable, Any
+from typing import Any, Callable, Final
+
+import aiofiles
 
 from client import session_manager
 from client.cmd import async_cmd
 from client.cmd import errors as cmd_errors 
 from client.cmd import operational_utils as op_utils
-from client.cmd.commands import FileModifierCommands, FileCommands
+from client.cmd.commands import FileModifierCommands
 from client.config import constants as client_constants
 from client.operations import auth_operations, file_operations, permission_operations, info_operations
 from client.parsing import command_parsers
@@ -17,8 +20,8 @@ from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermi
 
 class ClientWindow(async_cmd.AsyncCmd):
 
-    REPLACE_APPEND_EXCLUSION_SET: frozenset[str] = frozenset((FileModifierCommands.CHUNKED.value, FileModifierCommands.LIMIT.value, FileModifierCommands.POSITION.value))
-    PATCH_EXCLUSION_SET: frozenset[str] = frozenset((FileModifierCommands.LIMIT.value, FileModifierCommands.CHUNKED.value))
+    REPLACE_APPEND_EXCLUSION_SET: Final[frozenset[str]] = frozenset((FileModifierCommands.CHUNKED.value, FileModifierCommands.LIMIT.value, FileModifierCommands.POSITION.value))
+    PATCH_EXCLUSION_SET: Final[frozenset[str]] = frozenset((FileModifierCommands.LIMIT.value, FileModifierCommands.CHUNKED.value))
 
     # Overrides
     def __init__(self, host: str, port: int,
@@ -34,7 +37,7 @@ class ClientWindow(async_cmd.AsyncCmd):
 
         # Update file-related argument parsers to include default value of directory as user identity
         command_parsers.filedir_parser.inject_default_argument('directory', default=self.session_master.identity, required=False)
-        command_parsers.local_filedir_parser.inject_default_argument('directory', default=self.session_master.identity, required=False)
+        command_parsers.local_filedir_parser.inject_default_argument('remote_directory', default=self.session_master.identity, required=False)
 
         self.prompt = f'{host}:{port}>'
         super().__init__(completekey, stdin, stdout)
@@ -80,7 +83,7 @@ class ClientWindow(async_cmd.AsyncCmd):
                                         display_credentials=parsed_args.dc, end_connection=self.end_connection)
         
         command_parsers.filedir_parser.inject_default_argument('directory', default=self.session_master.identity, required=False)
-        command_parsers.local_filedir_parser.inject_default_argument('directory', default=self.session_master.identity, required=False)
+        command_parsers.local_filedir_parser.inject_default_argument('remote_directory', default=self.session_master.identity, required=False)
 
     @require_auth_state(state=True)
     async def do_sterm(self, args: str) -> None:
@@ -261,6 +264,65 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                  client_config=self.client_config, session_manager=self.session_master,
                                                  chunk_size=parsed_args.chunk_size, end_connection=parsed_args.bye)
 
+    @require_auth_state(state=True)
+    async def do_patchfrom(self, args: str) -> None:
+        '''
+        PATCHFROM [local_fpath] [remote_filename] [remote_directory] [--chunk-size] [--position] [--post-keepalive] [modifiers]
+        Write into a file in a remote directory, overwriting previous contents
+        '''
+        parsed_args: argparse.Namespace = command_parsers.local_filedir_parser.parse_args(shlex.split(args))
+        self.end_connection = parsed_args.bye
+
+        file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.remote_filename,
+                                                              subject_file_owner=parsed_args.remote_directory,
+                                                              cursor_position=parsed_args.position,
+                                                              chunk_size=parsed_args.chunk_size)
+
+        async with aiofiles.open(parsed_args.local_filepath, 'rb') as file_reader:
+            file_mmap: mmap.mmap = mmap.mmap(file_reader.fileno(), 0, access=mmap.ACCESS_READ)
+            try:
+                await file_operations.patch_remote_file(reader=self.reader, writer=self.writer,
+                                                        write_data=file_mmap,
+                                                        file_component=file_component,
+                                                        client_config=self.client_config,
+                                                        session_manager=self.session_master,
+                                                        post_op_cursor_keepalive=parsed_args.post_keepalive, end_connection=parsed_args.bye)
+            finally:
+                # file_operations.patch_remote_file (or any other function it calls) might be creating smaller memoryview instances
+                # of a memoryview made from file_mmap when sending chunks of data, and these will then live on as the write_data attribute,
+                # causing an error when trying to close mmap
+                file_component.write_data = None
+                file_mmap.close()
+
+    @require_auth_state(state=True)
+    async def do_replacefrom(self, args: str) -> None:
+        '''
+        REPLACEFROM [local_filepath] [remote_filename] [remote_directory] [--chunk-size] [--post-keepalive] [modifiers]
+        Write into a file in a remote directory, overwriting previous contents
+        If not specified, remote directory is determined based on remote session
+        '''
+        parsed_args: argparse.Namespace = command_parsers.local_filedir_parser.parse_args(shlex.split(args))
+        self.end_connection = parsed_args.bye
+
+        file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.remote_filename,
+                                                              subject_file_owner=parsed_args.remote_directory,
+                                                              chunk_size=parsed_args.chunk_size)
+
+        async with aiofiles.open(parsed_args.local_fpath, 'rb') as file_reader:
+            file_mmap: mmap.mmap = mmap.mmap(file_reader.fileno(), 0, access=mmap.ACCESS_READ)
+            try:
+                await file_operations.replace_remote_file(reader=self.reader, writer=self.writer,
+                                                          write_data=file_mmap,
+                                                          file_component=file_component,
+                                                          client_config=self.client_config,
+                                                          session_manager=self.session_master,
+                                                          post_op_cursor_keepalive=parsed_args.post_keepalive, end_connection=parsed_args.bye)
+            finally:
+                # file_operations.replace_remote_file (or any other function it calls) might be creating smaller memoryview instances
+                # of a memoryview made from file_mmap when sending chunks of data, and these will then live on as the write_data attribute,
+                # causing an error when trying to close mmap
+                file_component.write_data = None
+                file_mmap.close()
 
     @require_auth_state(state=True)
     async def do_grant(self, args: str) -> None:
