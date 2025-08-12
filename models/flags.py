@@ -5,10 +5,19 @@ __all__ = ('CategoryFlag', 'AuthFlags', 'PermissionFlags', 'FileFlags')
 
 class CategoryFlag(IntFlag):
     '''Supported categories for operations'''
-    HEARTBEAT = 0b0001
-    AUTH = 0b0010
-    FILE_OP = 0b0100
-    PERMISSION = 0b1000
+    INFO        = 0b0001
+    AUTH        = 0b0010
+    FILE_OP     = 0b0100
+    PERMISSION  = 0b1000
+
+class InfoFlags(IntFlag):
+    '''Supported subcategories for info-related operations'''
+    CONTRIBUTORS            = 0b00000001
+    FILE_METADATA           = 0b00000010
+    USER_METADATA           = 0b00000100
+    PERMISSION_METADATA     = 0b00001000
+
+    VERBOSE                 = 0b10000000
 
 class AuthFlags(IntFlag):
     '''Supported subcategories for auth-related operations'''
