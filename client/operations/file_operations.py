@@ -30,6 +30,10 @@ async def _send_amendment_chunks(reader: asyncio.StreamReader, writer: asyncio.S
                                 write_view: memoryview,
                                 client_config: client_constants.ClientConfig,
                                 post_op_cursor_keepalive: bool = False, end_connection: bool = False):
+    # In case passed file_component has the default None value to cursor_position, causing it's updation to break later in _send_amendmend_chunks
+    if file_component.cursor_position is None:
+        file_component.cursor_position = 0
+    
     for offset in range(0, len(write_view), file_component.chunk_size):
         file_component.write_data = write_view[offset:offset+file_component.chunk_size]
         end_reached = offset + file_component.chunk_size >= len(write_view)
@@ -103,7 +107,6 @@ async def patch_remote_file(reader: asyncio.StreamReader, writer: asyncio.Stream
 
     header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.WRITE)
     file_component.chunk_size = min(REQUEST_CONSTANTS.file.max_bytesize, min(view_length, file_component.chunk_size or REQUEST_CONSTANTS.file.chunk_max_size))
-    file_component.cursor_position = 0
     success: bool = await _send_amendment_chunks(reader=reader, writer=writer,
                                                 header_component=header_component,
                                                 auth_component=session_manager.auth_component,
@@ -128,7 +131,6 @@ async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
 
     header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.APPEND)
     file_component.chunk_size = min(REQUEST_CONSTANTS.file.chunk_max_size, chunk_size)
-    file_component.cursor_position = 0  # In case passed file_component has the default None value to cursor_position, causing it's updation to break later in _send_amendmend_chunks
 
     success: bool = await _send_amendment_chunks(reader=reader, writer=writer,
                                                  header_component=header_component,
