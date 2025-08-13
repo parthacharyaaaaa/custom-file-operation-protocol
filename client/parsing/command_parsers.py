@@ -30,6 +30,12 @@ local_filedir_parser.add_argument(f'--{FileModifierCommands.POST_OPERATION_CURSO
 file_command_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='file_command_parser', parents=[filedir_parser], add_help=False)
 file_command_parser.add_argument(FileModifierCommands.WRITE_DATA.value, default=memoryview(b''), type=arg_parsers.parse_write_data)
 
+### INFO operations ###
+info_command_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='info_command_parser', parents=[generic_modifier_parser], add_help=False)
+info_command_parser.add_argument('query_type', type=arg_parsers.parse_query_type)
+info_command_parser.add_argument('resource_name')
+info_command_parser.add_argument('--verbose', action='store_true')
+
 # Awful hack alert
 added_action = next(filter(lambda action : action.dest == FileModifierCommands.WRITE_DATA.value, file_command_parser._actions))
 added_action.required = False

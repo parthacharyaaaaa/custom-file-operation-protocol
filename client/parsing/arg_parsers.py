@@ -1,8 +1,12 @@
 '''Parsers for individual arguments'''
 import os
 import re
+
+from client.cmd.commands import QueryTypes, QueryMapper
+
 from models.constants import REQUEST_CONSTANTS
 from models.permissions import RoleTypes
+from models.flags import InfoFlags
 
 def parse_filename(filename: str) -> str:
     if not re.match(r'(.\w*)+', (filename:=filename.strip())):
@@ -86,3 +90,10 @@ def parse_granted_role(arg: str) -> RoleTypes:
         return role_type
     except ValueError:
         raise ValueError('Invalid role type provided')
+    
+def parse_query_type(arg: str) -> InfoFlags:
+    try:
+        query_type: QueryTypes = QueryTypes(arg)
+        return QueryMapper[query_type]
+    except ValueError:
+        raise ValueError(f'Invalid query type provided (arg), should be in: {(member.value for member in QueryTypes._member_map_.values())}')
