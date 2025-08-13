@@ -1,14 +1,49 @@
-import asyncio
+'''Subhandler routines for INFO operations'''
+# TODO: Perhaps add a caching mechanism for DB reads?
+from typing import Any
 
+from models.flags import InfoFlags
 from models.response_codes import SuccessFlags
 from models.response_models import ResponseHeader, ResponseBody
-from models.request_model import BaseHeaderComponent
+from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseInfoComponent
 
-from server.dependencies import ServerSingletonsRegistry
+from psycopg.rows import dict_row
+from psycopg import sql
 
-async def handle_heartbeat(header: BaseHeaderComponent, dependency_registry: ServerSingletonsRegistry) -> tuple[ResponseHeader, None]:
+from server import errors
+from server.config.server_config import ServerConfig
+from server.connectionpool import ConnectionPoolManager, ConnectionProxy
+from server.database import models as db_models, utils as db_utils
+from server.info_ops.utils import derive_file_identity
+
+file_permissions_selection_query: sql.SQL = sql.SQL('''SELECT {projection} FROM file_permissions
+                                                    WHERE file_owner = %s AND filename = %s;''')
+
+async def handle_heartbeat(header: BaseHeaderComponent, server_config: ServerConfig) -> tuple[ResponseHeader, None]:
     '''Send a heartbeat signal back to the client'''
     return (
-        ResponseHeader.from_server(config=dependency_registry.server_config, code=SuccessFlags.HEARTBEAT.value, version=header.version, ended_connection=header.finish),
+        ResponseHeader.from_server(config=server_config, code=SuccessFlags.HEARTBEAT.value, version=header.version, ended_connection=header.finish),
         None
     )
+
+async def handle_contribution_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, info_component: BaseInfoComponent,
+                                    connection_master: ConnectionPoolManager, server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
+    owner, filename = derive_file_identity(info_component.subject_resource)
+    proxy: ConnectionProxy = await connection_master.request_connection(1)
+    try:
+        if not await db_utils.check_file_permission(filename=filename, owner=owner, grantee=auth_component.identity,
+                                                    check_for=db_models.FilePermissions.MANAGE_RW.value,
+                                                    connection_master=connection_master, proxy=proxy):
+            raise errors.InsufficientPermissions
+        
+        async with proxy.cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(file_permissions_selection_query.format(projection=sql.SQL("*" if (header_component.subcategory & InfoFlags.VERBOSE) else "grantee, role")),
+                                 (owner, filename))
+            result_set: list[dict[str, Any]] = await cursor.fetchall()
+
+            return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value, ended_connection=header_component.finish),
+                    ResponseBody(contents={result.pop('grantee') : result for result in result_set}))
+    
+    finally:
+        await connection_master.reclaim_connection(proxy)
+        
