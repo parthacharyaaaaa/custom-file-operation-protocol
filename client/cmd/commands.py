@@ -1,5 +1,8 @@
 '''Module containing string representations of commands available to the client'''
 from enum import Enum
+from models.flags import InfoFlags
+from types import MappingProxyType
+from typing import Final
 
 class AuthCommands(Enum):
     AUTH: str = 'AUTH'
@@ -24,8 +27,22 @@ class PermissionCommands(Enum):
     HIDE: str = 'HIDE'
     TRANSFER: str = 'TRANSFER'
 
-class HeartbeatCommands(Enum):
-    HEARTBEAT: str = 'HEARTBEAT'
+class QueryTypes(Enum):
+    CONTRIBUTIONS           = 'contributors'
+    FILE_METADATA           = 'file'
+    PERMISSION_METADATA     = 'permission'
+    USER_METADATA           = 'user'
+    STORAGE_USAGE           = 'storage'
+
+QueryMapper: Final[MappingProxyType[QueryTypes, InfoFlags]] = MappingProxyType(
+    {
+        QueryTypes.CONTRIBUTIONS        : InfoFlags.CONTRIBUTORS,
+        QueryTypes.FILE_METADATA        : InfoFlags.FILE_METADATA,
+        QueryTypes.PERMISSION_METADATA  : InfoFlags.PERMISSION_METADATA,
+        QueryTypes.USER_METADATA        : InfoFlags.USER_METADATA,
+        QueryTypes.STORAGE_USAGE        : InfoFlags.STORAGE_USAGE
+    }
+)
 
 class FileModifierCommands(Enum):
     WRITE_DATA                          = 'write_data'
