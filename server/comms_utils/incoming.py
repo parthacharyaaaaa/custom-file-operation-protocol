@@ -3,7 +3,7 @@ import asyncio
 from typing import Any, Literal
 from types import MappingProxyType
 
-from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent, BasePermissionComponent, RequestComponentType
+from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent, BasePermissionComponent, BaseInfoComponent, RequestComponentType
 from models.flags import CategoryFlag
 
 import server.errors as exc
@@ -30,7 +30,7 @@ async def parse_body(header: BaseHeaderComponent, body: bytes) -> BaseModel:
     body_mapping: dict[str, Any] = await serialize_json(body)
     return component_cls.model_validate(body_mapping)
 
-async def process_component(n_bytes: int, reader: asyncio.StreamReader, component_type: Literal['header', 'auth', 'file', 'permission'], timeout: float) -> RequestComponentType:
+async def process_component(n_bytes: int, reader: asyncio.StreamReader, component_type: Literal['header', 'auth', 'file', 'permission', 'info'], timeout: float) -> RequestComponentType:
     model = None
     if component_type == 'header':
         model = BaseHeaderComponent
@@ -40,6 +40,8 @@ async def process_component(n_bytes: int, reader: asyncio.StreamReader, componen
         model = BaseFileComponent
     elif component_type == 'permission':
         model = BasePermissionComponent
+    elif component_type == 'info':
+        model = BaseInfoComponent
     try:
         raw_component: bytes = await asyncio.wait_for(reader.readexactly(n_bytes), timeout)
         return model.model_validate_json(raw_component)
