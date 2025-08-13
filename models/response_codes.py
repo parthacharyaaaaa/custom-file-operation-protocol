@@ -9,6 +9,7 @@ class SuccessFlags(Flag):
     SUCCESSFUL_FILE_HIDE = "1:hide"
     SUCCESSFUL_FILE_DELETION = "1:fdel"
     SUCCESSFUL_OWNERSHIP_TRANSFER = "1:sft"
+    SUCCESSFUL_QUERY_ANSWER = "1:qa"
 
     # Auth
     SUCCESSFUL_USER_CREATION = "1:unew"

@@ -2,9 +2,8 @@
 from typing import Annotated, Optional, Literal, Union, TypeAlias
 
 from models.constants import REQUEST_CONSTANTS
-from models.flags import CategoryFlag, PermissionFlags, AuthFlags, FileFlags
+from models.flags import CategoryFlag, PermissionFlags, AuthFlags, FileFlags, InfoFlags
 from models.cursor_flag import CURSOR_BITS_CHECK
-from models.typing import SubcategoryFlags
 
 from pydantic import BaseModel, Field, model_validator, IPvAnyAddress, field_serializer, field_validator
 
@@ -88,6 +87,10 @@ class BasePermissionComponent(BaseModel):
         # managerial and ownership permissions are high level and cannot be given globally at once
         return (permission_bits & (PermissionFlags.TRANSFER.value | PermissionFlags.MANAGER.value))
 
+class BaseInfoComponent(BaseModel):
+    subject_resource: Annotated[Optional[str], Field(default=None)]
+
+
 class BaseHeaderComponent(BaseModel):
     version: Annotated[str, Field(min_length=5, max_length=12, pattern=REQUEST_CONSTANTS.header.version_regex)]
 
@@ -105,7 +108,7 @@ class BaseHeaderComponent(BaseModel):
 
     # Message category
     category: Annotated[CategoryFlag, Field(ge=1)]
-    subcategory: Annotated[SubcategoryFlags, Field(ge=1)]
+    subcategory: Annotated[Union[AuthFlags, PermissionFlags, InfoFlags, FileFlags], Field(ge=1)]
 
     model_config = {
         'use_enum_values' : True

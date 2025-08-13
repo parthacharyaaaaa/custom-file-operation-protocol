@@ -1,5 +1,8 @@
 import os
-from typing import Annotated, Any
+from typing import Annotated, Any, Final
+
+from models.flags import InfoFlags
+
 import pytomlpp
 from pydantic import BaseModel, Field
 
@@ -50,6 +53,8 @@ class ResponseConstants(BaseModel):
 
 REQUEST_CONSTANTS: RequestConstants = None
 RESPONSE_CONSTANTS: ResponseConstants = None
+
+UNAUTHENTICATED_INFO_OPERATIONS: Final[frozenset[InfoFlags]] = frozenset({InfoFlags.HEARTBEAT})
 
 def load_constants():
     global REQUEST_CONSTANTS, RESPONSE_CONSTANTS
