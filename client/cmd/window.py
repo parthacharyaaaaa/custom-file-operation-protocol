@@ -11,11 +11,12 @@ from client import session_manager
 from client.cmd import async_cmd
 from client.cmd import errors as cmd_errors 
 from client.cmd import operational_utils as op_utils
-from client.cmd.commands import FileModifierCommands
+from client.cmd.commands import FileModifierCommands, QueryMapper
 from client.config import constants as client_constants
 from client.operations import auth_operations, file_operations, permission_operations, info_operations
 from client.parsing import command_parsers
 
+from models.flags import InfoFlags
 from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent
 
 class ClientWindow(async_cmd.AsyncCmd):
@@ -399,3 +400,19 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                      permission_component=permission_component,
                                                      client_config=self.client_config, session_manager=self.session_master,
                                                      end_connection=parsed_args.bye)
+
+    async def do_query(self, args: str) -> None:
+        '''
+        QUERY [query type] [resource name] [--verbose] [modifiers]
+        '''
+        parsed_args: argparse.Namespace = command_parsers.info_command_parser.parse_args(shlex.split(args))
+        if parsed_args.verbose:
+            parsed_args.query_type |= InfoFlags.VERBOSE
+
+        self.end_connection = parsed_args.bye
+        await info_operations.send_info_query(reader=self.reader, writer=self.writer,
+                                              client_config=self.client_config, session_master=self.session_master,
+                                              subcategory_flags=parsed_args.query_type,
+                                              resource=parsed_args.resource_name,
+                                              end_connection=parsed_args.bye)
+
