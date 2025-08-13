@@ -54,8 +54,8 @@ class ServerSingletonsRegistry(metaclass=SingletonMetaclass):
                                  **overrides_kwargs) -> Callable[..., tuple[ResponseHeader, Optional[ResponseBody]]]:
         bound_args: dict[str, Any] = {}
         for paramname, paramtype in inspect.signature(func).parameters.items():
-            if overridden_kwarg:=overrides_kwargs.get(paramname):
-                bound_args[paramname] = overridden_kwarg
+            if paramname in overrides_kwargs:
+                bound_args[paramname] = overrides_kwargs[paramname]
                 continue
             
             singleton: str = self.registry_reverse_mapping.get(paramtype.annotation)
