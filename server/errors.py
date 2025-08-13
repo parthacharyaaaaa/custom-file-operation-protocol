@@ -42,6 +42,11 @@ class InvalidFileData(ProtocolException):
     code: str = ClientErrorFlags.INVALID_FILE_DATA.value
     description: str = 'Invalid file component data'
 
+class InvalidBodyValues(ProtocolException):
+    code: str = ClientErrorFlags.INVALID_BODY_VALUE.value
+    description: str = 'Invalid body data'
+
+
 class UnsupportedOperation(ProtocolException):
     code: str = ClientErrorFlags.UNSUPPORTED_OPERATION.value
     description: str = f'Unsupported Operation requested. Must be: {", ".join(CategoryFlag._member_names_)}'
