@@ -28,7 +28,6 @@ class PermissionCommands(Enum):
     TRANSFER: str = 'TRANSFER'
 
 class QueryTypes(Enum):
-    CONTRIBUTIONS           = 'contributors'
     FILE_METADATA           = 'file'
     PERMISSION_METADATA     = 'permission'
     USER_METADATA           = 'user'
@@ -36,7 +35,6 @@ class QueryTypes(Enum):
 
 QueryMapper: Final[MappingProxyType[QueryTypes, InfoFlags]] = MappingProxyType(
     {
-        QueryTypes.CONTRIBUTIONS        : InfoFlags.CONTRIBUTORS,
         QueryTypes.FILE_METADATA        : InfoFlags.FILE_METADATA,
         QueryTypes.PERMISSION_METADATA  : InfoFlags.PERMISSION_METADATA,
         QueryTypes.USER_METADATA        : InfoFlags.USER_METADATA,

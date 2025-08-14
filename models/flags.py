@@ -13,10 +13,9 @@ class CategoryFlag(IntFlag):
 class InfoFlags(IntFlag):
     '''Supported subcategories for info-related operations'''
     HEARTBEAT                   = 0b00000000
-    CONTRIBUTORS                = 0b00000001
+    PERMISSION_METADATA         = 0b00000001
     FILE_METADATA               = 0b00000010
     USER_METADATA               = 0b00000100
-    PERMISSION_METADATA         = 0b00001000
     STORAGE_USAGE               = 0b00010000
 
     VERBOSE                     = 0b10000000
