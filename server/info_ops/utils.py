@@ -26,3 +26,18 @@ def get_local_filedata(fpath: os.PathLike) -> dict[str, Any]:
             'most recent access' : datetime.fromtimestamp(stat_res.st_atime),
             'most recent metadata change' :  datetime.fromtimestamp(stat_res.st_ctime),
             'file size (bytes)' : stat_res.st_size}
+
+def get_local_storage_data(root: str, user: str) -> dict[str, Any]:
+    absolute_dirpath: os.PathLike = os.path.join(root, user)
+    storage: int = 0
+    file_storage_data: dict[str, int] = {}
+    for dir_entry in os.scandir(absolute_dirpath):
+        if not dir_entry.is_file():     # This should never happen, but just in case it does
+            continue
+        file_size: int = dir_entry.stat(follow_symlinks=False).st_size
+        storage += file_size
+        file_storage_data.update({dir_entry.name : file_size})
+    
+    return {'storage_used' : storage,
+            'files_made' : len(file_storage_data),
+            'storage_details' : file_storage_data}
