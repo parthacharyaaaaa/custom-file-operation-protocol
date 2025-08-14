@@ -22,6 +22,10 @@ cache_public_files = true
 root_directory = 'files'
 user_max_files = 256
 user_max_storage = 268_435_456
+credentials_dirname = 'credentials'
+key_filename='key.pem'
+certificate_filename='cert.crt'
+ciphers='ECDHE-ECDSA-AES256-GCM-SHA384'
 
 [auth]
 max_attempts = 5

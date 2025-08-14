@@ -14,6 +14,12 @@ class ServerConfig(BaseModel):
     read_timeout: Annotated[float, Field(frozen=True, ge=0)]
     socket_connection_timeout: Annotated[float, Field(frozen=True, ge=0)]
 
+    # Credentials
+    credentials_dirname: Annotated[str, Field(frozen=True)]
+    key_filename: Annotated[str, Field(frozen=True, min_length=4)]  # Min length 4 to count .pem extension
+    certificate_filename: Annotated[str, Field(frozen=True, min_length=4)]  # Min length 4 to count .crt extension
+    ciphers: Annotated[str, Field(frozen=True)]
+
     # Database
     max_connections: tuple[Annotated[int, Field(ge=1)],
                            Annotated[int, Field(ge=1)],
