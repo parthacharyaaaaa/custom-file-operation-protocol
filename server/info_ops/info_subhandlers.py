@@ -30,7 +30,7 @@ async def handle_heartbeat(header: BaseHeaderComponent, server_config: ServerCon
         None
     )
 
-async def handle_contribution_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, info_component: BaseInfoComponent,
+async def handle_permission_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, info_component: BaseInfoComponent,
                                     connection_master: ConnectionPoolManager, server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
     owner, filename = derive_file_identity(info_component.subject_resource)
     proxy: ConnectionProxy = await connection_master.request_connection(1)
@@ -50,7 +50,6 @@ async def handle_contribution_query(header_component: BaseHeaderComponent, auth_
     
     finally:
         await connection_master.reclaim_connection(proxy)
-        
 
 async def handle_filedata_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, info_component: BaseInfoComponent,
                                 connection_master: ConnectionPoolManager, server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
@@ -72,6 +71,32 @@ async def handle_filedata_query(header_component: BaseHeaderComponent, auth_comp
 
             return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value, ended_connection=header_component.finish),
                     ResponseBody(contents=file_data))
+
+    finally:
+        await connection_master.reclaim_connection(proxy)
+
+async def handle_user_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, info_component: BaseInfoComponent,
+                            connection_master: ConnectionPoolManager, server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
+    proxy: ConnectionProxy = await connection_master.request_connection(1)
+    try:
+        async with proxy.cursor(row_factory=dict_row) as cursor:
+            await cursor.execute('''SELECT username, created_at
+                                 FROM users
+                                 WHERE username = %s;''',
+                                 (auth_component.identity,))
+            user_data: dict[str, Any] = await cursor.fetchone()
+            if header_component.subcategory & InfoFlags.VERBOSE:
+                await cursor.execute('''SELECT file_owner, filename, role, granted_at, granted_by, granted_until
+                                     FROM file_permissions
+                                     WHERE grantee = %s;''',
+                                     (auth_component.identity,))
+                user_data |= {'files' : {f"{res.pop('file_owner')}/{res.pop('filename')}" : res
+                                                    for res in
+                                                    await cursor.fetchall()}}
+                
+
+            return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value, ended_connection=header_component.finish),
+                    ResponseBody(contents=user_data))
 
     finally:
         await connection_master.reclaim_connection(proxy)
