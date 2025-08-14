@@ -1,7 +1,7 @@
 import asyncio
 import os
-from typing import Any
-import pytomlpp
+import ssl
+from typing import Any, Optional
 
 from client.config.constants import ClientConfig
 from client.cmd.window import ClientWindow
@@ -10,6 +10,8 @@ from client.communication import incoming, outgoing
 from client.operations import info_operations
 
 from models.response_codes import SuccessFlags
+
+import pytomlpp
 
 __all__ = ('init_session_manager', 'init_client_configurations', 'init_cmd_window', 'create_server_connection')
 
@@ -27,9 +29,8 @@ def init_cmd_window(host: str, port: int,
                     client_config: ClientConfig, session_manager: SessionManager) -> ClientWindow:
     return ClientWindow(host, port, reader, writer, client_config, session_manager)
 
-async def create_server_connection(host: str, port: int, timeout: float) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
-    #TODO: Add SSL
-    return await asyncio.open_connection(host, port)
+async def create_server_connection(host: str, port: int, ssl_context: ssl.SSLContext, ssl_handshake_timeout: Optional[float] = None) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    return await asyncio.open_connection(host, port, ssl=ssl_context, ssl_handshake_timeout=ssl_handshake_timeout)
 
 async def heartbeat_monitor(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                             client_config: ClientConfig, session_manager: SessionManager,
