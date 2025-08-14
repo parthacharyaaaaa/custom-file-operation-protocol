@@ -1,5 +1,6 @@
 '''Subhandler routines for INFO operations'''
 # TODO: Perhaps add a caching mechanism for DB reads?
+import asyncio
 import os
 from typing import Any
 
@@ -15,7 +16,7 @@ from server import errors
 from server.config.server_config import ServerConfig
 from server.connectionpool import ConnectionPoolManager, ConnectionProxy
 from server.database import models as db_models, utils as db_utils
-from server.info_ops.utils import derive_file_identity, get_local_filedata
+from server.info_ops.utils import derive_file_identity, get_local_filedata, get_local_storage_data
 
 file_permissions_selection_query: sql.SQL = sql.SQL('''SELECT {projection} FROM file_permissions
                                                     WHERE file_owner = %s AND filename = %s;''')
@@ -100,4 +101,12 @@ async def handle_user_query(header_component: BaseHeaderComponent, auth_componen
 
     finally:
         await connection_master.reclaim_connection(proxy)
-    
+
+async def handle_storage_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, info_component: BaseInfoComponent,
+                               server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
+    scan_task: asyncio.Task = asyncio.create_task(asyncio.to_thread(get_local_storage_data, root=server_config.root_directory, user=auth_component.identity))
+    storage_data: dict[str, Any] = await asyncio.wait_for(scan_task, 10)
+    storage_data.update({'storage_left' : server_config.user_max_storage - storage_data['storage_used'],
+                         'files_left' : server_config.user_max_files - storage_data['files_made']})
+    return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value, ended_connection=header_component.finish),
+            ResponseBody(contents=storage_data))
