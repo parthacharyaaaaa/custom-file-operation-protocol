@@ -1,5 +1,6 @@
 '''Subhandler routines for INFO operations'''
 # TODO: Perhaps add a caching mechanism for DB reads?
+import os
 from typing import Any
 
 from models.flags import InfoFlags
@@ -14,10 +15,13 @@ from server import errors
 from server.config.server_config import ServerConfig
 from server.connectionpool import ConnectionPoolManager, ConnectionProxy
 from server.database import models as db_models, utils as db_utils
-from server.info_ops.utils import derive_file_identity
+from server.info_ops.utils import derive_file_identity, get_local_filedata
 
 file_permissions_selection_query: sql.SQL = sql.SQL('''SELECT {projection} FROM file_permissions
                                                     WHERE file_owner = %s AND filename = %s;''')
+file_data_selection_query: sql.SQL = sql.SQL('''SELECT {projection}
+                                             FROM files
+                                             WHERE owner = %s AND filename = %s;''')
 
 async def handle_heartbeat(header: BaseHeaderComponent, server_config: ServerConfig) -> tuple[ResponseHeader, None]:
     '''Send a heartbeat signal back to the client'''
@@ -47,3 +51,28 @@ async def handle_contribution_query(header_component: BaseHeaderComponent, auth_
     finally:
         await connection_master.reclaim_connection(proxy)
         
+
+async def handle_filedata_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, info_component: BaseInfoComponent,
+                                connection_master: ConnectionPoolManager, server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
+    owner, filename = derive_file_identity(info_component.subject_resource)
+    proxy: ConnectionProxy = await connection_master.request_connection(1)
+    try:
+        if not await db_utils.check_file_permission(filename=filename, owner=owner, grantee=auth_component.identity,
+                                                     check_for=db_models.FilePermissions.MANAGE_RW.value,
+                                                     connection_master=connection_master, proxy=proxy):
+            raise errors.InsufficientPermissions
+        
+        async with proxy.cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(file_data_selection_query.format(projection=sql.SQL('*')),
+                                 (owner, filename))
+            file_data: dict[str, Any] = await cursor.fetchone()
+
+            if header_component.subcategory & InfoFlags.VERBOSE:
+                file_data |= get_local_filedata(os.path.join(server_config.root_directory, owner, filename))
+
+            return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value, ended_connection=header_component.finish),
+                    ResponseBody(contents=file_data))
+
+    finally:
+        await connection_master.reclaim_connection(proxy)
+    

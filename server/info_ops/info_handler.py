@@ -10,7 +10,7 @@ from models.response_models import ResponseHeader, ResponseBody
 from server.comms_utils.incoming import process_component
 from server.dependencies import ServerSingletonsRegistry
 from server.errors import InvalidAuthSemantic, UnsupportedOperation, InvalidHeaderSemantic, SlowStreamRate, InvalidBodyValues
-from server.info_ops.info_subhandlers import handle_heartbeat, handle_contribution_query
+from server.info_ops.info_subhandlers import handle_heartbeat, handle_contribution_query, handle_filedata_query
 
 import orjson
 import pydantic
@@ -23,8 +23,8 @@ INFO_SUBHANDLER: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent, B
 INFO_SUBHANDLER_MAPPING: MappingProxyType[int, INFO_SUBHANDLER] = MappingProxyType(
     dict(
         zip(
-            [InfoFlags.HEARTBEAT, InfoFlags.CONTRIBUTORS],
-            [handle_heartbeat, handle_contribution_query]
+            [InfoFlags.HEARTBEAT, InfoFlags.CONTRIBUTORS, InfoFlags.FILE_METADATA],
+            [handle_heartbeat, handle_contribution_query, handle_filedata_query]
         )
     )
 )
