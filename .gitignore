@@ -1,5 +1,6 @@
 # Directory for storing files
 files/
+server/credentials/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
