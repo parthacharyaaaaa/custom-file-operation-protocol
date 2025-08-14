@@ -1,8 +1,10 @@
 '''Helper module for loading all required instances whenever the server starts'''
 import os
 import asyncio
+import ssl
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from math import inf
+from pathlib import Path
 from typing import Any, Optional
 
 from cachetools import TTLCache
@@ -15,7 +17,16 @@ import server.database.models as db_models
 
 import pytomlpp
 
-__all__ = ('create_server_config', 'create_log_queue', 'create_connection_master', 'create_caches', 'create_file_lock', 'create_user_master', 'start_logger')
+from ssl_utils import ssl_setup
+
+__all__ = ('create_server_config',
+           'create_log_queue',
+           'create_connection_master',
+           'create_caches',
+           'create_file_lock',
+           'create_user_master',
+           'start_logger',
+           'manage_ssl_credentials')
 
 def create_server_config(dirname: Optional[str] = None) -> ServerConfig:
     loaded_constants: dict[str, Any] = pytomlpp.load(dirname or os.path.join(os.path.dirname(__file__), 'config', 'server_config.toml'))
@@ -61,3 +72,16 @@ def start_logger(log_queue: asyncio.Queue[db_models.ActivityLog], config: Server
                                            batch_size=config.log_batch_size,
                                            waiting_period=config.log_waiting_period,
                                            flush_interval=config.log_interval))
+
+def manage_ssl_credentials(server_config: ServerConfig) -> ssl.SSLContext:
+    server_credentials_directory: Path = Path.joinpath(Path(server_config.root_directory).parent, server_config.credentials_dirname)
+    Path.mkdir(server_credentials_directory, exist_ok=True)
+    key_path: Path = Path.joinpath(server_credentials_directory, server_config.key_filename)
+    cert_path: Path = Path.joinpath(server_credentials_directory, server_config.certificate_filename)
+
+    if not (Path.is_file(key_path) and Path.is_file(cert_path)):
+        ssl_setup.generate_self_signed_credentials(credentials_directory=server_credentials_directory,
+                                                    cert_filename=server_config.certificate_filename,
+                                                    key_filename=server_config.key_filename)
+    
+    return ssl_setup.make_server_ssl_context(certfile=cert_path, keyfile=key_path, ciphers=server_config.ciphers)

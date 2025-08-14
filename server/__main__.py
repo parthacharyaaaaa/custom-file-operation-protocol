@@ -1,12 +1,13 @@
 import asyncio
 from functools import partial
 import os
+import ssl
 import sys
 
 from psycopg.conninfo import make_conninfo
 
 from server.authz.user_manager import UserManager
-from server.bootup import create_server_config, create_connection_master, create_log_queue, create_user_master, create_caches, create_file_lock, start_logger
+from server.bootup import create_server_config, create_connection_master, create_log_queue, create_user_master, create_caches, create_file_lock, start_logger, manage_ssl_credentials
 from server.callback import callback
 from server.config.server_config import ServerConfig
 from server.connectionpool import ConnectionPoolManager
@@ -43,8 +44,10 @@ async def main() -> None:
 
     start_logger(log_queue=LOG_QUEUE, config=SERVER_CONFIG, connection_master=CONNECTION_MASTER)
 
+    ssl_context: ssl.SSLContext = manage_ssl_credentials(server_config=SERVER_CONFIG)
     server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback, SERVER_DEPENDENCY_REGISTRY),
-                                                        host=str(SERVER_CONFIG.host), port=SERVER_CONFIG.port)
+                                                        host=str(SERVER_CONFIG.host), port=SERVER_CONFIG.port,
+                                                        ssl=ssl_context)
     async with server:
         await server.serve_forever()
 
