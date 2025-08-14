@@ -32,6 +32,7 @@ class ServerConfig(BaseModel):
     cache_public_files: Annotated[bool, Field(default=False)]
     root_directory: Annotated[str, Field(default='files')]
     user_max_files: Annotated[int, Field(ge=1)]
+    user_max_storage: Annotated[int, Field(ge=1, frozen=True)]
 
     # Auth
     max_attempts: Annotated[int, Field(frozen=True, ge=0)]
