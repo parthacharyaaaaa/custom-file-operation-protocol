@@ -5,7 +5,7 @@ from datetime import datetime
 from secrets import token_hex
 from hmac import compare_digest
 from hashlib import pbkdf2_hmac
-from typing import Optional, Union
+from typing import Optional, Union, Final
 
 import asyncio
 from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
@@ -27,22 +27,22 @@ __all__ = ('UserManager',)
 
 class UserManager(metaclass=SingletonMetaclass):
     '''Class for managing user sessions and user-related operations'''
-    HASHING_ALGORITHM: str = 'sha256'
-    PBKDF_ITERATIONS: int = 100_000
-    SALT_LENGTH: int = 16
-    USERNAME_REGEX: str = REQUEST_CONSTANTS.auth.username_regex
-    TOKEN_LENGTH: int = REQUEST_CONSTANTS.auth.token_length
-    DIGEST_LENGTH: int = REQUEST_CONSTANTS.auth.digest_length
-    LOG_ALIAS: str = LogAuthor.USER_MASTER
-    LOG_TIMEOUT: float = 2.0
+    HASHING_ALGORITHM: Final[str] = 'sha256'
+    PBKDF_ITERATIONS: Final[int] = 100_000
+    SALT_LENGTH: Final[int] = 16
+
+    LOG_ALIAS: Final[str] = LogAuthor.USER_MASTER
+    LOG_TIMEOUT: Final[float] = 2.0
+
+    __slots__ = ('connection_master', 'session', 'log_queue', 'session_lifespan', 'session_refresh_nbf', 'previous_digests_mapping')
 
     def __init__(self, connection_master: ConnectionPoolManager, log_queue: asyncio.PriorityQueue[ActivityLog], session_lifespan: float):
-        self.connection_master: ConnectionPoolManager = connection_master
-        self.session: dict[str, SessionMetadata] = {}
-        self._log_queue: asyncio.PriorityQueue[ActivityLog] = log_queue
-        self.session_lifespan = session_lifespan
-        self.session_refresh_nbf = session_lifespan // 2
-        self.previous_digests_mapping: TTLCache[str, list[bytes, bytes]] = TTLCache(0, self.session_lifespan)
+        self.connection_master: Final[ConnectionPoolManager] = connection_master
+        self.session: Final[dict[str, SessionMetadata]] = {}
+        self.log_queue: Final[asyncio.PriorityQueue[ActivityLog]] = log_queue
+        self.session_lifespan: float = session_lifespan
+        self.session_refresh_nbf: float = session_lifespan // 2
+        self.previous_digests_mapping: Final[TTLCache[str, list[bytes, bytes]]] = TTLCache(0, self.session_lifespan)
 
         asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
     
@@ -65,18 +65,18 @@ class UserManager(metaclass=SingletonMetaclass):
     @staticmethod
     def check_username_validity(username: str) -> str:
         username = username.strip()
-        if not re.match(UserManager.USERNAME_REGEX, username):
+        if not re.match(REQUEST_CONSTANTS.auth.username_regex, username):
             return None
         return username
 
     # Token and refresh digest generation logic kept as static methods in case we ever need to add any more logic to it
     @staticmethod
     def generate_session_token() -> bytes:
-        return token_hex(UserManager.TOKEN_LENGTH // 2).encode('utf-8')
+        return token_hex(REQUEST_CONSTANTS.auth.token_length // 2).encode('utf-8')
     
     @staticmethod
     def generate_session_refresh_digest() -> bytes:
-        return token_hex(UserManager.DIGEST_LENGTH // 2).encode('utf-8')
+        return token_hex(REQUEST_CONSTANTS.auth.digest_length // 2).encode('utf-8')
 
     async def authenticate_session(self, username: str, token: bytes, raise_on_exc: bool = False) -> Optional[SessionMetadata]:
         auth_data: SessionMetadata = self.session.get(username)
@@ -394,4 +394,4 @@ class UserManager(metaclass=SingletonMetaclass):
 
     async def enqueue_activity(self, log: ActivityLog) -> None:
         log.logged_by = UserManager.LOG_ALIAS
-        await asyncio.wait_for(self._log_queue.put(log), timeout=UserManager.LOG_TIMEOUT)
+        await asyncio.wait_for(self.log_queue.put(log), timeout=UserManager.LOG_TIMEOUT)
