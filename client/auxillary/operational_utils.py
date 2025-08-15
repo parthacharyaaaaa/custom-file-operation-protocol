@@ -3,13 +3,15 @@ import time
 from typing import Any, Optional, Union, Mapping
 
 from client.auxillary.typing import SupportsBuffer
-from client.cmd import cmd_utils
+from client.cmd import cmd_utils, errors as cmd_errors
 from client.cmd.message_strings import general_messages
 from client.config.constants import ClientConfig
 from client.session_manager import SessionManager
 
 from models.flags import CategoryFlag, AuthFlags, PermissionFlags, FileFlags
-from models.request_model import BaseHeaderComponent
+from models.request_model import BaseHeaderComponent, BaseAuthComponent
+
+import pydantic
 
 __all__ = ('cast_as_memoryview', 'make_header_component', 'filter_claims')
 
@@ -43,3 +45,10 @@ async def filter_claims(claimset: Mapping[str, Any], *claims: str, strict: bool 
             raise ValueError(f'Missing claims ({", ".join(missing_claims)}) in claimset')
     
     return matched_claims
+
+async def make_auth_component(username: str, password: str) -> BaseAuthComponent:
+    try:
+        return BaseAuthComponent(identity=username, password=password)
+    except pydantic.ValidationError as v:
+        error_string: str = '\n'.join(f'{err_details["loc"][0]} (input={err_details["input"]}): {err_details["msg"]}' for err_details in v.errors())
+        raise cmd_errors.CommandException('Invalid login credentials:\n'+error_string)

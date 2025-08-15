@@ -8,10 +8,9 @@ from typing import Any, Callable, Final
 import aiofiles
 
 from client import session_manager
-from client.cmd import async_cmd
-from client.cmd import errors as cmd_errors 
-from client.cmd import operational_utils as op_utils
-from client.cmd.commands import FileModifierCommands, QueryMapper
+from client.auxillary import operational_utils
+from client.cmd import async_cmd, errors as cmd_errors
+from client.cmd.commands import FileModifierCommands
 from client.config import constants as client_constants
 from client.operations import auth_operations, file_operations, permission_operations, info_operations
 from client.parsing import command_parsers
@@ -75,7 +74,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         Start a remote session on the host machine.
         This is the recommended way of starting a remote session, as it avoids writing password to shell history'''
         parsed_args: argparse.Namespace = command_parsers.auth_command_parser.parse_args(args.split())
-        auth_component: BaseAuthComponent = await op_utils.make_auth_component(parsed_args.username, parsed_args.password)
+        auth_component: BaseAuthComponent = await operational_utils.make_auth_component(parsed_args.username, parsed_args.password)
         
         self.end_connection = parsed_args.bye
         await auth_operations.authorize(reader=self.reader, writer=self.writer,
@@ -104,7 +103,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         Create a new remote user. This does not create a remote session
         '''
         parsed_args: argparse.Namespace = command_parsers.auth_command_parser.parse_args(args.split())
-        auth_component: BaseAuthComponent = await op_utils.make_auth_component(username=parsed_args.username, password=parsed_args.password)
+        auth_component: BaseAuthComponent = await operational_utils.make_auth_component(username=parsed_args.username, password=parsed_args.password)
         display_credentials, self.end_connection = parsed_args.dc, parsed_args.bye
 
         await auth_operations.create_remote_user(reader=self.reader, writer=self.writer,
@@ -118,7 +117,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         Delete a remote user.
         '''
         parsed_args: argparse.Namespace = command_parsers.auth_command_parser.parse_args(args.split())
-        auth_component: BaseAuthComponent = op_utils.make_auth_component(username=parsed_args.username, password=parsed_args.password)
+        auth_component: BaseAuthComponent = operational_utils.make_auth_component(username=parsed_args.username, password=parsed_args.password)
         self.end_connection = parsed_args.bye
 
         await auth_operations.delete_remote_user(reader=self.reader, writer=self.writer,
