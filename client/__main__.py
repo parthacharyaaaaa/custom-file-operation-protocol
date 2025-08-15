@@ -19,8 +19,11 @@ async def main() -> None:
     args: argparse.Namespace = entrypoint_parser.parse_args()
     
     client_config: ClientConfig = init_client_configurations()
-    ssl_context: Final[ssl.SSLContext] = ssl_setup.make_client_ssl_context()
-    reader, writer = await create_server_connection(args.host, args.port, ssl_context, client_config.ssl_handshake_timeout)
+    ssl_context: Final[ssl.SSLContext] = ssl_setup.make_client_ssl_context(ciphers=client_config.ciphers)
+    reader, writer = await create_server_connection(host=args.host, port=args.port,
+                                                    fingerprints_path=client_config.server_fingerprints_filepath,
+                                                    ssl_context=ssl_context,
+                                                    ssl_handshake_timeout=client_config.ssl_handshake_timeout)
     session_manager: SessionManager = init_session_manager(*writer.get_extra_info('peername'))
 
     if args.password:
