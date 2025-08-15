@@ -34,7 +34,7 @@ def init_cmd_window(host: str, port: int,
                     client_config: ClientConfig, session_manager: SessionManager) -> ClientWindow:
     return ClientWindow(host, port, reader, writer, client_config, session_manager)
 
-async def create_server_connection(host: str, port: int, fingerprints_path: Path, ssl_context: ssl.SSLContext, ssl_handshake_timeout: Optional[float] = None) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+async def create_server_connection(host: str, port: int, fingerprints_path: Path, ssl_context: ssl.SSLContext, ssl_handshake_timeout: Optional[float] = None, blind_trust: bool = False) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     fingerprints_mapping: dict[str, str] = {}
     if not fingerprints_path.is_file():
         fingerprints_path.touch()
@@ -49,11 +49,11 @@ async def create_server_connection(host: str, port: int, fingerprints_path: Path
     peer_certificate: bytes = writer.get_extra_info('ssl_object').getpeercert(binary_form=True)
     fingerprint: str = ssl_setup.generate_certificate_fingerprint(peer_certificate)
 
-    if host not in fingerprints_mapping:
+    if (host not in fingerprints_mapping) or blind_trust:
         fingerprints_mapping[host] = fingerprint
         fingerprints_path.write_text(json.dumps(fingerprints_mapping), encoding='utf-8')
     elif fingerprint != fingerprints_mapping[host]:
-        raise ssl.SSLError(f'[TOFU]: Certification mismatch for {host}. Expected {fingerprints_mapping[host]}, received {fingerprint}')
+        raise ssl.SSLError(f'[TOFU]: Certification mismatch for {host}. Expected {fingerprints_mapping[host]}, received {fingerprint}. If you are sure that you trust this server, start the shell with the "--blind-trust" flag')
     return reader, writer
 
 async def heartbeat_monitor(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,

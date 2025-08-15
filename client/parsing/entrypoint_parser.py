@@ -22,6 +22,11 @@ ENTRYPOINT_PARSER.add_argument('--password', '-PS',
                     help='Optional password value used to start a remote session alongside the shell',
                     required=False, type=parse_password_arg, default=None)
 
+
+ENTRYPOINT_PARSER.add_argument('--blind-trust',
+                    help="Blindly trust a remote server, even when it's provided certificate does not match the one stored",
+                    default=False, action='store_true')
+
 def parse_args() -> argparse.Namespace:
     args: argparse.Namespace = ENTRYPOINT_PARSER.parse_args()
 

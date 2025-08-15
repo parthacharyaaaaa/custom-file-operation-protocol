@@ -23,7 +23,8 @@ async def main() -> None:
     reader, writer = await create_server_connection(host=args.host, port=args.port,
                                                     fingerprints_path=client_config.server_fingerprints_filepath,
                                                     ssl_context=ssl_context,
-                                                    ssl_handshake_timeout=client_config.ssl_handshake_timeout)
+                                                    ssl_handshake_timeout=client_config.ssl_handshake_timeout,
+                                                    blind_trust=args.blind_trust)
     session_manager: SessionManager = init_session_manager(*writer.get_extra_info('peername'))
 
     if args.password:
