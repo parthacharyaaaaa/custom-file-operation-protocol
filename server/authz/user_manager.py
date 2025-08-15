@@ -100,9 +100,7 @@ class UserManager(metaclass=SingletonMetaclass):
         if not (username:=UserManager.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
         
-        proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
-        try:
-            # Check if user is banned
+        async with await self.connection_master.request_connection(level=1) as proxy:
             if await self.check_banned(username, proxy):
                 raise Banned(username)
             
@@ -112,8 +110,6 @@ class UserManager(metaclass=SingletonMetaclass):
                                      WHERE username = %s;''',
                                      (username,))
                 pw_data: tuple[memoryview, memoryview] = await cursor.fetchone()
-        finally:
-            await self.connection_master.reclaim_connection(proxy)
 
         if not pw_data:
             raise UserAuthenticationError(f'No username with {username} exists')
@@ -136,8 +132,7 @@ class UserManager(metaclass=SingletonMetaclass):
         if not (username:=UserManager.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
         
-        proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)   # Account creation is high-priority
-        try:
+        async with await self.connection_master.request_connection(level=1) as proxy:   # Account creation is high-priority
             async with proxy.cursor() as cursor:
                 await cursor.execute('''SELECT username FROM users WHERE username = %s''', (username,))
                 res: tuple[str] = await cursor.fetchone()
@@ -149,8 +144,6 @@ class UserManager(metaclass=SingletonMetaclass):
                 await cursor.execute('''INSERT INTO users (username, password_hash, password_salt) VALUES (%s, %s, %s)''',
                                      (username, pw_hash, pw_salt,))
                 await proxy.commit()
-        finally:
-            await self.connection_master.reclaim_connection(proxy)    # Always return leased connection to connection master
 
         if make_dir:
             os.makedirs(os.path.join(root, username))
@@ -159,8 +152,7 @@ class UserManager(metaclass=SingletonMetaclass):
         if not (username:=UserManager.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
 
-        proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)   # Action concerning account statuses have highest priority
-        try:
+        async with await self.connection_master.request_connection(level=3) as proxy:
             async with proxy.cursor() as cursor:
                 await cursor.execute('''SELECT password_hash, password_salt
                                      FROM users
@@ -178,8 +170,6 @@ class UserManager(metaclass=SingletonMetaclass):
                 await cursor.execute('''DELETE FROM users
                                      WHERE username = %s;''',
                                      (username,))
-        finally:
-            await self.connection_master.reclaim_connection(proxy)
 
         # User deleted, delete session
         self.session.pop(username, None)
@@ -189,34 +179,31 @@ class UserManager(metaclass=SingletonMetaclass):
             asyncio.create_task(self.terminate_user_cache(username, *caches))
 
     async def change_password(self, username: str, new_password: str) -> None:
-        proxy: ConnectionProxy = await self.connection_master.request_connection(level=3)
-        try:
-            async with proxy.cursor() as cursor:
-                await cursor.execute('''SELECT password_hash, password_salt
-                                        FROM users
-                                        WHERE username = %s
-                                        FOR UPDATE NOWAIT;''',
-                                        (username,))
-                pw_data: Row[bytes, bytes] = await cursor.fetchone()    # record will always exist if authentication was passed
+        async with await self.connection_master.request_connection(level=3) as proxy:
+            try:
+                async with proxy.cursor() as cursor:
+                    await cursor.execute('''SELECT password_hash, password_salt
+                                            FROM users
+                                            WHERE username = %s
+                                            FOR UPDATE NOWAIT;''',
+                                            (username,))
+                    pw_data: Row[bytes, bytes] = await cursor.fetchone()    # record will always exist if authentication was passed
 
-                if UserManager.verify_password_hash(new_password, *pw_data):  # Same password as before
-                    raise InvalidAuthData('Password cannot be same as previous password')
-                pw_hash, pw_salt = UserManager.generate_password_hash(new_password)
-                await cursor.execute('''UPDATE users
-                                        SET pw_hash = %s, pw_salt = %s
-                                        WHERE username = %s''',
-                                        (pw_hash, pw_salt, username,))
-                await proxy.commit()
-        except pg_errors.Error as e:
-            if isinstance(e, pg_errors.LockNotAvailable):
-                raise OperationContested
-            raise DatabaseFailure('Failed to perform password updation. Please try again')
-        finally:
-            await self.connection_master.reclaim_connection(proxy)
+                    if UserManager.verify_password_hash(new_password, *pw_data):  # Same password as before
+                        raise InvalidAuthData('Password cannot be same as previous password')
+                    pw_hash, pw_salt = UserManager.generate_password_hash(new_password)
+                    await cursor.execute('''UPDATE users
+                                            SET pw_hash = %s, pw_salt = %s
+                                            WHERE username = %s''',
+                                            (pw_hash, pw_salt, username,))
+                    await proxy.commit()
+            except pg_errors.Error as e:    # Explicit handling here to raise protocol-specific exceptions instead of propogating psycopg's exceptions
+                if isinstance(e, pg_errors.LockNotAvailable):
+                    raise OperationContested
+                raise DatabaseFailure('Failed to perform password updation. Please try again')
 
     async def terminate_user_cache(self, identifier: str, *caches: TTLCache[str, dict[str, Union[AsyncBufferedReader, AsyncBufferedIOBase]]]) -> None:
-        proxy: ConnectionProxy = await self.connection_master.request_connection(level=3)
-        try:
+        async with await self.connection_master.request_connection(level=3) as proxy:
             async with proxy.cursor() as cursor:
                 # Fetch all possible files where the user may have cached a file buffer. TODO: Segregate based on user roles (read, write+append) as well to separate cache scanning logic and save time
                 await cursor.execute('''SELECT file_owner, filename
@@ -230,8 +217,6 @@ class UserManager(metaclass=SingletonMetaclass):
                 
                 res: list[tuple[str, str]] = await cursor.fetchall()
                 cache_identifers: list[str] = [os.path.join(*file_data) for file_data in res]   # Generate actual cache keys as string 'file_owner/filename'
-        finally: 
-            await self.connection_master.reclaim_connection(proxy)  # Allow master to reclaim leased connection
         
         for cache in caches:
             # Fetch all mappings for possible files
@@ -347,29 +332,28 @@ class UserManager(metaclass=SingletonMetaclass):
         if not (username:=UserManager.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
         
-        proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
-        try:
-            if await self.check_banned(username, proxy):
+        async with await self.connection_master.request_connection(level=1) as proxy:
+            # NOTE: Explicit error-handling here to allow for protocol-specific exceptions to be raised in place of psycopg3's exceptions
+            try:
+                if await self.check_banned(username, proxy):
+                    await self.enqueue_activity(ActivityLog(user_concerned=username,
+                                                            reported_severity=Severity.NON_CRITICAL_FAILURE,
+                                                            log_details=f'Duplicate ban attempt: {DatabaseFailure.__name__}',
+                                                            log_category=LogType.USER))
+                    return
+                
+                async with proxy.cursor() as cursor:
+                    await cursor.execute('''INSERT INTO ban_logs
+                                VALUES (%s, %s, %s);''',
+                                (username, ban_reason.strip(), ban_description.strip() if ban_description else None))
+                    await proxy.commit()
+            except pg_errors.Error as e:
                 await self.enqueue_activity(ActivityLog(user_concerned=username,
-                                                        reported_severity=Severity.NON_CRITICAL_FAILURE,
-                                                        log_details=f'Duplicate ban attempt: {DatabaseFailure.__name__}',
-                                                        log_category=LogType.USER))
-                return
-            
-            async with proxy.cursor() as cursor:
-                await cursor.execute('''INSERT INTO ban_logs
-                               VALUES (%s, %s, %s);''',
-                               (username, ban_reason.strip(), ban_description.strip() if ban_description else None))
-                await proxy.commit()
-        except pg_errors.Error as e:
-            await self.enqueue_activity(ActivityLog(user_concerned=username,
-                                                    reported_severity=Severity.CRITICAL_FAILURE,
-                                                    log_details=f'Failed to ban user: {e.__name__}',
-                                                    log_category=LogType.DATABASE))
+                                                        reported_severity=Severity.CRITICAL_FAILURE,
+                                                        log_details=f'Failed to ban user: {e.__name__}',
+                                                        log_category=LogType.DATABASE))
             
             raise DatabaseFailure(f'Failed to ban user {username}')
-        finally:
-            await self.connection_master.reclaim_connection(proxy)
 
         # Once user is banned, terminate their session and any possible cache entries too
         self.session.pop(username, None)
@@ -381,8 +365,7 @@ class UserManager(metaclass=SingletonMetaclass):
         if not (username:=UserManager.check_username_validity(username)):
             raise UserAuthenticationError('Invalid username')
         
-        proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
-        try:
+        async with await self.connection_master.request_connection(level=1) as proxy:
             if not await self.check_banned(username, proxy, lock_row=True):
                 await self.enqueue_activity(ActivityLog(user_concerned=username,
                                                         reported_severity=Severity.NON_CRITICAL_FAILURE,
@@ -395,8 +378,6 @@ class UserManager(metaclass=SingletonMetaclass):
                                      WHERE username = %s AND lifted_at is null;''',
                                      (datetime.now(), username,))
             await proxy.commit()
-        finally:
-            await self.connection_master.reclaim_connection(proxy)
 
     async def expire_sessions(self) -> None:
         sleep_duration: float = self.session_lifespan // 3
