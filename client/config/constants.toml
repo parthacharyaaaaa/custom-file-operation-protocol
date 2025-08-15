@@ -2,3 +2,5 @@ version = '0.0.1'
 read_timeout = 5.0
 ssl_handshake_timeout = 5.0
 heartbeat_interval=3.0
+server_fingerprints_filepath='fingerprints.json'
+ciphers='ECDHE-ECDSA-AES256-GCM-SHA384'
