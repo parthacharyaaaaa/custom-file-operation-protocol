@@ -1,6 +1,7 @@
 # Directory for storing files
 files/
 server/credentials/
+client/fingerprints.*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
