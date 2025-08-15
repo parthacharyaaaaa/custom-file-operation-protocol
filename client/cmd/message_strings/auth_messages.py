@@ -1,3 +1,5 @@
+'''message factories for AUTH related operations'''
+
 from traceback import format_exception_only
 from typing import Optional, Sequence
 
@@ -7,6 +9,21 @@ from models.flags import AuthFlags
 from models.response_codes import SuccessFlags
 
 from pydantic import ValidationError
+
+__all__ = (
+    "invalid_user_data",
+    "failed_auth_operation",
+    "filecount_mismatch",
+    "successful_user_creation",
+    "successful_user_deletion",
+    "successful_authorization",
+    "session_iteration_mismatch",
+    "successful_reauthorization",
+    "successful_logout",
+    "already_authenticated",
+    "authentication_required",
+)
+
 
 def invalid_user_data(exception: Optional[ValidationError] = None) -> str:
     return ':'.join(['Invalid user data', format_exception_only[exception][0] if exception else ''])

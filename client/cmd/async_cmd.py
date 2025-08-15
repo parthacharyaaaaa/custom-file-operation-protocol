@@ -1,3 +1,5 @@
+'''Asynchronous support for Python's cmd.Cmd class'''
+
 import argparse
 import cmd
 import inspect
@@ -9,6 +11,7 @@ from client.cmd import errors as cmd_errors
 import pydantic
 
 class AsyncCmd(cmd.Cmd):
+    '''Asynchronous support for Python's cmd.Cmd class'''
     def parseline(self, line: str):
         line = line.strip()
         if not line:

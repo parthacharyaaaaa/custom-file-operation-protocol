@@ -1,4 +1,11 @@
+'''message factories for generic commands'''
+
 from typing import Optional
+
+__all__ = (
+    "missing_response_claim",
+    "malformed_response_body",
+)
 
 def missing_response_claim(*expected_claims: str) -> str:
     return f'Malformed response body, expected claims: {", ".join(expected_claims)}'

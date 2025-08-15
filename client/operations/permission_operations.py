@@ -1,3 +1,5 @@
+'''Methods corresponding to permisison operations'''
+
 import asyncio
 from typing import Sequence
 
@@ -13,6 +15,11 @@ from models.permissions import RoleTypes, ROLE_MAPPING
 from models.response_codes import SuccessFlags
 from models.request_model import BasePermissionComponent, BaseHeaderComponent
 from models.flags import CategoryFlag, PermissionFlags
+
+__all__ = ('grant_permission',
+           'revoke_permission',
+           'publicise_remote_file',
+           'hide_remote_file')
 
 async def grant_permission(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                            permission_component: BasePermissionComponent, role: RoleTypes,

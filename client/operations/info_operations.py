@@ -1,3 +1,5 @@
+'''Methods corresponding to queries'''
+
 import asyncio
 
 from client import session_manager
@@ -10,6 +12,8 @@ from models.request_model import BaseHeaderComponent, BaseInfoComponent
 from models.flags import CategoryFlag, InfoFlags
 from models.response_codes import SuccessFlags
 from models.constants import UNAUTHENTICATED_INFO_OPERATIONS
+
+__all__ = ('send_heartbeat', 'send_info_query')
 
 async def send_heartbeat(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                          client_config: client_constants.ClientConfig, session_master: session_manager.SessionManager,

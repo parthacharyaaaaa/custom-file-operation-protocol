@@ -1,7 +1,10 @@
+'''Wrapper over argparse.ArgumentParser to allow parsing errors to raise exceptions to be handled explicitly'''
 import argparse
 import sys
 import warnings
 from typing import Optional, Final
+
+__all__ = ('ExplicitArgumentParser',)
 
 class ExplicitArgumentParser(argparse.ArgumentParser):
     '''Wrapper over argparse.ArgumentParser to allow parsing errors to raise exceptions to be handled explicitly'''

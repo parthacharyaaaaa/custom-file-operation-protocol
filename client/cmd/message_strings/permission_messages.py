@@ -1,9 +1,16 @@
+'''message factories for PERMISSION related commands'''
+
 from typing import Sequence, Optional, Union
 from models.response_codes import SuccessFlags, ClientErrorFlags, ServerErrorFlags
 from client.cmd.cmd_utils import format_dict
 from traceback import format_exception
 
-__all__ = ('successful_file_hide', 'successful_file_publicise', 'successful_granted_role', 'successful_revoked_role', 'successful_ownership_trasnfer', 'failed_permission_operation')
+__all__ = ('successful_file_hide',
+           'successful_file_publicise',
+           'successful_granted_role',
+           'successful_revoked_role',
+           'successful_ownership_trasnfer',
+           'failed_permission_operation')
 
 def successful_file_hide(remote_dir: str, remote_file: str, revoked_info: Sequence[dict[str, str]], code: Optional[SuccessFlags] = None) -> str:
     revoked_info_str: str = '\n- '.join(f"{mapping['grantee']} : {mapping['role']}" for mapping in revoked_info)

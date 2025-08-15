@@ -1,3 +1,5 @@
+'''Client-assosciated constant models and values'''
+
 from typing import Annotated, Union
 from pydantic import BaseModel, Field, field_validator
 from models.constants import REQUEST_CONSTANTS
@@ -7,6 +9,7 @@ from pathlib import Path
 __all__ = ('ClientConfig',)
 
 class ClientConfig(BaseModel):
+    '''Client config Pydantic model'''
     version: Annotated[str, Field(frozen=True, pattern=REQUEST_CONSTANTS.header.version_regex)]
     read_timeout: Annotated[float, Field(frozen=True, ge=0)]
     ssl_handshake_timeout: Annotated[float, Field(frozen=True, ge=0)]

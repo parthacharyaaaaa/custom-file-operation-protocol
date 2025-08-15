@@ -1,8 +1,12 @@
+'''Utility functions for client shell'''
+
 import sys
 import aiofiles
 import itertools
 import asyncio
 from typing import Sequence, Union, Any
+
+__all__ = ('display', 'display_spinner', 'format_dict')
 
 async def display(*args: Union[str, bytes], sep=b' ', end=b'\n'):
     write_buffer: bytes = sep.join(arg.encode('utf-8') if isinstance(arg, str) else arg for arg in args)

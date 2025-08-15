@@ -1,3 +1,5 @@
+'''Methods corresponding to client auth'''
+
 import asyncio
 from typing import Any
 
@@ -16,6 +18,13 @@ from models.request_model import BaseHeaderComponent, BaseAuthComponent
 from models.flags import CategoryFlag, AuthFlags
 from models.response_codes import SuccessFlags, ServerErrorFlags
 from models.session_metadata import SessionMetadata
+
+__all__ = ('create_remote_user',
+           'delete_remote_user',
+           'authorize',
+           'reauthorize',
+           'end_remote_session',
+           'change_password')
 
 async def create_remote_user(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              auth_component: BaseAuthComponent,

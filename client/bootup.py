@@ -1,3 +1,5 @@
+'''Methods invoked during client bootup'''
+
 import asyncio
 import json
 import os
@@ -17,7 +19,11 @@ import pytomlpp
 
 from ssl_utils import ssl_setup
 
-__all__ = ('init_session_manager', 'init_client_configurations', 'init_cmd_window', 'create_server_connection')
+__all__ = ('init_session_manager',
+           'init_client_configurations',
+           'init_cmd_window',
+           'create_server_connection',
+           'heartbeat_monitor')
 
 def init_session_manager(host: str, port: int) -> SessionManager:
     return SessionManager(host, port)

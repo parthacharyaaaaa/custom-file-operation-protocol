@@ -1,8 +1,13 @@
+'''Abstraction for locally managing client session'''
+
 from models.request_model import BaseAuthComponent
 from models.session_metadata import SessionMetadata
 from models.singletons import SingletonMetaclass
 
+__all__ = ('SessionManager',)
+
 class SessionManager(metaclass=SingletonMetaclass):
+    '''Abstraction for locally managing client session'''
     __slots__ = ('_host', '_port', '_identity', '_session_metadata', '_auth_component')
 
     def __init__(self, host: str, port: int):

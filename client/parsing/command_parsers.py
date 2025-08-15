@@ -1,5 +1,6 @@
 '''Parsers for client shell's commands'''
 import argparse
+from typing import Final
 
 from client.parsing.explicit_argument_parser import ExplicitArgumentParser
 from client.cmd.commands import GeneralModifierCommands, AuthModifierCommands, FileModifierCommands, PermissionModifierCommands
@@ -9,16 +10,16 @@ from models.constants import REQUEST_CONSTANTS
 
 __all__ = ('generic_modifier_parser', 'file_command_parser', 'permission_command_parser', 'auth_command_parser')
 
-generic_modifier_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='modifier_commands')
+generic_modifier_parser: Final[ExplicitArgumentParser] = ExplicitArgumentParser(prog='modifier_commands')
 for modifier in GeneralModifierCommands:
     generic_modifier_parser.add_argument(f'-{modifier.value.lower()}', help=None, action='store_true')
 
 #NOTE: For the generic filedir_parser, the action for 'directory' will have a default value injected at runtime based on the remote session
-filedir_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='filedir_parser', parents=[generic_modifier_parser], add_help=False)
+filedir_parser: Final[ExplicitArgumentParser] = ExplicitArgumentParser(prog='filedir_parser', parents=[generic_modifier_parser], add_help=False)
 filedir_parser.add_argument('file', type=arg_parsers.parse_filename)
 filedir_parser.add_argument('directory', type=arg_parsers.parse_dir)
 
-local_filedir_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='local_filedir_parser', parents=[generic_modifier_parser], add_help=False)
+local_filedir_parser: Final[ExplicitArgumentParser] = ExplicitArgumentParser(prog='local_filedir_parser', parents=[generic_modifier_parser], add_help=False)
 local_filedir_parser.add_argument('local_filepath', type=arg_parsers.parse_filepath)
 local_filedir_parser.add_argument('remote_filename', type=arg_parsers.parse_filename)
 local_filedir_parser.add_argument('remote_directory', type=arg_parsers.parse_dir)
@@ -27,11 +28,11 @@ local_filedir_parser.add_argument(f'--{FileModifierCommands.POSITION.value}', re
 local_filedir_parser.add_argument(f'--{FileModifierCommands.POST_OPERATION_CURSOR_KEEPALIVE.value}', required=False, action='store_true', default=False)
 
 ### File operations ###
-file_command_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='file_command_parser', parents=[filedir_parser], add_help=False)
+file_command_parser: Final[ExplicitArgumentParser] = ExplicitArgumentParser(prog='file_command_parser', parents=[filedir_parser], add_help=False)
 file_command_parser.add_argument(FileModifierCommands.WRITE_DATA.value, default=memoryview(b''), type=arg_parsers.parse_write_data)
 
 ### INFO operations ###
-info_command_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='info_command_parser', parents=[generic_modifier_parser], add_help=False)
+info_command_parser: Final[ExplicitArgumentParser] = ExplicitArgumentParser(prog='info_command_parser', parents=[generic_modifier_parser], add_help=False)
 info_command_parser.add_argument('query_type', type=arg_parsers.parse_query_type)
 info_command_parser.add_argument('resource_name')
 info_command_parser.add_argument('--verbose', action='store_true')
@@ -47,7 +48,7 @@ file_command_parser.add_argument(f'--{FileModifierCommands.CHUNKED.value}', requ
 file_command_parser.add_argument(f'--{FileModifierCommands.POST_OPERATION_CURSOR_KEEPALIVE.value}', required=False, action='store_true', default=False)
 
 ### Permission operations ###
-permission_command_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='permission_command_parser', parents=[filedir_parser], add_help=False)
+permission_command_parser: Final[ExplicitArgumentParser] = ExplicitArgumentParser(prog='permission_command_parser', parents=[filedir_parser], add_help=False)
 permission_command_parser.add_argument('user', type=arg_parsers.parse_username_arg, default=None)
 permission_command_parser.add_argument('role', type=arg_parsers.parse_granted_role)
 
@@ -61,7 +62,7 @@ for permisison_modifier in PermissionModifierCommands:
 
 ### Auth operations ###
 
-auth_command_parser: ExplicitArgumentParser = ExplicitArgumentParser(prog='auth_command_parser', parents=[generic_modifier_parser], add_help=False)
+auth_command_parser: Final[ExplicitArgumentParser] = ExplicitArgumentParser(prog='auth_command_parser', parents=[generic_modifier_parser], add_help=False)
 auth_command_parser.add_argument('username', type=arg_parsers.parse_username_arg)
 auth_command_parser.add_argument('password', type=arg_parsers.parse_password_arg)
 

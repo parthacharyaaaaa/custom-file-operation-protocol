@@ -1,3 +1,5 @@
+'''Methods corresponding to file I/O'''
+
 import asyncio
 import aiofiles
 import os
@@ -21,7 +23,13 @@ from models.flags import CategoryFlag, FileFlags
 from models.response_codes import SuccessFlags
 from models.request_model import BaseHeaderComponent, BaseFileComponent, BaseAuthComponent
 
-__all__ = ('replace_remote_file', 'patch_remote_file', 'append_remote_file', 'read_remote_file', 'create_file', 'delete_file', 'upload_remote_file')
+__all__ = ('replace_remote_file',
+           'patch_remote_file',
+           'append_remote_file',
+           'read_remote_file',
+           'create_file',
+           'delete_file',
+           'upload_remote_file')
 
 async def _send_amendment_chunks(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                                 header_component: BaseHeaderComponent,

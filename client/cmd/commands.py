@@ -1,8 +1,11 @@
 '''Module containing string representations of commands available to the client'''
+
 from enum import Enum
 from models.flags import InfoFlags
 from types import MappingProxyType
 from typing import Final
+
+__all__ = ('AuthCommands', 'FileCommands', 'PermissionCommands', 'QueryTypes', 'QueryMapper', 'FileModifierCommands', 'GeneralModifierCommands', 'AuthModifierCommands', 'PermissionModifierCommands')
 
 class AuthCommands(Enum):
     AUTH: str = 'AUTH'

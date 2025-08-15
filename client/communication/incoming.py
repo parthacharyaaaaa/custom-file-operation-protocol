@@ -1,9 +1,11 @@
+'''Module containing logic for handling incoming data'''
+
 import asyncio
-from typing import Optional, Literal
+from typing import Optional, Literal, Final
 from models.response_models import ResponseHeader, ResponseBody
 from models.constants import RESPONSE_CONSTANTS
 
-READ_LOCK: asyncio.Lock = asyncio.Lock()
+READ_LOCK: Final[asyncio.Lock] = asyncio.Lock()
 
 async def process_response(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                            timeout: float, lock_contention_timmeout: float = 3.0) -> tuple[ResponseHeader, Optional[ResponseBody]]:

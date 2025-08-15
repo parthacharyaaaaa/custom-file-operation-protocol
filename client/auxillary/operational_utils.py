@@ -13,7 +13,7 @@ from models.request_model import BaseHeaderComponent, BaseAuthComponent
 
 import pydantic
 
-__all__ = ('cast_as_memoryview', 'make_header_component', 'filter_claims')
+__all__ = ('cast_as_memoryview', 'make_header_component', 'filter_claims', 'make_auth_component')
 
 def cast_as_memoryview(arg: Union[str, SupportsBuffer]):
     if isinstance(arg, str): return memoryview(arg.encode(encoding='utf-8'))

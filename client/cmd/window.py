@@ -1,3 +1,5 @@
+'''Client window'''
+
 import asyncio
 import argparse
 import functools
@@ -18,8 +20,10 @@ from client.parsing import command_parsers
 from models.flags import InfoFlags
 from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent
 
-class ClientWindow(async_cmd.AsyncCmd):
+__all__ = ('ClientWindow',)
 
+class ClientWindow(async_cmd.AsyncCmd):
+    '''Subclass of of AsyncCmd to implement client-shell'''
     REPLACE_APPEND_EXCLUSION_SET: Final[frozenset[str]] = frozenset((FileModifierCommands.CHUNKED.value, FileModifierCommands.LIMIT.value, FileModifierCommands.POSITION.value))
     PATCH_EXCLUSION_SET: Final[frozenset[str]] = frozenset((FileModifierCommands.LIMIT.value, FileModifierCommands.CHUNKED.value))
 

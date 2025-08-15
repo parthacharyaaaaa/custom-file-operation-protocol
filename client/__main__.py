@@ -18,14 +18,14 @@ async def main() -> None:
     '''Entrypoint function for client shell'''
     args: argparse.Namespace = entrypoint_parser.parse_args()
     
-    client_config: ClientConfig = init_client_configurations()
+    client_config: Final[ClientConfig] = init_client_configurations()
     ssl_context: Final[ssl.SSLContext] = ssl_setup.make_client_ssl_context(ciphers=client_config.ciphers)
     reader, writer = await create_server_connection(host=args.host, port=args.port,
                                                     fingerprints_path=client_config.server_fingerprints_filepath,
                                                     ssl_context=ssl_context,
                                                     ssl_handshake_timeout=client_config.ssl_handshake_timeout,
                                                     blind_trust=args.blind_trust)
-    session_manager: SessionManager = init_session_manager(*writer.get_extra_info('peername'))
+    session_manager: Final[SessionManager] = init_session_manager(*writer.get_extra_info('peername'))
 
     if args.password:
         auth_component: BaseAuthComponent = BaseAuthComponent(identity=args.username, password=args.password)

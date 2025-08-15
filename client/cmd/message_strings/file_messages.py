@@ -1,3 +1,5 @@
+'''message factories for FILE I/O related commands'''
+
 import os
 from traceback import format_exception
 from typing import Optional, Sequence, Any
@@ -7,7 +9,14 @@ from client.cmd.cmd_utils import format_dict
 from models.response_codes import SuccessFlags, ClientErrorFlags
 from models.flags import FileFlags
 
-__all__ = ('succesful_file_creation', 'succesful_file_deletion', 'successful_file_amendment', 'failed_file_operation', 'file_not_found',)
+__all__ = (
+    "succesful_file_creation",
+    "succesful_file_deletion",
+    "successful_file_amendment",
+    "failed_file_operation",
+    "file_not_found",
+)
+
 
 def succesful_file_creation(remote_directory: str, remote_file: str, iso_epoch: str, code: Optional[SuccessFlags] = None) -> str:
     return f'Code {code or SuccessFlags.SUCCESSFUL_FILE_CREATION.value}: Created file {remote_directory}/{remote_file} at {iso_epoch}'
