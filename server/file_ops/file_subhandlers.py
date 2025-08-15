@@ -1,9 +1,9 @@
 import asyncio
-from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from datetime import datetime
 import os
-from traceback import format_exception_only
 from typing import Any
+
+from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 
 from models.cursor_flag import CursorFlag
 from models.flags import FileFlags
@@ -63,9 +63,8 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     
     # Update database to delete all file info pertaining to this file
     file_locks[file] = None
-    proxy: ConnectionProxy = await connection_master.request_connection(level=1)
     revoked_info: list[dict[str, Any]] = []
-    try:
+    async with await connection_master.request_connection(level=3) as proxy:
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute('''SELECT * FROM FILE_PERMISSIONS
                                  WHERE file_owner = %s AND filename = %s;''',
@@ -76,8 +75,6 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
                                  WHERE filename = %s AND owner = %s;''',
                                  (file_component.subject_file, auth_component.identity,))
         await proxy.commit()
-    finally:
-        await connection_master.reclaim_connection(proxy)
     
     deletion_time: datetime = datetime.now()
     asyncio.create_task(
@@ -207,11 +204,10 @@ async def handle_creation(header_component: BaseHeaderComponent, auth_component:
         raise errors.InvalidFileData(f'As user {auth_component.identity}, you only have permission to create new files in your own directory and not /{file_component.subject_file_owner}')
     
     fpath, epoch = await base_ops.create_file(root=config.root_directory, owner=auth_component.identity, filename=file_component.subject_file)
-    proxy: ConnectionProxy = await connection_master.request_connection(level=1)
 
     if fpath:
         # Add record for this file
-        try:
+        async with await connection_master.request_connection(level=3) as proxy:
             await proxy.execute('''INSERT INTO files (filename, owner, created_at)
                                 VALUES (%s, %s, %s);''',
                                 (file_component.subject_file, auth_component.identity, datetime.fromtimestamp(epoch), ))
@@ -219,8 +215,6 @@ async def handle_creation(header_component: BaseHeaderComponent, auth_component:
                                 VALUES (%s, %s, %s, %s, %s, %s);''',
                                 (auth_component.identity, file_component.subject_file, auth_component.identity,
                                 RoleTypes.OWNER.value, auth_component.identity, datetime.fromtimestamp(header_component.sender_timestamp),))
-        finally:
-            await connection_master.reclaim_connection(proxy)
     else:
         asyncio.create_task(enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
                                         log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
