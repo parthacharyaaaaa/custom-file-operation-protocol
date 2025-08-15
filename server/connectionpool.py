@@ -1,6 +1,8 @@
 import psycopg as pg
 import asyncio
 from typing import Literal, Optional, NoReturn
+from typing_extensions import Self
+from types import TracebackType
 from uuid import uuid4
 
 __all__ = ('ConnectionPoolManager', 'LeasedConnection', 'ConnectionProxy')
@@ -34,6 +36,17 @@ class ConnectionProxy:
                 return wrapped
         
         return attr
+    
+    async def __aenter__(self) -> Self:
+        if self.token != self._conn._usage_token:
+            raise PermissionError('Lease expired for this connection')
+        return self
+    
+    async def __aexit__(self,
+                         exc_type: type[BaseException] | None,
+                         exc_val: BaseException | None,
+                         exc_tb: TracebackType | None) -> None:
+        await self._conn._manager.reclaim_connection(proxy=self)
 
 class LeasedConnection:
     exempt_methods: frozenset[str] = frozenset('release')
