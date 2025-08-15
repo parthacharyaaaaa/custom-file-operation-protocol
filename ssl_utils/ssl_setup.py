@@ -1,14 +1,20 @@
 import certifi
+import hashlib
 import ssl
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional
+import json
+
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from datetime import datetime, timedelta
-from pathlib import Path
 
 __all__ = ('generate_self_signed_credentials', 'make_server_ssl_context', 'make_client_ssl_context')
+
+def generate_certificate_fingerprint(certificate: bytes) -> str:
+    return hashlib.sha256(certificate).hexdigest()
 
 def generate_self_signed_credentials(credentials_directory: Path,
                                      dns_name: str = 'localhost',
@@ -55,23 +61,21 @@ def make_server_ssl_context(certfile: Path,
                             keyfile: Path,
                             ciphers: str,
                             cafile: Optional[Path] = None) -> ssl.SSLContext:
-    ssl_context = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH, cafile=cafile or certifi.where())
+    ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER)
+    ssl_context.load_verify_locations(cafile or certifi.where())
     ssl_context.load_cert_chain(certfile, keyfile)
     ssl_context.set_ciphers(ciphers)
-    
-    ssl_context.options |= ssl.OP_NO_TLSv1
-    ssl_context.options |= ssl.OP_NO_TLSv1_1
-    ssl_context.options |= ssl.OP_SINGLE_DH_USE
-    ssl_context.options |= ssl.OP_SINGLE_ECDH_USE
     ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.VerifyMode.CERT_REQUIRED
+    ssl_context.verify_mode = ssl.VerifyMode.CERT_NONE
+    ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
 
     return ssl_context
 
-def make_client_ssl_context(cafile: Optional[Path] = None) -> ssl.SSLContext:
-    ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH,
-                                             cafile=cafile or certifi.where())
+def make_client_ssl_context(ciphers: str) -> ssl.SSLContext:
+    ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
+    ssl_context.set_ciphers(ciphers)
     ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.VerifyMode.CERT_REQUIRED
+    ssl_context.verify_mode = ssl.CERT_NONE
+    ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
 
     return ssl_context
