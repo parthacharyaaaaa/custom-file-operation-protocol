@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import os
 import ssl
 from pathlib import Path
 from typing import Any, Optional
@@ -29,7 +28,7 @@ def init_session_manager(host: str, port: int) -> SessionManager:
     return SessionManager(host, port)
 
 def init_client_configurations() -> ClientConfig:
-    constants_mapping: dict[str, Any] = pytomlpp.load(os.path.join(os.path.dirname(__file__), 'config', 'constants.toml'))
+    constants_mapping: dict[str, Any] = pytomlpp.load(Path.joinpath(Path(__file__).parent, 'config', 'constants.toml'))
     client_config = ClientConfig.model_validate(constants_mapping)
     client_config.server_fingerprints_filepath = Path.joinpath(Path(__file__).parent, client_config.server_fingerprints_filepath)
 

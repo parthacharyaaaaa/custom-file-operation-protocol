@@ -1,6 +1,7 @@
 '''Parsers for individual arguments'''
 import os
 import re
+from pathlib import Path
 
 from client.cmd.commands import QueryTypes, QueryMapper
 
@@ -35,9 +36,10 @@ def parse_dir(dir: str) -> str:
         raise ValueError('Invalid directory name')
     return dir
 
-def parse_filepath(fpath: str) -> str:
-    if not (os.path.isfile(fpath)):
-        raise FileNotFoundError(f'{fpath} not found in local file system')
+def parse_filepath(fpath_arg: str) -> str:
+    fpath: Path = Path(fpath_arg)
+    if not fpath.is_file():
+        raise FileNotFoundError(f'{fpath_arg} not found in local file system')
     return fpath
 
 def parse_non_negative_int(arg: str) -> int:

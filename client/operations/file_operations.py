@@ -2,9 +2,9 @@
 
 import asyncio
 import aiofiles
-import os
 import math
 import mmap
+from pathlib import Path
 from typing import Optional, Union, Any, Sequence
 
 from client import session_manager
@@ -259,10 +259,10 @@ async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 
 async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
-                             local_fpath: str, remote_filename: Optional[str] = None, chunk_size: Optional[int] = None,
+                             local_fpath: Path, remote_filename: Optional[str] = None, chunk_size: Optional[int] = None,
                              end_connection: bool = False, post_op_cursor_keepalive: bool = True) -> None:    
     if not remote_filename:
-        remote_filename = os.path.basename(local_fpath)
+        remote_filename: str = local_fpath.name
 
     header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.CREATE)
     file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=session_manager.identity)

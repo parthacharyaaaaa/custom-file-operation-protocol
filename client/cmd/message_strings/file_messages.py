@@ -1,6 +1,6 @@
 '''message factories for FILE I/O related commands'''
 
-import os
+from pathlib import Path
 from traceback import format_exception
 from typing import Optional, Sequence, Any
 
@@ -33,5 +33,5 @@ def failed_file_operation(remote_directory: str, remote_file: str, operation: Fi
                       f'Operation: {operation._name_}',
                       'Traceback:'+ "\n\t".join(format_exception(exc)) if exc else ''))
 
-def file_not_found(fpath: os.PathLike) -> str:
+def file_not_found(fpath: Path) -> str:
     return f'File {fpath} not found'
