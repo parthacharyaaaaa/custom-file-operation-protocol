@@ -1,7 +1,10 @@
+from pathlib import Path
 from typing import Annotated
 from typing_extensions import Self
+
 from models.constants import REQUEST_CONSTANTS
-from pydantic import BaseModel, Field, IPvAnyAddress, model_validator, ValidationError
+
+from pydantic import BaseModel, Field, IPvAnyAddress, model_validator, field_validator, ValidationError
 
 __all__ = ('ServerConfig',)
 
@@ -36,7 +39,7 @@ class ServerConfig(BaseModel):
     file_contention_timeout: Annotated[float, Field(ge=0)]
     file_transfer_timeout: Annotated[float, Field(frozen=True, ge=0)]
     cache_public_files: Annotated[bool, Field(default=False)]
-    root_directory: Annotated[str, Field(default='files')]
+    root_directory: Annotated[Path, Field(default='files')]
     user_max_files: Annotated[int, Field(ge=1)]
     user_max_storage: Annotated[int, Field(ge=1, frozen=True)]
 
@@ -60,3 +63,14 @@ class ServerConfig(BaseModel):
             raise ValidationError(f'Socket connection timeout {self.socket_connection_timeout} must be greater than component read timeout {self.read_timeout}')
         return self
     
+    @field_validator('root_directory', mode='before')
+    @classmethod
+    def preprocess_root_drectory(cls, root_directory: str) -> Path:
+        return Path(root_directory)
+    
+    def update_root_directory(self, server_root: Path) -> None:
+        self.root_directory = server_root / self.root_directory
+        if not server_root.is_dir():
+            raise NotADirectoryError(f'{server_root} not found in local file system')
+        elif not server_root.is_absolute():
+            raise ValueError('Server root must be an absolute path')
