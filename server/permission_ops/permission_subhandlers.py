@@ -1,8 +1,8 @@
 import asyncio
-from datetime import datetime
 import os
 import time
-from typing import Any, Optional, Literal
+from datetime import datetime
+from typing import Any
 from traceback import format_exception_only
 
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
@@ -22,7 +22,7 @@ from psycopg.rows import dict_row
 from server import errors
 from server import logging
 from server.config import server_config
-from server.connectionpool import ConnectionProxy, ConnectionPoolManager
+from server.connectionpool import ConnectionPoolManager
 from server.database import models as db_models, utils as db_utils
 from server.file_ops import base_operations as base_ops
 
