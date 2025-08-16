@@ -1,11 +1,10 @@
 '''Helper module for loading all required instances whenever the server starts'''
-import os
 import asyncio
 import ssl
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from math import inf
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Final
 
 from cachetools import TTLCache
 
@@ -29,13 +28,22 @@ __all__ = ('create_server_config',
            'manage_ssl_credentials')
 
 def create_server_config(dirname: Optional[str] = None) -> ServerConfig:
-    loaded_constants: dict[str, Any] = pytomlpp.load(dirname or os.path.join(os.path.dirname(__file__), 'config', 'server_config.toml'))
+    loaded_constants: dict[str, dict[str, Any]] = pytomlpp.load(dirname or Path(__file__).parent.joinpath('config', 'server_config.toml'))
 
-    # Laziest code I have ever written
-    SERVER_CONFIG = ServerConfig.model_validate({'version' :loaded_constants['version']} | loaded_constants['network'] | loaded_constants['database'] | loaded_constants['file'] | loaded_constants['auth'] | loaded_constants['logging'])
-    SERVER_CONFIG.root_directory = os.path.join(os.path.dirname(__file__), SERVER_CONFIG.root_directory)
-    
-    return SERVER_CONFIG
+    flattened_dict: dict[str, Any] = {}
+    leftover_mappings: list[dict[str, Any]] = [loaded_constants]
+    while leftover_mappings:
+        mapping = leftover_mappings.pop()
+        for k, v in mapping.items():
+            if isinstance(v, dict):
+                leftover_mappings.append(mapping[k])
+                continue
+            flattened_dict.update({k:v})
+
+    server_config: Final[ServerConfig] = ServerConfig.model_validate(flattened_dict)
+    server_config.update_root_directory(Path(__file__).parent)
+
+    return server_config
 
 async def create_connection_master(conninfo: str, config: ServerConfig) -> ConnectionPoolManager:
     connection_master = ConnectionPoolManager(config.connection_lease_duration, *config.max_connections,
