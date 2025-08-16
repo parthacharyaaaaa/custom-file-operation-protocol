@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from typing import Annotated, Any, Final
 
 from models.flags import InfoFlags
@@ -58,7 +58,8 @@ UNAUTHENTICATED_INFO_OPERATIONS: Final[frozenset[InfoFlags]] = frozenset({InfoFl
 
 def load_constants():
     global REQUEST_CONSTANTS, RESPONSE_CONSTANTS
-    loaded_constants: dict[str, Any] = pytomlpp.load(os.path.join(os.path.dirname(__file__), 'constants.toml'))
+    
+    loaded_constants: dict[str, Any] = pytomlpp.load(Path(__file__).parent.joinpath('constants.toml'))
     REQUEST_CONSTANTS = RequestConstants.model_validate({'header' : HeaderRequestConstants.model_validate(loaded_constants['components']['request']['header']),
                                                          'auth' : AuthRequestConstants.model_validate(loaded_constants['components']['request']['auth']),
                                                          'file' : FileRequestConstants.model_validate(loaded_constants['components']['request']['file']),
