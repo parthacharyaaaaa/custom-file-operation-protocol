@@ -1,7 +1,6 @@
 '''Subhandler routines for INFO operations'''
 # TODO: Perhaps add a caching mechanism for DB reads?
 import asyncio
-import os
 from typing import Any
 
 from models.flags import InfoFlags
@@ -63,7 +62,7 @@ async def handle_filedata_query(header_component: BaseHeaderComponent, auth_comp
             file_data: dict[str, Any] = await cursor.fetchone()
 
             if header_component.subcategory & InfoFlags.VERBOSE:
-                file_data |= get_local_filedata(os.path.join(server_config.root_directory, owner, filename))
+                file_data |= get_local_filedata(server_config.root_directory.joinpath(owner, filename))
 
             return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value, ended_connection=header_component.finish),
                     ResponseBody(contents=file_data))

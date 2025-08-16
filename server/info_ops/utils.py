@@ -1,5 +1,6 @@
 '''Utility functions exclusive to INFO operations'''
 import re
+from pathlib import Path
 import os
 from datetime import datetime
 from typing import Any
@@ -20,15 +21,15 @@ def derive_file_identity(identity: str) -> list[str, str]:
 
     return split_args
 
-def get_local_filedata(fpath: os.PathLike) -> dict[str, Any]:
-    stat_res: os.stat_result = os.stat(fpath, follow_symlinks=False)
+def get_local_filedata(fpath: Path) -> dict[str, Any]:
+    stat_res: os.stat_result = fpath.stat(follow_symlinks=False)
     return {'Most recent change' : datetime.fromtimestamp(stat_res.st_mtime),
             'most recent access' : datetime.fromtimestamp(stat_res.st_atime),
             'most recent metadata change' :  datetime.fromtimestamp(stat_res.st_ctime),
             'file size (bytes)' : stat_res.st_size}
 
-def get_local_storage_data(root: str, user: str) -> dict[str, Any]:
-    absolute_dirpath: os.PathLike = os.path.join(root, user)
+def get_local_storage_data(root: Path, user: str) -> dict[str, Any]:
+    absolute_dirpath: Path = root / user
     storage: int = 0
     file_storage_data: dict[str, int] = {}
     for dir_entry in os.scandir(absolute_dirpath):
