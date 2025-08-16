@@ -1,7 +1,7 @@
 '''Subhandler routines for INFO operations'''
 # TODO: Perhaps add a caching mechanism for DB reads?
 import asyncio
-from typing import Any
+from typing import Any, Final
 
 from models.flags import InfoFlags
 from models.response_codes import SuccessFlags
@@ -17,11 +17,12 @@ from server.connectionpool import ConnectionPoolManager
 from server.database import models as db_models, utils as db_utils
 from server.info_ops.utils import derive_file_identity, get_local_filedata, get_local_storage_data
 
-file_permissions_selection_query: sql.SQL = sql.SQL('''SELECT {projection} FROM file_permissions
-                                                    WHERE file_owner = %s AND filename = %s;''')
-file_data_selection_query: sql.SQL = sql.SQL('''SELECT {projection}
-                                             FROM files
-                                             WHERE owner = %s AND filename = %s;''')
+file_permissions_selection_query: Final[sql.SQL] = sql.SQL('''SELECT {projection} FROM file_permissions
+                                                           WHERE file_owner = %s AND filename = %s;''')
+
+file_data_selection_query: Final[sql.SQL] = sql.SQL('''SELECT {projection}
+                                                    FROM files
+                                                    WHERE owner = %s AND filename = %s;''')
 
 async def handle_heartbeat(header: BaseHeaderComponent, server_config: ServerConfig) -> tuple[ResponseHeader, None]:
     '''Send a heartbeat signal back to the client'''
