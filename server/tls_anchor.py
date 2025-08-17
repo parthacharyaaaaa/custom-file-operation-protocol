@@ -1,17 +1,17 @@
 import certifi
 import hashlib
+import secrets
 import ssl
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Final
 import json
 
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-
-__all__ = ('generate_self_signed_credentials', 'make_server_ssl_context', 'make_client_ssl_context')
 
 def generate_certificate_fingerprint(certificate: bytes) -> str:
     return hashlib.sha256(certificate).hexdigest()
@@ -71,11 +71,26 @@ def make_server_ssl_context(certfile: Path,
 
     return ssl_context
 
-def make_client_ssl_context(ciphers: str) -> ssl.SSLContext:
-    ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
-    ssl_context.set_ciphers(ciphers)
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-    ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
-
-    return ssl_context
+def generate_rollover_token(new_cert: x509.Certificate,
+                            old_cert: x509.Certificate,
+                            old_key: ec.EllipticCurvePrivateKey,
+                            nonce_length: int,
+                            output_path: Path,
+                            host: str,
+                            grace_period: float,
+                            reason: str = 'rotation') -> None:
+    issuance: float = time.time()
+    old_pubkey_hash: bytes = hashlib.sha256(old_cert.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfoz))
+    new_pubkey_hash: bytes = hashlib.sha256(new_cert.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfoz))
+    json.dump(fp=output_path,
+              indent=4,
+              obj={
+                  'server' : host,
+                  'old_pubkey_hash' : old_pubkey_hash.hex(),
+                  'new_pubkey_hash' : new_pubkey_hash.hex(),
+                  'issued_at' : issuance,
+                  'not_before' : issuance+grace_period,
+                  'reason' : reason,
+                  'signature' : old_key.sign(old_pubkey_hash).hex(),
+                  'nonce' : secrets.token_hex(nonce_length)
+                  })
