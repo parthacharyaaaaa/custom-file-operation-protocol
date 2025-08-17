@@ -5,7 +5,7 @@ import ssl
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Final, Optional
 import json
 
 from cryptography import x509
@@ -59,6 +59,8 @@ def generate_self_signed_credentials(credentials_directory: Path,
         Path.unlink(certpath, missing_ok=True)
         Path.unlink(keypath, missing_ok=True)
         raise e
+    
+    return cert, private_key
 
 def make_server_ssl_context(certfile: Path,
                             keyfile: Path,
@@ -117,3 +119,24 @@ def load_credentials(credentials_directory: Path,
         raise ValueError(f"Expected private key to be EC key, got instance of {private_key.__class__}")
 
     return x509.load_pem_x509_certificate(certificate_bytes), private_key
+
+def rotate_server_certificates(server_config: ServerConfig,
+                               reason: str = 'periodic rotation') -> ssl.SSLContext:
+    credentials_directory: Final[Path] = server_config.root_directory / server_config.credentials_dirname
+    old_certificate, old_key = load_credentials(credentials_directory=credentials_directory,
+                                                cert_filename=server_config.certificate_filename,
+                                                key_filename=server_config.key_filename)
+    
+    new_certificate, new_key = generate_self_signed_credentials(credentials_directory=credentials_directory,
+                                                                cert_filename=server_config.certificate_filename,
+                                                                key_filename=server_config.key_filename,
+                                                                dns_name=str(server_config.host))
+    
+    generate_rollover_token(new_cert=new_certificate, old_cert=old_certificate, old_key=old_key,
+                            nonce_length=server_config.rollover_token_nonce_length, host=str(server_config.host), grace_period=server_config.rollover_grace_window,
+                            output_path=server_config.root_directory / server_config.rollover_token_filename,
+                            reason=reason)
+    
+    return make_server_ssl_context(certfile=credentials_directory,
+                                   keyfile=credentials_directory / server_config.key_filename,
+                                   ciphers=server_config.ciphers)
