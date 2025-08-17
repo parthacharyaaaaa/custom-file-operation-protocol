@@ -5,13 +5,16 @@ import ssl
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Final
+from typing import Optional
 import json
 
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
+
+from server.config.server_config import ServerConfig
 
 def generate_certificate_fingerprint(certificate: bytes) -> str:
     return hashlib.sha256(certificate).hexdigest()
@@ -94,3 +97,23 @@ def generate_rollover_token(new_cert: x509.Certificate,
                   'signature' : old_key.sign(old_pubkey_hash).hex(),
                   'nonce' : secrets.token_hex(nonce_length)
                   })
+
+def load_credentials(credentials_directory: Path,
+                     cert_filename: Optional[str] = 'certfile.crt',
+                     key_filename: Optional[str] = 'keyfile.pem') -> tuple[x509.Certificate, ec.EllipticCurvePrivateKey]:
+    certificate_filepath: Path = credentials_directory.joinpath(cert_filename)
+    if not certificate_filepath.is_file():
+        raise FileNotFoundError(f'File {certificate_filepath} not found')
+    
+    key_filepath: Path = credentials_directory.joinpath(key_filename)
+    if not key_filepath.is_file():
+        raise FileNotFoundError(f'File {key_filepath} not found')
+    
+    certificate_bytes: bytes = Path.read_bytes(certificate_filepath)
+    private_key_bytes: bytes = Path.read_bytes(key_filepath)
+
+    private_key: PrivateKeyTypes = serialization.load_pem_private_key(private_key_bytes)
+    if not isinstance(private_key, ec.EllipticCurvePrivateKey):
+        raise ValueError(f"Expected private key to be EC key, got instance of {private_key.__class__}")
+
+    return x509.load_pem_x509_certificate(certificate_bytes), private_key
