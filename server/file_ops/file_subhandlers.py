@@ -2,6 +2,7 @@ import asyncio
 import os
 from datetime import datetime
 from typing import Any
+from zlib import adler32
 
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 
@@ -112,12 +113,14 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
         raise errors.InsufficientPermissions(err_str)
     
     fpath: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
-    # Acquire lock
-    try:
-        await asyncio.wait_for(base_ops.acquire_file_lock(file_locks=file_locks, filename=fpath, requestor=auth_component.identity, ttl=config.file_lock_ttl),
-                               timeout=config.file_contention_timeout)
-    except asyncio.TimeoutError:
-        raise errors.FileContested(file=file_component.subject_file, username=file_component.subject_file_owner)
+    if file_component.subject_file_owner == auth_component.identity:
+        file_locks[fpath] = adler32(auth_component.identity)
+    else:
+        try:
+            await asyncio.wait_for(base_ops.acquire_file_lock(file_locks=file_locks, filename=fpath, requestor=auth_component.identity, ttl=config.file_lock_ttl),
+                                timeout=config.file_contention_timeout)
+        except asyncio.TimeoutError:
+            raise errors.FileContested(file=file_component.subject_file, username=file_component.subject_file_owner)
 
     cursor_position: int = None
     keepalive_accepted: bool = False
