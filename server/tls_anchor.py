@@ -121,7 +121,7 @@ def load_credentials(credentials_directory: Path,
 
 def rotate_server_certificates(server_config: ServerConfig,
                                reason: str = 'periodic rotation') -> ssl.SSLContext:
-    credentials_directory: Final[Path] = server_config.root_directory / server_config.credentials_dirname
+    credentials_directory: Final[Path] = server_config.files_directory / server_config.credentials_dirname
     old_certificate, old_key = load_credentials(credentials_directory=credentials_directory,
                                                 cert_filename=server_config.certificate_filename,
                                                 key_filename=server_config.key_filename)
@@ -133,7 +133,7 @@ def rotate_server_certificates(server_config: ServerConfig,
     
     generate_rollover_token(new_cert=new_certificate, old_cert=old_certificate, old_key=old_key,
                             nonce_length=server_config.rollover_token_nonce_length, host=str(server_config.host), grace_period=server_config.rollover_grace_window,
-                            output_path=server_config.root_directory / server_config.rollover_token_filename,
+                            output_path=server_config.files_directory / server_config.rollover_token_filename,
                             reason=reason)
     
     return make_server_ssl_context(certfile=credentials_directory,

@@ -36,15 +36,15 @@ class ServerConfig(BaseModel):
     connection_lease_duration: Annotated[float, Field(ge=1.0)]
 
     # File
+    files_directory: Annotated[Path, Field(default='files')]
+    user_max_files: Annotated[int, Field(ge=1)]
+    user_max_storage: Annotated[int, Field(ge=1, frozen=True)]
     file_cache_size: Annotated[int, Field(ge=0)]
     file_cache_ttl: Annotated[float, Field(frozen=True, ge=0)]
     file_lock_ttl: Annotated[float, Field(frozen=True, ge=0)]
     file_contention_timeout: Annotated[float, Field(ge=0)]
     file_transfer_timeout: Annotated[float, Field(frozen=True, ge=0)]
     cache_public_files: Annotated[bool, Field(default=False)]
-    root_directory: Annotated[Path, Field(default='files')]
-    user_max_files: Annotated[int, Field(ge=1)]
-    user_max_storage: Annotated[int, Field(ge=1, frozen=True)]
 
     # Auth
     max_attempts: Annotated[int, Field(frozen=True, ge=0)]
@@ -66,13 +66,13 @@ class ServerConfig(BaseModel):
             raise ValidationError(f'Socket connection timeout {self.socket_connection_timeout} must be greater than component read timeout {self.read_timeout}')
         return self
     
-    @field_validator('root_directory', mode='before')
+    @field_validator('files_directory', mode='before')
     @classmethod
-    def preprocess_root_drectory(cls, root_directory: str) -> Path:
-        return Path(root_directory)
+    def preprocess_root_drectory(cls, files_directory: str) -> Path:
+        return Path(files_directory)
     
-    def update_root_directory(self, server_root: Path) -> None:
-        self.root_directory = server_root / self.root_directory
+    def update_files_directory(self, server_root: Path) -> None:
+        self.files_directory = server_root / self.files_directory
         if not server_root.is_dir():
             raise NotADirectoryError(f'{server_root} not found in local file system')
         elif not server_root.is_absolute():

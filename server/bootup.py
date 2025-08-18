@@ -41,7 +41,7 @@ def create_server_config(dirname: Optional[str] = None) -> ServerConfig:
             flattened_dict.update({k:v})
 
     server_config: Final[ServerConfig] = ServerConfig.model_validate(flattened_dict)
-    server_config.update_root_directory(Path(__file__).parent)
+    server_config.update_files_directory(Path(__file__).parent)
 
     return server_config
 
@@ -82,7 +82,7 @@ def start_logger(log_queue: asyncio.Queue[db_models.ActivityLog], config: Server
                                            flush_interval=config.log_interval))
 
 def manage_ssl_credentials(server_config: ServerConfig) -> ssl.SSLContext:
-    server_credentials_directory: Path = Path.joinpath(Path(server_config.root_directory).parent, server_config.credentials_dirname)
+    server_credentials_directory: Path = Path.joinpath(Path(server_config.files_directory).parent, server_config.credentials_dirname)
     Path.mkdir(server_credentials_directory, exist_ok=True)
     key_path: Path = Path.joinpath(server_credentials_directory, server_config.key_filename)
     cert_path: Path = Path.joinpath(server_credentials_directory, server_config.certificate_filename)

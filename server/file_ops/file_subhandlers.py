@@ -49,7 +49,7 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     # Request validated. No need to acquire lock since owner's deletion request is more important than any concurrent file amendment locks
     file: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
 
-    file_deleted: bool = await base_ops.delete_file(config.root_directory, file, deleted_cache, read_cache, amendment_cache)
+    file_deleted: bool = await base_ops.delete_file(config.files_directory, file, deleted_cache, read_cache, amendment_cache)
     if not file_deleted:
         err_str: str = f'Failed to delete file {file_component.subject_file}'
         asyncio.create_task(
@@ -126,7 +126,7 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     keepalive_accepted: bool = False
 
     if header_component.subcategory & (FileFlags.WRITE | FileFlags.OVERWRITE):
-        cursor_position = await base_ops.write_file(root=config.root_directory, fpath=fpath,
+        cursor_position = await base_ops.write_file(root=config.files_directory, fpath=fpath,
                                                     data=file_component.write_data,
                                                     deleted_cache=delete_cache, amendment_cache=amendment_cache,
                                                     cursor_position=file_component.cursor_position or 0,
@@ -135,7 +135,7 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
                                                     identifier=auth_component.identity,
                                                     trunacate=header_component.subcategory & FileFlags.OVERWRITE)
     else:
-        cursor_position = await base_ops.append_file(root=config.root_directory, fpath=fpath,
+        cursor_position = await base_ops.append_file(root=config.files_directory, fpath=fpath,
                                                      data=file_component.write_data,
                                                      deleted_cache=delete_cache, amendment_cache=amendment_cache,
                                                      append_writer_keepalive=file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE,
@@ -173,7 +173,7 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
         raise errors.InsufficientPermissions(err_str)
     
     fpath: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
-    read_data, cursor_position, eof_reached = await base_ops.read_file(root=config.root_directory, fpath=fpath,
+    read_data, cursor_position, eof_reached = await base_ops.read_file(root=config.files_directory, fpath=fpath,
                                                                        deleted_cache=delete_cache, read_cache=read_cache,
                                                                        cursor_position=file_component.cursor_position, nbytes=file_component.chunk_size,
                                                                        reader_keepalive=file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE,
@@ -206,7 +206,7 @@ async def handle_creation(header_component: BaseHeaderComponent, auth_component:
         
         raise errors.InvalidFileData(f'As user {auth_component.identity}, you only have permission to create new files in your own directory and not /{file_component.subject_file_owner}')
     
-    fpath, epoch = await base_ops.create_file(root=config.root_directory, owner=auth_component.identity, filename=file_component.subject_file)
+    fpath, epoch = await base_ops.create_file(root=config.files_directory, owner=auth_component.identity, filename=file_component.subject_file)
 
     if fpath:
         # Add record for this file

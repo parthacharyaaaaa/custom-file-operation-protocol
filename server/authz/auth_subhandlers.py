@@ -21,7 +21,7 @@ async def handle_registration(header_component: BaseHeaderComponent, auth_compon
     if not auth_component.auth_logical_check('authorization'):
         raise InvalidAuthSemantic('Account creation requires only the following fields: identity, password')
     
-    await user_manager.create_user(username=auth_component.identity, password=auth_component.password, make_dir=True, root=config.root_directory)
+    await user_manager.create_user(username=auth_component.identity, password=auth_component.password, make_dir=True, root=config.files_directory)
 
     return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_CREATION.value, ended_connection=header_component.finish, config=config),
             ResponseBody(contents={'epoch' : time.time(), 'username' : auth_component.identity}))
@@ -47,7 +47,7 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
                                   reader_cache, amendment_cache)
     
     # Delete this user's directory
-    files_deleted = await asyncio.wait_for(asyncio.to_thread(delete_directory, root=config.root_directory, dirname=auth_component.identity),
+    files_deleted = await asyncio.wait_for(asyncio.to_thread(delete_directory, root=config.files_directory, dirname=auth_component.identity),
                                            timeout=config.file_transfer_timeout)
     
     header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_DELETION.value, ended_connection=header_component.finish, config=config)

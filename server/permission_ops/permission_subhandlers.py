@@ -302,7 +302,7 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
                 # Before committing, it is important to move this file to the new owner's directory. This way in case of an OSError/PermissionError we won't have inconsistent state
                 new_fname = await asyncio.wait_for(
                     asyncio.to_thread(base_ops.transfer_file,
-                                    root=config.root_directory, file=permission_component.subject_file,
+                                    root=config.files_directory, file=permission_component.subject_file,
                                     previous_owner=permission_component.subject_file_owner, new_owner=permission_component.subject_user,
                                     deleted_cache=deleted_cache,
                                     read_cache=read_cache, amendment_cache=amendment_cache),
@@ -349,7 +349,7 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
             if new_fname:   # new_fname being not None implies the file was transferred, but an error occured at the database level
                 await asyncio.wait_for(
                     asyncio.to_thread(base_ops.transfer_file,
-                                    root=config.root_directory, file=new_fname, new_name=permission_component.subject_file,
+                                    root=config.files_directory, file=new_fname, new_name=permission_component.subject_file,
                                     previous_owner=permission_component.subject_user, new_owner=permission_component.subject_file_owner,
                                     deleted_cache=deleted_cache,
                                     read_cache=read_cache, amendment_cache=amendment_cache),

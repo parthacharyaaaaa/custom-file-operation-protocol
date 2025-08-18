@@ -63,7 +63,7 @@ async def handle_filedata_query(header_component: BaseHeaderComponent, auth_comp
             file_data: dict[str, Any] = await cursor.fetchone()
 
             if header_component.subcategory & InfoFlags.VERBOSE:
-                file_data |= get_local_filedata(server_config.root_directory.joinpath(owner, filename))
+                file_data |= get_local_filedata(server_config.files_directory.joinpath(owner, filename))
 
             return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value, ended_connection=header_component.finish),
                     ResponseBody(contents=file_data))
@@ -92,7 +92,7 @@ async def handle_user_query(header_component: BaseHeaderComponent, auth_componen
 
 async def handle_storage_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
                                server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
-    scan_task: asyncio.Task = asyncio.create_task(asyncio.to_thread(get_local_storage_data, root=server_config.root_directory, user=auth_component.identity))
+    scan_task: asyncio.Task = asyncio.create_task(asyncio.to_thread(get_local_storage_data, root=server_config.files_directory, user=auth_component.identity))
     storage_data: dict[str, Any] = await asyncio.wait_for(scan_task, 10)
     storage_data.update({'storage_left' : server_config.user_max_storage - storage_data['storage_used'],
                          'files_left' : server_config.user_max_files - storage_data['files_made']})
