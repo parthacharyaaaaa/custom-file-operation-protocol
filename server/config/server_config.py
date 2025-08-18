@@ -78,8 +78,6 @@ class ServerConfig(BaseModel):
         for path in ['key_filepath', 'certificate_filepath', 'rollover_data_filepath']:
             abs_path: Path = credentials_directory / getattr(self, path)
             setattr(self, path, abs_path)
-            if not abs_path.is_file():
-                path.touch()
     
     def update_files_directory(self, server_root: Path) -> None:
         self.files_directory = server_root / self.files_directory
