@@ -21,7 +21,7 @@ __all__ = ('generate_self_signed_credentials', 'generate_rollover_token', 'make_
 def generate_self_signed_credentials(credentials_directory: Path,
                                      dns_name: str = 'localhost',
                                      cert_filename: Optional[str] = 'certfile.crt',
-                                     key_filename: Optional[str] = 'keyfile.pem') -> None:
+                                     key_filename: Optional[str] = 'keyfile.pem') -> tuple[x509.Certificate, ec.EllipticCurvePrivateKey]:
     private_key: ec.EllipticCurvePrivateKey = ec.generate_private_key(ec.SECP256R1())
     
     subject = issuer = x509.Name([
