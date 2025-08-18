@@ -18,7 +18,7 @@ class ServerConfig(BaseModel):
     socket_connection_timeout: Annotated[float, Field(frozen=True, ge=0)]
 
     # Credentials
-    credentials_dirname: Annotated[str, Field(frozen=True)]
+    credentials_directory: Annotated[Path, Field(frozen=True)]
     key_filename: Annotated[str, Field(frozen=True, min_length=4)]  # Min length 4 to count .pem extension
     certificate_filename: Annotated[str, Field(frozen=True, min_length=4)]  # Min length 4 to count .crt extension
     rollover_data_filename: Annotated[str, Field(frozen=True, min_length=5)]    # Min length 5 to count .json extension
@@ -77,3 +77,8 @@ class ServerConfig(BaseModel):
             raise NotADirectoryError(f'{server_root} not found in local file system')
         elif not server_root.is_absolute():
             raise ValueError('Server root must be an absolute path')
+    
+    @field_validator('credentials_directory', mode='before')
+    @classmethod
+    def preprocess_root_drectory(cls, credentials_directory: str) -> Path:
+        return Path(credentials_directory)
