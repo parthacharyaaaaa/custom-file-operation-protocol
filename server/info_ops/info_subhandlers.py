@@ -8,6 +8,8 @@ from models.response_codes import SuccessFlags
 from models.response_models import ResponseHeader, ResponseBody
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseInfoComponent
 
+import orjson
+
 from psycopg.rows import dict_row
 from psycopg import sql
 
@@ -23,6 +25,13 @@ file_permissions_selection_query: Final[sql.SQL] = sql.SQL('''SELECT {projection
 file_data_selection_query: Final[sql.SQL] = sql.SQL('''SELECT {projection}
                                                     FROM files
                                                     WHERE owner = %s AND filename = %s;''')
+
+__all__ = ('handle_heartbeat',
+           'handle_permission_query',
+           'handle_filedata_query',
+           'handle_user_query',
+           'handle_storage_query',
+           'handle_ssl_query')
 
 async def handle_heartbeat(header: BaseHeaderComponent, server_config: ServerConfig) -> tuple[ResponseHeader, None]:
     '''Send a heartbeat signal back to the client'''
@@ -98,3 +107,11 @@ async def handle_storage_query(header_component: BaseHeaderComponent, auth_compo
                          'files_left' : server_config.user_max_files - storage_data['files_made']})
     return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value, ended_connection=header_component.finish),
             ResponseBody(contents=storage_data))
+
+async def handle_ssl_query(server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
+    certificate_bytes: str = server_config.certificate_filepath.read_text(encoding='utf-8')
+    rollover_data: dict[str, Any] = orjson.loads(server_config.rollover_data_filepath.read_bytes())
+
+    return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value),
+            ResponseBody(contents={'certificate' : certificate_bytes,
+                                   'rollover_data' : rollover_data}))

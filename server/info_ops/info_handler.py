@@ -10,7 +10,7 @@ from models.response_models import ResponseHeader, ResponseBody
 from server.comms_utils.incoming import process_component
 from server.dependencies import ServerSingletonsRegistry
 from server.errors import InvalidAuthSemantic, UnsupportedOperation, InvalidHeaderSemantic, SlowStreamRate, InvalidBodyValues
-from server.info_ops.info_subhandlers import handle_heartbeat, handle_permission_query, handle_filedata_query, handle_user_query, handle_storage_query
+from server.info_ops.info_subhandlers import handle_heartbeat, handle_permission_query, handle_filedata_query, handle_user_query, handle_storage_query, handle_ssl_query
 
 import orjson
 import pydantic
@@ -26,7 +26,8 @@ INFO_SUBHANDLER_MAPPING: MappingProxyType[int, INFO_SUBHANDLER] = MappingProxyTy
         InfoFlags.PERMISSION_METADATA : handle_permission_query,
         InfoFlags.FILE_METADATA : handle_filedata_query,
         InfoFlags.USER_METADATA : handle_user_query,
-        InfoFlags.STORAGE_USAGE : handle_storage_query
+        InfoFlags.STORAGE_USAGE : handle_storage_query,
+        InfoFlags.SSL_CREDENTIALS : handle_ssl_query
     }
 )
 

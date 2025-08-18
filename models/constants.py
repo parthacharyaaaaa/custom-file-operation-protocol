@@ -54,7 +54,7 @@ class ResponseConstants(BaseModel):
 REQUEST_CONSTANTS: RequestConstants = None
 RESPONSE_CONSTANTS: ResponseConstants = None
 
-UNAUTHENTICATED_INFO_OPERATIONS: Final[frozenset[InfoFlags]] = frozenset({InfoFlags.HEARTBEAT})
+UNAUTHENTICATED_INFO_OPERATIONS: Final[frozenset[InfoFlags]] = frozenset((InfoFlags.HEARTBEAT, InfoFlags.SSL_CREDENTIALS))
 
 def load_constants():
     global REQUEST_CONSTANTS, RESPONSE_CONSTANTS

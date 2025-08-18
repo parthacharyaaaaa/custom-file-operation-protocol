@@ -17,10 +17,11 @@ class InfoFlags(IntFlag):
     FILE_METADATA               = 0b00000010
     USER_METADATA               = 0b00000100
     STORAGE_USAGE               = 0b00010000
+    SSL_CREDENTIALS             = 0b00100000
 
     VERBOSE                     = 0b10000000
 
-    OPERATION_EXTRACTION_BITS   = 0b00011111
+    OPERATION_EXTRACTION_BITS   = 0b00111111
 
 class AuthFlags(IntFlag):
     '''Supported subcategories for auth-related operations'''
