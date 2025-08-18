@@ -16,8 +16,7 @@ from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
 
 from server.config.server_config import ServerConfig
 
-def generate_certificate_fingerprint(certificate: bytes) -> str:
-    return hashlib.sha256(certificate).hexdigest()
+__all__ = ('generate_self_signed_credentials', 'generate_rollover_token', 'make_server_ssl_context', 'load_credentials', 'rotate_server_certificates')
 
 def generate_self_signed_credentials(credentials_directory: Path,
                                      dns_name: str = 'localhost',

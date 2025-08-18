@@ -23,10 +23,15 @@ cache_public_files = true
 root_directory = 'files'
 user_max_files = 256
 user_max_storage = 268_435_456
+
+[credentials]
 credentials_dirname = 'credentials'
 key_filename='key.pem'
 certificate_filename='cert.crt'
 ciphers='ECDHE-ECDSA-AES256-GCM-SHA384'
+rollover_signature_length=256
+rollover_grace_window=44800
+rollover_data_filename='rollover.json'
 
 [auth]
 max_attempts = 5

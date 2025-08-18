@@ -9,6 +9,7 @@ from typing import Any, Optional, Final
 from cachetools import TTLCache
 
 from server import logging
+from server import tls_anchor
 from server.authz.user_manager import UserManager
 from server.config.server_config import ServerConfig
 from server.connectionpool import ConnectionPoolManager
@@ -16,7 +17,6 @@ import server.database.models as db_models
 
 import pytomlpp
 
-from ssl_utils import ssl_setup
 
 __all__ = ('create_server_config',
            'create_log_queue',
@@ -88,8 +88,8 @@ def manage_ssl_credentials(server_config: ServerConfig) -> ssl.SSLContext:
     cert_path: Path = Path.joinpath(server_credentials_directory, server_config.certificate_filename)
 
     if not (Path.is_file(key_path) and Path.is_file(cert_path)):
-        ssl_setup.generate_self_signed_credentials(credentials_directory=server_credentials_directory,
+        tls_anchor.generate_self_signed_credentials(credentials_directory=server_credentials_directory,
                                                     cert_filename=server_config.certificate_filename,
                                                     key_filename=server_config.key_filename)
     
-    return ssl_setup.make_server_ssl_context(certfile=cert_path, keyfile=key_path, ciphers=server_config.ciphers)
+    return tls_anchor.make_server_ssl_context(certfile=cert_path, keyfile=key_path, ciphers=server_config.ciphers)

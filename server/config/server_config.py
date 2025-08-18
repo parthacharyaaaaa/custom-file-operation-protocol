@@ -21,7 +21,7 @@ class ServerConfig(BaseModel):
     credentials_dirname: Annotated[str, Field(frozen=True)]
     key_filename: Annotated[str, Field(frozen=True, min_length=4)]  # Min length 4 to count .pem extension
     certificate_filename: Annotated[str, Field(frozen=True, min_length=4)]  # Min length 4 to count .crt extension
-    rotation_data_filename: Annotated[str, Field(frozen=True, min_length=5)]    # Min length 5 to count .json extension
+    rollover_data_filename: Annotated[str, Field(frozen=True, min_length=5)]    # Min length 5 to count .json extension
     ciphers: Annotated[str, Field(frozen=True)]
     rollover_signature_length: Annotated[int, Field(frozen=True, ge=64)]
     rollover_grace_window: Annotated[float, Field(frozen=True, ge=1)]
