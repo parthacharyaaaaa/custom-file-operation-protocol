@@ -84,14 +84,7 @@ def start_logger(log_queue: asyncio.Queue[db_models.ActivityLog], config: Server
                                            flush_interval=config.log_interval))
 
 def manage_ssl_credentials(server_config: ServerConfig) -> ssl.SSLContext:
-    server_credentials_directory: Path = Path.joinpath(Path(server_config.files_directory).parent, server_config.credentials_dirname)
-    Path.mkdir(server_credentials_directory, exist_ok=True)
-    key_path: Path = Path.joinpath(server_credentials_directory, server_config.key_filename)
-    cert_path: Path = Path.joinpath(server_credentials_directory, server_config.certificate_filename)
-
-    if not (Path.is_file(key_path) and Path.is_file(cert_path)):
-        tls_anchor.generate_self_signed_credentials(credentials_directory=server_credentials_directory,
-                                                    cert_filename=server_config.certificate_filename,
-                                                    key_filename=server_config.key_filename)
+    if not (Path.is_file(server_config.key_filepath) and Path.is_file(server_config.certificate_filepath)):
+        tls_anchor.generate_self_signed_credentials(credentials_directory=server_config.key_filepath.parent)
     
-    return tls_anchor.make_server_ssl_context(certfile=cert_path, keyfile=key_path, ciphers=server_config.ciphers)
+    return tls_anchor.make_server_ssl_context(certfile=server_config.certificate_filepath, keyfile=server_config.key_filepath, ciphers=server_config.ciphers)
