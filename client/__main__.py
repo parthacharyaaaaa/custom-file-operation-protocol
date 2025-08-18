@@ -3,6 +3,7 @@ import argparse
 import ssl
 from typing import Final
 
+from client import tls_sentinel
 from client.parsing import entrypoint_parser
 from client.bootup import init_client_configurations, init_session_manager, create_server_connection, init_cmd_window
 from client.cmd.window import ClientWindow
@@ -12,14 +13,12 @@ from client.session_manager import SessionManager
 
 from models.request_model import BaseAuthComponent
 
-from ssl_utils import ssl_setup
-
 async def main() -> None:
     '''Entrypoint function for client shell'''
     args: argparse.Namespace = entrypoint_parser.parse_args()
     
     client_config: Final[ClientConfig] = init_client_configurations()
-    ssl_context: Final[ssl.SSLContext] = ssl_setup.make_client_ssl_context(ciphers=client_config.ciphers)
+    ssl_context: Final[ssl.SSLContext] = tls_sentinel.make_client_ssl_context(ciphers=client_config.ciphers)
     reader, writer = await create_server_connection(host=args.host, port=args.port,
                                                     fingerprints_path=client_config.server_fingerprints_filepath,
                                                     ssl_context=ssl_context,

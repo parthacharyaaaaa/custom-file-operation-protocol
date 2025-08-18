@@ -6,6 +6,7 @@ import ssl
 from pathlib import Path
 from typing import Any, Optional
 
+from client import tls_sentinel
 from client.config.constants import ClientConfig
 from client.cmd.window import ClientWindow
 from client.session_manager import SessionManager
@@ -16,7 +17,6 @@ from models.response_codes import SuccessFlags
 
 import pytomlpp
 
-from ssl_utils import ssl_setup
 
 __all__ = ('init_session_manager',
            'init_client_configurations',
@@ -52,7 +52,7 @@ async def create_server_connection(host: str, port: int, fingerprints_path: Path
                                                    ssl_handshake_timeout=ssl_handshake_timeout)
 
     peer_certificate: bytes = writer.get_extra_info('ssl_object').getpeercert(binary_form=True)
-    fingerprint: str = ssl_setup.generate_certificate_fingerprint(peer_certificate)
+    fingerprint: str = tls_sentinel.generate_certificate_fingerprint(peer_certificate)
 
     if (host not in fingerprints_mapping) or blind_trust:
         fingerprints_mapping[host] = fingerprint
