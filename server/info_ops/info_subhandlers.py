@@ -68,7 +68,7 @@ async def handle_filedata_query(header_component: BaseHeaderComponent, auth_comp
             return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value, ended_connection=header_component.finish),
                     ResponseBody(contents=file_data))
 
-async def handle_user_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, info_component: BaseInfoComponent,
+async def handle_user_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
                             connection_master: ConnectionPoolManager, server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
     async with await connection_master.request_connection(1) as proxy:
         async with proxy.cursor(row_factory=dict_row) as cursor:
@@ -90,7 +90,7 @@ async def handle_user_query(header_component: BaseHeaderComponent, auth_componen
             return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value, ended_connection=header_component.finish),
                     ResponseBody(contents=user_data))
 
-async def handle_storage_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, info_component: BaseInfoComponent,
+async def handle_storage_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
                                server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
     scan_task: asyncio.Task = asyncio.create_task(asyncio.to_thread(get_local_storage_data, root=server_config.root_directory, user=auth_component.identity))
     storage_data: dict[str, Any] = await asyncio.wait_for(scan_task, 10)
