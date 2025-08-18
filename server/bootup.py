@@ -41,7 +41,9 @@ def create_server_config(dirname: Optional[str] = None) -> ServerConfig:
             flattened_dict.update({k:v})
 
     server_config: Final[ServerConfig] = ServerConfig.model_validate(flattened_dict)
-    server_config.update_files_directory(Path(__file__).parent)
+    server_root: Final[Path] = Path(__file__).parent
+    server_config.update_files_directory(server_root)
+    server_config.finalise_credential_filepaths(credentials_directory=server_root / 'credentials')
 
     return server_config
 

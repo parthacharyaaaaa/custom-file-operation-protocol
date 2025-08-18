@@ -1,12 +1,18 @@
 from pathlib import Path
+from functools import partial
 from typing import Annotated
 from typing_extensions import Self
 
 from models.constants import REQUEST_CONSTANTS
 
-from pydantic import BaseModel, Field, IPvAnyAddress, model_validator, field_validator, ValidationError
+from pydantic import BaseModel, Field, IPvAnyAddress, model_validator, BeforeValidator
 
 __all__ = ('ServerConfig',)
+
+def _ensure_minimum_length(arg: str, length: int, alias: str) -> str:
+    if len(arg:=arg.strip()) < length:
+        raise ValueError(f'Argument ({alias}, value: {arg}) must have atleast length {length}, got {len(arg)}')
+    return arg
 
 class ServerConfig(BaseModel):
     version: Annotated[str, Field(frozen=True, pattern=rf'{REQUEST_CONSTANTS.header.version_regex}')]
@@ -18,11 +24,10 @@ class ServerConfig(BaseModel):
     socket_connection_timeout: Annotated[float, Field(frozen=True, ge=0)]
 
     # Credentials
-    credentials_directory: Annotated[Path, Field(frozen=True)]
-    key_filename: Annotated[str, Field(frozen=True, min_length=4)]  # Min length 4 to count .pem extension
-    certificate_filename: Annotated[str, Field(frozen=True, min_length=4)]  # Min length 4 to count .crt extension
-    rollover_data_filename: Annotated[str, Field(frozen=True, min_length=5)]    # Min length 5 to count .json extension
-    ciphers: Annotated[str, Field(frozen=True)]
+    key_filepath: Annotated[Path, BeforeValidator(partial(_ensure_minimum_length, length=4, alias='key_filepath'))]  # Min length 4 to count .pem extension
+    certificate_filepath: Annotated[Path, BeforeValidator(partial(_ensure_minimum_length, length=4, alias='certificate_filepath'))]  # Min length 4 to count .crt extension
+    rollover_data_filepath: Annotated[Path, BeforeValidator(partial(_ensure_minimum_length, length=5, alias='rollover_data_filepath'))]  # Min length 5 to count .json extension 
+    ciphers: Annotated[str, Field(frozen=True), BeforeValidator(lambda ciphers : ciphers.strip().upper())]
     rollover_signature_length: Annotated[int, Field(frozen=True, ge=64)]
     rollover_grace_window: Annotated[float, Field(frozen=True, ge=1)]
 
@@ -63,13 +68,18 @@ class ServerConfig(BaseModel):
     @model_validator(mode='after')
     def validate_network_timings(self) -> Self:
         if self.socket_connection_timeout <= self.read_timeout:
-            raise ValidationError(f'Socket connection timeout {self.socket_connection_timeout} must be greater than component read timeout {self.read_timeout}')
+            raise ValueError(f'Socket connection timeout {self.socket_connection_timeout} must be greater than component read timeout {self.read_timeout}')
         return self
     
-    @field_validator('files_directory', mode='before')
-    @classmethod
-    def preprocess_root_drectory(cls, files_directory: str) -> Path:
-        return Path(files_directory)
+    def finalise_credential_filepaths(self, credentials_directory: Path) -> None:
+        if not credentials_directory.is_absolute():
+            raise ValueError(f'Directory path {str(credentials_directory)} not absolute')
+        
+        for path in ['key_filepath', 'certificate_filepath', 'rollover_data_filepath']:
+            abs_path: Path = credentials_directory / getattr(self, path)
+            setattr(self, path, abs_path)
+            if not abs_path.is_file():
+                path.touch()
     
     def update_files_directory(self, server_root: Path) -> None:
         self.files_directory = server_root / self.files_directory
@@ -77,8 +87,3 @@ class ServerConfig(BaseModel):
             raise NotADirectoryError(f'{server_root} not found in local file system')
         elif not server_root.is_absolute():
             raise ValueError('Server root must be an absolute path')
-    
-    @field_validator('credentials_directory', mode='before')
-    @classmethod
-    def preprocess_root_drectory(cls, credentials_directory: str) -> Path:
-        return Path(credentials_directory)
