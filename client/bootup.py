@@ -4,7 +4,7 @@ import asyncio
 import json
 import ssl
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Final, Optional
 
 from client import tls_sentinel
 from client.config.constants import ClientConfig
@@ -12,6 +12,11 @@ from client.cmd.window import ClientWindow
 from client.session_manager import SessionManager
 from client.communication import incoming, outgoing
 from client.operations import info_operations
+
+from cryptography import x509
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.types import PublicKeyTypes
+from cryptography.hazmat.primitives import hashes
 
 from models.response_codes import SuccessFlags
 
@@ -39,7 +44,7 @@ def init_cmd_window(host: str, port: int,
                     client_config: ClientConfig, session_manager: SessionManager) -> ClientWindow:
     return ClientWindow(host, port, reader, writer, client_config, session_manager)
 
-async def create_server_connection(host: str, port: int, fingerprints_path: Path, ssl_context: ssl.SSLContext, ssl_handshake_timeout: Optional[float] = None, blind_trust: bool = False) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+async def create_server_connection(host: str, port: int, fingerprints_path: Path, ssl_context: ssl.SSLContext, client_config: ClientConfig, ssl_handshake_timeout: Optional[float] = None, blind_trust: bool = False) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     fingerprints_mapping: dict[str, str] = {}
     if not fingerprints_path.is_file():
         fingerprints_path.touch()
@@ -51,14 +56,38 @@ async def create_server_connection(host: str, port: int, fingerprints_path: Path
                                                    ssl=ssl_context,
                                                    ssl_handshake_timeout=ssl_handshake_timeout)
 
-    peer_certificate: bytes = writer.get_extra_info('ssl_object').getpeercert(binary_form=True)
-    fingerprint: str = tls_sentinel.generate_certificate_fingerprint(peer_certificate)
+    peer_certificate_bytes: Final[bytes] = writer.get_extra_info('ssl_object').getpeercert(binary_form=True)
+    peer_certificate: Final[x509.Certificate] = x509.load_der_x509_certificate(peer_certificate_bytes)
+    fingerprint: str = peer_certificate.fingerprint(hashes.SHA256()).hex()
 
     if (host not in fingerprints_mapping) or blind_trust:
         fingerprints_mapping[host] = fingerprint
-        fingerprints_path.write_text(json.dumps(fingerprints_mapping), encoding='utf-8')
-    elif fingerprint != fingerprints_mapping[host]:
+        fingerprints_path.write_text(json.dumps(fingerprints_mapping, indent=4), encoding='utf-8')
+        return reader, writer
+    if fingerprint == fingerprints_mapping[host]:
+        return reader, writer
+    
+    # Attempt to reconcile through server rollover data, if provided
+    pubkey: Final[PublicKeyTypes] = peer_certificate.public_key()
+    if not isinstance(pubkey, ec.EllipticCurvePublicKey):
+        raise ConnectionError(f'Failed SSL reconciliation with server {host}:{port}, key type mismatch: expected {str(ec.EllipticCurvePublicKey)}, received {str(type(pubkey))}')
+    
+    fingerprint: str = tls_sentinel.generate_certificate_fingerprint(peer_certificate_bytes)
+    try:
+        rollover_data: Final[dict[str, Any]] = await tls_sentinel.get_rollover_data(reader, writer, client_config, host, port)
+        if not rollover_data:
+            raise Exception
+        
+        data_buffer: Final[bytes] = (bytes.fromhex(rollover_data['old_pubkey_hash']) +
+                                        bytes.fromhex(rollover_data['new_pubkey_hash']) +
+                                        bytes.fromhex(rollover_data['nonce']))
+        pubkey.verify(signature=rollover_data['signature'],
+                      data=data_buffer,
+                      signature_algorithm=ec.ECDSA(hashes.SHA256()))
+    except Exception as e:
         raise ssl.SSLError(f'[TOFU]: Certification mismatch for {host}. Expected {fingerprints_mapping[host]}, received {fingerprint}. If you are sure that you trust this server, start the shell with the "--blind-trust" flag')
+    
+    fingerprints_mapping[host] = fingerprint
     return reader, writer
 
 async def heartbeat_monitor(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,

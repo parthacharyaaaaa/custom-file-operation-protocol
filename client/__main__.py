@@ -20,6 +20,7 @@ async def main() -> None:
     client_config: Final[ClientConfig] = init_client_configurations()
     ssl_context: Final[ssl.SSLContext] = tls_sentinel.make_client_ssl_context(ciphers=client_config.ciphers)
     reader, writer = await create_server_connection(host=args.host, port=args.port,
+                                                    client_config=client_config,
                                                     fingerprints_path=client_config.server_fingerprints_filepath,
                                                     ssl_context=ssl_context,
                                                     ssl_handshake_timeout=client_config.ssl_handshake_timeout,
