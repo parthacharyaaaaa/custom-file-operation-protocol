@@ -32,7 +32,7 @@ class AsyncCmd(cmd.Cmd):
         self.stdout.write(f'UNKNOWN COMMAND: {line.split()[0]}\n')
         self.do_help(None)
 
-    async def postcmd(self, stop, line):
+    async def postcmd(self, stop, line) -> None:
         if self.connection_ended:
             self.writer.close()
             await self.writer.wait_closed()
@@ -41,8 +41,9 @@ class AsyncCmd(cmd.Cmd):
                 self.session_master.clear_auth_data()
             
             self.prompt = "not connected>"
-            
             return True
+        
+        return stop
 
     async def cmdloop(self, intro = None):
         self.preloop()
@@ -79,7 +80,7 @@ class AsyncCmd(cmd.Cmd):
                             line = line.rstrip('\r\n')
                 line = self.precmd(line)
                 stop = await self.onecmd(line)
-                stop = await self.postcmd(stop, line)
+                await self.postcmd(stop, line)
             self.postloop()
         finally:
             if self.use_rawinput and self.completekey:
