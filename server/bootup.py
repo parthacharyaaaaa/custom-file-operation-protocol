@@ -9,7 +9,7 @@ from typing import Any, Optional, Final
 from cachetools import TTLCache
 
 from server import logging
-from server import tls_anchor
+from server.tls import credentials
 from server.authz.user_manager import UserManager
 from server.config.server_config import ServerConfig
 from server.connectionpool import ConnectionPoolManager
@@ -85,6 +85,9 @@ def start_logger(log_queue: asyncio.Queue[db_models.ActivityLog], config: Server
 
 def manage_ssl_credentials(server_config: ServerConfig) -> ssl.SSLContext:
     if not (Path.is_file(server_config.key_filepath) and Path.is_file(server_config.certificate_filepath)):
-        tls_anchor.generate_self_signed_credentials(credentials_directory=server_config.key_filepath.parent)
+        credentials.generate_self_signed_credentials(credentials_directory=server_config.key_filepath.parent,
+                                                    dns_name=str(server_config.host),
+                                                    cert_filename=server_config.certificate_filepath.name,
+                                                    key_filename=server_config.key_filepath.name)
     
-    return tls_anchor.make_server_ssl_context(certfile=server_config.certificate_filepath, keyfile=server_config.key_filepath, ciphers=server_config.ciphers)
+    return credentials.make_server_ssl_context(certfile=server_config.certificate_filepath, keyfile=server_config.key_filepath, ciphers=server_config.ciphers)

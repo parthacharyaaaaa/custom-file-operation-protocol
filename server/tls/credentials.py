@@ -84,8 +84,8 @@ def generate_rollover_token(new_cert: x509.Certificate,
                             grace_period: float,
                             reason: str = 'rotation') -> None:
     issuance: float = time.time()
-    old_pubkey_hash: str = hashlib.sha256(old_cert.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfoz)).hexdigest()
-    new_pubkey_hash: str = hashlib.sha256(new_cert.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfoz)).hexdigest()
+    old_pubkey_hash: str = hashlib.sha256(old_cert.public_key().public_bytes(encoding=serialization.Encoding.DER, format=serialization.PublicFormat.SubjectPublicKeyInfo)).hexdigest()
+    new_pubkey_hash: str = hashlib.sha256(new_cert.public_key().public_bytes(encoding=serialization.Encoding.DER, format=serialization.PublicFormat.SubjectPublicKeyInfo)).hexdigest()
     nonce: str = secrets.token_hex(nonce_length)
     json.dump(fp=output_path,
               indent=4,
