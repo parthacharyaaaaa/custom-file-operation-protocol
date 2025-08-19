@@ -19,7 +19,7 @@ async def send_heartbeat(reader: asyncio.StreamReader, writer: asyncio.StreamWri
                          client_config: client_constants.ClientConfig, session_master: session_manager.SessionManager,
                          end_connection: bool = False) -> None:
     
-    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_master, finish=end_connection, category=CategoryFlag.HEARTBEAT, subcategory=1)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_master, finish=end_connection, category=CategoryFlag.INFO, subcategory=InfoFlags.HEARTBEAT)
 
     await outgoing.send_request(writer, header_component)
 
