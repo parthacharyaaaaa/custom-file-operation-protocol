@@ -16,8 +16,11 @@ from client.cmd.commands import FileModifierCommands
 from client.config import constants as client_constants
 from client.operations import auth_operations, file_operations, permission_operations, info_operations
 from client.parsing import command_parsers
+from client.communication.incoming import process_response
+from client.communication.outgoing import send_request
+from client.auxillary import operational_utils
 
-from models.flags import InfoFlags
+from models.flags import CategoryFlag, InfoFlags
 from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent
 
 __all__ = ('ClientWindow',)
@@ -419,3 +422,18 @@ class ClientWindow(async_cmd.AsyncCmd):
                                               resource=parsed_args.resource_name,
                                               end_connection=parsed_args.bye)
 
+    async def do_bye(self, args: str) -> None:
+        '''
+        BYE
+        Disconnect from the remote server, and purge current session if available
+        '''
+        for arg in shlex.split(args):
+            print('Invalid arg: ', arg)
+        
+        if self.session_master.identity:
+            await auth_operations.end_remote_session(reader=self.reader, writer=self.writer,
+                                                client_config=self.client_config, session_manager=self.session_master,
+                                                display_credentials=False, end_connection=self.end_connection)
+        self.end_connection = True
+        
+        return True
