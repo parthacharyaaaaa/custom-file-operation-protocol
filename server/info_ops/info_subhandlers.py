@@ -33,10 +33,10 @@ __all__ = ('handle_heartbeat',
            'handle_storage_query',
            'handle_ssl_query')
 
-async def handle_heartbeat(header: BaseHeaderComponent, server_config: ServerConfig) -> tuple[ResponseHeader, None]:
+async def handle_heartbeat(header_component: BaseHeaderComponent, server_config: ServerConfig) -> tuple[ResponseHeader, None]:
     '''Send a heartbeat signal back to the client'''
     return (
-        ResponseHeader.from_server(config=server_config, code=SuccessFlags.HEARTBEAT.value, version=header.version, ended_connection=header.finish),
+        ResponseHeader.from_server(config=server_config, code=SuccessFlags.HEARTBEAT.value, version=header_component.version, ended_connection=header_component.finish),
         None
     )
 
