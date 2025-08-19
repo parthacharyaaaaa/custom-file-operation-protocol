@@ -84,19 +84,20 @@ def generate_rollover_token(new_cert: x509.Certificate,
                             grace_period: float,
                             reason: str = 'rotation') -> None:
     issuance: float = time.time()
-    old_pubkey_hash: bytes = hashlib.sha256(old_cert.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfoz))
-    new_pubkey_hash: bytes = hashlib.sha256(new_cert.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfoz))
+    old_pubkey_hash: str = hashlib.sha256(old_cert.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfoz)).hexdigest()
+    new_pubkey_hash: str = hashlib.sha256(new_cert.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfoz)).hexdigest()
+    nonce: str = secrets.token_hex(nonce_length)
     json.dump(fp=output_path,
               indent=4,
               obj={
                   'server' : host,
-                  'old_pubkey_hash' : old_pubkey_hash.hex(),
-                  'new_pubkey_hash' : new_pubkey_hash.hex(),
+                  'old_pubkey_hash' : old_pubkey_hash,
+                  'new_pubkey_hash' : new_pubkey_hash,
                   'issued_at' : issuance,
                   'not_before' : issuance+grace_period,
                   'reason' : reason,
-                  'signature' : old_key.sign(old_pubkey_hash).hex(),
-                  'nonce' : secrets.token_hex(nonce_length)
+                  'signature' : old_key.sign(old_pubkey_hash+new_pubkey_hash+nonce).hex(),
+                  'nonce' : nonce
                   })
 
 def load_credentials(credentials_directory: Path,
