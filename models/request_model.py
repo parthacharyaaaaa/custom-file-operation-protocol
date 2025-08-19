@@ -108,7 +108,7 @@ class BaseHeaderComponent(BaseModel):
 
     # Message category
     category: Annotated[CategoryFlag, Field(ge=1)]
-    subcategory: Annotated[Union[AuthFlags, PermissionFlags, InfoFlags, FileFlags], Field(ge=1)]
+    subcategory: Union[AuthFlags, PermissionFlags, InfoFlags, FileFlags]
 
     model_config = {
         'use_enum_values' : True
