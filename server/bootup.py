@@ -24,8 +24,7 @@ __all__ = ('create_server_config',
            'create_caches',
            'create_file_lock',
            'create_user_master',
-           'start_logger',
-           'manage_ssl_credentials')
+           'start_logger')
 
 def create_server_config(dirname: Optional[str] = None) -> ServerConfig:
     loaded_constants: dict[str, dict[str, Any]] = pytomlpp.load(dirname or Path(__file__).parent.joinpath('config', 'server_config.toml'))
@@ -82,12 +81,3 @@ def start_logger(log_queue: asyncio.Queue[db_models.ActivityLog], config: Server
                                            batch_size=config.log_batch_size,
                                            waiting_period=config.log_waiting_period,
                                            flush_interval=config.log_interval))
-
-def manage_ssl_credentials(server_config: ServerConfig) -> ssl.SSLContext:
-    if not (Path.is_file(server_config.key_filepath) and Path.is_file(server_config.certificate_filepath)):
-        credentials.generate_self_signed_credentials(credentials_directory=server_config.key_filepath.parent,
-                                                    dns_name=str(server_config.host),
-                                                    cert_filename=server_config.certificate_filepath.name,
-                                                    key_filename=server_config.key_filepath.name)
-    
-    return credentials.make_server_ssl_context(certfile=server_config.certificate_filepath, keyfile=server_config.key_filepath, ciphers=server_config.ciphers)
