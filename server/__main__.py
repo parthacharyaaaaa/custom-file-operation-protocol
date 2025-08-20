@@ -1,3 +1,5 @@
+'''Entrypoint script for running the server'''
+
 import asyncio
 import os
 import ssl
@@ -8,11 +10,24 @@ from typing import Final
 from psycopg.conninfo import make_conninfo
 
 from server.authz.user_manager import UserManager
-from server.bootup import create_server_config, create_connection_master, create_log_queue, create_user_master, create_caches, create_file_lock, start_logger, manage_ssl_credentials
+from server.bootup import create_server_config, create_connection_master, create_log_queue, create_user_master, create_caches, create_file_lock, start_logger
 from server.callback import callback
 from server.config.server_config import ServerConfig
 from server.connectionpool import ConnectionPoolManager
 from server.dependencies import ServerSingletonsRegistry, NT_GLOBAL_FILE_LOCK, NT_GLOBAL_LOG_QUEUE
+from server.tls import credentials
+
+async def start_server(dependency_registry: ServerSingletonsRegistry) -> None:
+    ssl_context: ssl.SSLContext = credentials.make_server_ssl_context(certfile=dependency_registry.server_config.certificate_filepath,
+                                                                      keyfile=dependency_registry.server_config.key_filepath,
+                                                                      ciphers=dependency_registry.server_config.ciphers)
+    
+    server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback, dependency_registry),
+                                                        host=str(dependency_registry.server_config.host), port=dependency_registry.server_config.port,
+                                                        ssl=ssl_context)
+    
+    async with server:
+        await server.serve_forever()
 
 async def main() -> None:
     # Initialize all global singletons
@@ -45,12 +60,24 @@ async def main() -> None:
 
     start_logger(log_queue=LOG_QUEUE, config=SERVER_CONFIG, connection_master=CONNECTION_MASTER)
 
-    ssl_context: Final[ssl.SSLContext] = manage_ssl_credentials(server_config=SERVER_CONFIG)
-    server: Final[asyncio.Server] = await asyncio.start_server(client_connected_cb=partial(callback, SERVER_DEPENDENCY_REGISTRY),
-                                                               host=str(SERVER_CONFIG.host), port=SERVER_CONFIG.port,
-                                                               ssl=ssl_context)
-    async with server:
-        await server.serve_forever()
+    # Initially generate certificates if not present
+    if not (SERVER_CONFIG.key_filepath.is_file() and SERVER_CONFIG.certificate_filepath.is_file()):
+        credentials.generate_self_signed_credentials(credentials_directory=SERVER_CONFIG.key_filepath.parent,
+                                                    dns_name=str(SERVER_CONFIG.host),
+                                                    cert_filename=SERVER_CONFIG.certificate_filepath.name,
+                                                    key_filename=SERVER_CONFIG.key_filepath.name)
+
+    reference_time: float = os.stat(SERVER_CONFIG.certificate_filepath, follow_symlinks=False).st_mtime
+    while True:
+        running_server: asyncio.Task = asyncio.create_task(start_server(SERVER_DEPENDENCY_REGISTRY))
+        while not running_server.done():
+            await asyncio.sleep(SERVER_CONFIG.rollover_check_poll_interval)
+            modification_time: float = os.stat(SERVER_CONFIG.certificate_filepath, follow_symlinks=False).st_mtime
+            if modification_time != reference_time:
+                reference_time = modification_time
+                running_server.cancel()
+                break
+
 
 if sys.platform == 'win32':     # psycopg3 not compatible with asyncio.WindowsProactorEventLoopPolicy (default loop for Windows)
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
