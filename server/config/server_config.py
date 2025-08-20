@@ -30,6 +30,7 @@ class ServerConfig(BaseModel):
     ciphers: Annotated[str, Field(frozen=True), BeforeValidator(lambda ciphers : ciphers.strip().upper())]
     rollover_signature_length: Annotated[int, Field(frozen=True, ge=64)]
     rollover_grace_window: Annotated[float, Field(frozen=True, ge=1)]
+    rollover_check_poll_interval: Annotated[float, Field(ge=1)]
 
     # Database
     max_connections: tuple[Annotated[int, Field(ge=1)],

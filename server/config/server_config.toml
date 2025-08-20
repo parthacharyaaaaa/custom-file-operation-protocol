@@ -31,6 +31,7 @@ rollover_data_filepath='rollover.json'
 ciphers='ECDHE-ECDSA-AES256-GCM-SHA384'
 rollover_signature_length=256
 rollover_grace_window=44800
+rollover_check_poll_interval=10800
 
 [auth]
 max_attempts = 5
