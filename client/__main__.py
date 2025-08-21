@@ -1,6 +1,7 @@
 import asyncio
 import argparse
 import ssl
+import sys
 from typing import Final
 
 from client import tls_sentinel
@@ -40,5 +41,7 @@ async def main() -> None:
         writer.close()
         await writer.wait_closed()
 
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 asyncio.run(main())
