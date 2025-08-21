@@ -110,7 +110,9 @@ async def handle_storage_query(header_component: BaseHeaderComponent, auth_compo
 
 async def handle_ssl_query(server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
     certificate_bytes: str = server_config.certificate_filepath.read_text(encoding='utf-8')
-    rollover_data: dict[str, Any] = orjson.loads(server_config.rollover_data_filepath.read_bytes())
+    rollover_data: dict[str, Any] = {}
+    if server_config.rollover_data_filepath.exists():
+        rollover_data = orjson.loads(server_config.rollover_data_filepath.read_bytes())
 
     return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value),
             ResponseBody(contents={'certificate' : certificate_bytes,
