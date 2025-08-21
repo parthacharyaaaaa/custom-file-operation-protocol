@@ -62,10 +62,9 @@ async def main() -> None:
 
     # Initially generate certificates if not present
     if not (SERVER_CONFIG.key_filepath.is_file() and SERVER_CONFIG.certificate_filepath.is_file()):
-        credentials.generate_self_signed_credentials(credentials_directory=SERVER_CONFIG.key_filepath.parent,
-                                                    dns_name=str(SERVER_CONFIG.host),
-                                                    cert_filename=SERVER_CONFIG.certificate_filepath.name,
-                                                    key_filename=SERVER_CONFIG.key_filepath.name)
+        credentials.generate_self_signed_credentials(dns_name=str(SERVER_CONFIG.host),
+                                                     cert_filename=SERVER_CONFIG.certificate_filepath.name,
+                                                     key_filename=SERVER_CONFIG.key_filepath.name)
 
     reference_time: float = os.stat(SERVER_CONFIG.certificate_filepath, follow_symlinks=False).st_mtime
     while True:
