@@ -33,6 +33,12 @@ async def main() -> None:
 
     client_cmd_window: Final[ClientWindow] = init_cmd_window(args.host, args.port, reader, writer, client_config, session_manager)
 
-    await client_cmd_window.cmdloop()
+
+    try:
+        await client_cmd_window.cmdloop()
+    except KeyboardInterrupt:
+        writer.close()
+        await writer.wait_closed()
+
 
 asyncio.run(main())
