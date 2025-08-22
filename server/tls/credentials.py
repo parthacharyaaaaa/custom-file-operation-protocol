@@ -78,7 +78,7 @@ def generate_rollover_token(new_cert: x509.Certificate,
                             old_key: ec.EllipticCurvePrivateKey,
                             nonce_length: int,
                             output_path: Path,
-                            host: str,
+                            host: str, port: int,
                             grace_period: float,
                             reason: str = 'rotation') -> None:
     issuance: float = time.time()
@@ -89,14 +89,17 @@ def generate_rollover_token(new_cert: x509.Certificate,
                                          signature_algorithm=ec.ECDSA(hashes.SHA256())).hex()
 
 
-    rollover_data: Final[dict[str, str|float]] = {'server' : host,
+    rollover_data: Final[dict[str, str|float]] = {'hostname' : host,
+                                                  'port' : port,
+                                                  'old_certificate' : old_cert.public_bytes(serialization.Encoding.DER).hex(),
                                                   'old_pubkey_hash' : old_pubkey_hash,
                                                   'new_pubkey_hash' : new_pubkey_hash,
                                                   'issued_at' : issuance,
-                                                  'not_before' : issuance+grace_period,
+                                                  'valid_until' : issuance+grace_period,
                                                   'reason' : reason,
                                                   'signature' : signature,
                                                   'nonce' : nonce}
+    
     output_path.write_text(json.dumps(rollover_data, indent=4), encoding='utf-8')
 
 def load_credentials(credentials_directory: Path,
@@ -131,7 +134,9 @@ def rotate_server_certificates(server_config: ServerConfig,
                                                                 dns_name=str(server_config.host))
     
     generate_rollover_token(new_cert=new_certificate, old_cert=old_certificate, old_key=old_key,
-                            nonce_length=server_config.rollover_token_nonce_length, host=str(server_config.host), grace_period=server_config.rollover_grace_window,
+                            nonce_length=server_config.rollover_token_nonce_length,
+                            host=str(server_config.host), port=server_config.port,
+                            grace_period=server_config.rollover_grace_window,
                             output_path=server_config.rollover_data_filepath,
                             reason=reason)
     
