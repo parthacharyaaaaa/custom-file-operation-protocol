@@ -5,7 +5,7 @@ import ssl
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Final, Optional
+from typing import Final, Optional, Union
 import json
 
 from cryptography import x509
@@ -80,7 +80,7 @@ def generate_rollover_token(new_cert: x509.Certificate,
                             output_path: Path,
                             host: str, port: int,
                             grace_period: float,
-                            reason: str = 'rotation') -> None:
+                            reason: str = 'rotation') -> dict[str, dict[str, Union[str, float]]]:
     issuance: float = time.time()
     old_pubkey_hash: str = hashlib.sha256(old_cert.public_key().public_bytes(encoding=serialization.Encoding.DER, format=serialization.PublicFormat.SubjectPublicKeyInfo)).hexdigest()
     new_pubkey_hash: str = hashlib.sha256(new_cert.public_key().public_bytes(encoding=serialization.Encoding.DER, format=serialization.PublicFormat.SubjectPublicKeyInfo)).hexdigest()
@@ -88,19 +88,20 @@ def generate_rollover_token(new_cert: x509.Certificate,
     signature: Final[str] = old_key.sign(data=bytes.fromhex(old_pubkey_hash)+bytes.fromhex(new_pubkey_hash)+bytes.fromhex(nonce),
                                          signature_algorithm=ec.ECDSA(hashes.SHA256())).hex()
 
-
-    rollover_data: Final[dict[str, str|float]] = {'hostname' : host,
-                                                  'port' : port,
-                                                  'old_certificate' : old_cert.public_bytes(serialization.Encoding.DER).hex(),
-                                                  'old_pubkey_hash' : old_pubkey_hash,
-                                                  'new_pubkey_hash' : new_pubkey_hash,
-                                                  'issued_at' : issuance,
-                                                  'valid_until' : issuance+grace_period,
-                                                  'reason' : reason,
-                                                  'signature' : signature,
-                                                  'nonce' : nonce}
     
-    output_path.write_text(json.dumps(rollover_data, indent=4), encoding='utf-8')
+    return {
+        old_cert.fingerprint(hashes.SHA256()).hex() : 
+            {'hostname' : host,
+            'port' : port,
+            'old_certificate' : old_cert.public_bytes(serialization.Encoding.DER).hex(),
+            'old_pubkey_hash' : old_pubkey_hash,
+            'new_pubkey_hash' : new_pubkey_hash,
+            'issued_at' : issuance,
+            'valid_until' : issuance+grace_period,
+            'reason' : reason,
+            'signature' : signature,
+            'nonce' : nonce}
+        }
 
 def load_credentials(credentials_directory: Path,
                      cert_filename: Optional[str] = 'certfile.crt',
@@ -122,6 +123,14 @@ def load_credentials(credentials_directory: Path,
 
     return x509.load_pem_x509_certificate(certificate_bytes), private_key
 
+def trim_rollover_data(rollover_data: dict[str, dict[str, Union[str, float]]], size: int, reference_key: str = 'issued_at') -> dict[str, dict[str, Union[str, float]]]:
+    return {k:v
+            for k,v in rollover_data.items()
+            if v[reference_key]
+            in sorted((v[reference_key]
+                       for v in rollover_data.values()),
+                       reverse=True)[:size]}
+
 def rotate_server_certificates(server_config: ServerConfig,
                                reason: str = 'periodic rotation') -> ssl.SSLContext:
 
@@ -133,12 +142,25 @@ def rotate_server_certificates(server_config: ServerConfig,
                                                                 key_filepath=server_config.key_filepath,
                                                                 dns_name=str(server_config.host))
     
-    generate_rollover_token(new_cert=new_certificate, old_cert=old_certificate, old_key=old_key,
-                            nonce_length=server_config.rollover_token_nonce_length,
-                            host=str(server_config.host), port=server_config.port,
-                            grace_period=server_config.rollover_grace_window,
-                            output_path=server_config.rollover_data_filepath,
-                            reason=reason)
+    rollover_token: Final[dict[str, dict[str, Union[str, float]]]] = generate_rollover_token(new_cert=new_certificate,
+                                                                                             old_cert=old_certificate, old_key=old_key,
+                                                                                             nonce_length=server_config.rollover_token_nonce_length,
+                                                                                             host=str(server_config.host), port=server_config.port,
+                                                                                             grace_period=server_config.rollover_grace_window,
+                                                                                             output_path=server_config.rollover_data_filepath,
+                                                                                             reason=reason)
+    existing_tokens: dict[str, dict[str, Union[str, float]]] = {}
+    with open(server_config.rollover_data_filepath, 'r+', encoding='utf-8') as rotation_metadata_file:
+        if (token_data:=rotation_metadata_file.read()):
+            existing_tokens = json.loads(token_data)
+        
+        rotation_metadata_file.seek(0)
+
+        existing_tokens = trim_rollover_data(existing_tokens, server_config.rollover_history_length-1)
+        existing_tokens.update(rollover_token)
+
+        rotation_metadata_file.write(json.dumps(existing_tokens, indent=4))
+        rotation_metadata_file.truncate()
     
     return make_server_ssl_context(certfile=server_config.certificate_filepath,
                                    keyfile=server_config.key_filepath,
