@@ -1,13 +1,46 @@
-import psycopg as pg
 import asyncio
-from typing import Literal, Optional, NoReturn
+from contextlib import asynccontextmanager, contextmanager
+from typing import Literal, Optional, NoReturn, Protocol, AsyncIterator, Iterator, overload, AsyncContextManager
 from typing_extensions import Self
 from types import TracebackType
 from uuid import uuid4
 
-__all__ = ('ConnectionPoolManager', 'LeasedConnection', 'ConnectionProxy')
+import psycopg as pg
+from psycopg.abc import Query, Params
+from psycopg.rows import TupleRow, Row
+from psycopg.transaction import AsyncTransaction, Transaction
 
-class ConnectionProxy:
+__all__ = ('SupportsConnection', 'ConnectionPoolManager', 'LeasedConnection', 'ConnectionProxy')
+
+
+class SupportsConnection(Protocol):
+    '''Protocol supporting interface to psycopg's connection's methods'''
+    def info(self) -> pg.ConnectionInfo: ...
+
+    @overload
+    def cursor(self, *, binary: bool = False, **kwargs) -> pg.AsyncCursor[TupleRow]: ...
+    @overload
+    def cursor(self, *, binary: bool = False, **kwargs) -> pg.Cursor[TupleRow]: ...
+
+    async def execute(self, query: Query, params: Params | None = None, *, prepare: bool | None = None, binary: bool = False) -> pg.AsyncCursor[Row]: ...
+   
+    async def rollback(self) -> None: ...
+   
+    async def cancel_safe(self, *, timeout: float = 30.0) -> None: ...
+   
+    async def commit(self) -> None: ...
+   
+    @asynccontextmanager
+    async def transaction(self, savepoint_name: str | None = None, force_rollback: bool = False) -> AsyncIterator[AsyncTransaction]: ...
+
+    @contextmanager
+    async def transaction(self, savepoint_name: str | None = None, force_rollback: bool = False) -> Iterator[Transaction]: ...
+
+    def rollback(self) -> None: ...
+    def cancel_safe(self, *, timeout: float = 30.0) -> None: ...
+    def commit(self) -> None: ...
+
+class ConnectionProxy(SupportsConnection):
     def __init__(self, leased_conn: 'LeasedConnection', token: str):
         __slots__ = '_token', '_conn'
         self._conn = leased_conn
