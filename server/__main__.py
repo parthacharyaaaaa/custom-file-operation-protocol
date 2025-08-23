@@ -13,7 +13,7 @@ from server.authz.user_manager import UserManager
 from server.bootup import create_server_config, create_connection_master, create_log_queue, create_user_master, create_caches, create_file_lock, start_logger
 from server.callback import callback
 from server.config.server_config import ServerConfig
-from server.connectionpool import ConnectionPoolManager
+from server.database.connections import ConnectionPoolManager
 from server.dependencies import ServerSingletonsRegistry, NT_GLOBAL_FILE_LOCK, NT_GLOBAL_LOG_QUEUE
 from server.tls import credentials
 

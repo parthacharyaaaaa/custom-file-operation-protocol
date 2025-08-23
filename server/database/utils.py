@@ -6,7 +6,7 @@ from models.permissions import FilePermissions
 from psycopg.rows import dict_row
 from psycopg import sql
 
-from server.connectionpool import ConnectionPoolManager, ConnectionProxy
+from server.database.connections import ConnectionPoolManager, ConnectionProxy
 
 __all__ = ('check_file_permission', 'get_user')
 

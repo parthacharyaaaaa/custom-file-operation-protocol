@@ -12,7 +12,7 @@ from server import logging
 from server.tls import credentials
 from server.authz.user_manager import UserManager
 from server.config.server_config import ServerConfig
-from server.connectionpool import ConnectionPoolManager
+from server.database.connections import ConnectionPoolManager
 import server.database.models as db_models
 
 import pytomlpp

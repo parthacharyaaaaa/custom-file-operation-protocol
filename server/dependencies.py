@@ -12,7 +12,7 @@ from models.singletons import SingletonMetaclass
 
 from server.authz.user_manager import UserManager
 from server.config.server_config import ServerConfig
-from server.connectionpool import ConnectionPoolManager
+from server.database.connections import ConnectionPoolManager
 from server.database import models as db_models
 
 import pydantic

@@ -19,7 +19,7 @@ from models.singletons import SingletonMetaclass
 import psycopg.errors as pg_errors
 from psycopg.rows import Row
 
-from server.connectionpool import ConnectionProxy, ConnectionPoolManager
+from server.database.connections import ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog, LogAuthor, Severity, LogType
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned, InvalidAuthData, OperationContested
 

@@ -15,7 +15,7 @@ from psycopg import sql
 
 from server import errors
 from server.config.server_config import ServerConfig
-from server.connectionpool import ConnectionPoolManager
+from server.database.connections import ConnectionPoolManager
 from server.database import models as db_models, utils as db_utils
 from server.info_ops.utils import derive_file_identity, get_local_filedata, get_local_storage_data
 

@@ -22,7 +22,7 @@ from psycopg.rows import dict_row
 from server import errors
 from server import logging
 from server.config import server_config
-from server.connectionpool import ConnectionPoolManager
+from server.database.connections import ConnectionPoolManager
 from server.database import models as db_models, utils as db_utils
 from server.file_ops import base_operations as base_ops
 

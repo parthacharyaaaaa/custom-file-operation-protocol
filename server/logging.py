@@ -1,7 +1,7 @@
 import asyncio
 from traceback import format_exception_only
 
-from server.connectionpool import ConnectionProxy, ConnectionPoolManager
+from server.database.connections import ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog, Severity
 
 from psycopg import sql
