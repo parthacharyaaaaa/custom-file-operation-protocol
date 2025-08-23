@@ -32,6 +32,7 @@ class ServerConfig(BaseModel):
     rollover_grace_window: Annotated[float, Field(frozen=True, ge=1)]
     rollover_check_poll_interval: Annotated[float, Field(ge=1)]
     rollover_token_nonce_length: Annotated[int, Field(ge=1, frozen=True)]
+    rollover_history_length: Annotated[int, Field(ge=0, frozen=True)]
 
     # Database
     max_connections: tuple[Annotated[int, Field(ge=1)],

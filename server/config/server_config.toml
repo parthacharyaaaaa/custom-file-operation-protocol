@@ -33,6 +33,7 @@ rollover_signature_length=256
 rollover_grace_window=44800
 rollover_check_poll_interval=10800
 rollover_token_nonce_length=128
+rollover_history_length=3
 
 [auth]
 max_attempts = 5
