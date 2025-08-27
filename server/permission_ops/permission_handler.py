@@ -30,7 +30,24 @@ _PERMISSION_SUBHANDLER_MAPPING: MappingProxyType[int, PERMISSION_SUBHABDLER] = M
 )
 
 async def top_permission_handler(reader: asyncio.StreamReader, header_component: BaseHeaderComponent,
-                                 dependency_registry: ServerSingletonsRegistry) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+                                    dependency_registry: ServerSingletonsRegistry) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+    '''Entrypoint for handling `permission` operations over a stream. Performs authentication, validation, and dispatches to the appropriate subhandler.
+
+    Args:
+        reader (asyncio.StreamReader): Stream reader from which request components are read.
+        header_component (BaseHeaderComponent): Parsed header containing sizes and metadata for auth and permission components.
+        dependency_registry (ServerSingletonsRegistry): Registry providing server configuration and singleton dependencies required for handling.
+
+    Returns:
+        tuple[ResponseHeader,Optional[ResponseBody]]: Response header and optional response body resulting from the permission operation.
+
+    Raises:
+        InvalidHeaderSemantic: If either auth or permission components are missing in the header.
+        SlowStreamRate: If reading the auth component times out.
+        InvalidAuthSemantic: If the auth component fails validation or is malformed.
+        UnsupportedOperation: If the requested permission subcategory is not supported.
+    '''
+
     # Permission operations require authentication
     if not (header_component.auth_size and header_component.body_size):
         raise InvalidHeaderSemantic('Headers for permission operations require BOTH auth component and permission (body) component')
