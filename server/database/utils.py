@@ -89,3 +89,34 @@ async def get_user(username: str,
     finally:
         if reclaim_after:
             await connection_master.reclaim_connection(proxy)
+
+async def check_file_existence(filename: str,
+                               connection_master: ConnectionPoolManager, proxy: Optional[ConnectionProxy] = None,
+                               reclaim_after: bool = False,
+                               level: Literal[1,2,3] = 1) -> bool:
+    '''Check whether a file exists in the database.
+
+    Args:
+        filename (str): Name of the file to check.
+        connection_master (ConnectionPoolManager): Manager to obtain database connections.
+        proxy (Optional[ConnectionProxy]): Optional existing database connection to use. If None, a connection will be requested.
+        reclaim_after (bool): Whether to return the connection to the pool after use, defaults to False.
+        level (Literal[1,2,3]): Permission level for the connection, defaults to 1.
+
+    Returns:
+        bool: Whether file exists.
+    '''
+
+    if not proxy:
+        reclaim_after = True
+        proxy: ConnectionProxy = await connection_master.request_connection(level)
+    try:
+        async with proxy.cursor(row_factory=dict_row) as cursor:
+            await cursor.execute('''SELECT filename
+                                 FROM files
+                                 WHERE filename = %s''',
+                                 (filename,))
+            return await bool(cursor.fetchone())
+    finally:
+        if reclaim_after:
+            await connection_master.reclaim_connection(proxy)
