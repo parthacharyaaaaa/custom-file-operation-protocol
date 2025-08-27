@@ -1,13 +1,11 @@
 '''Module for defining schema of incoming requests'''
-from typing import Annotated, Optional, Literal, Union, TypeAlias
+from typing import Annotated, Optional, Literal, Union
 
 from models.constants import REQUEST_CONSTANTS
 from models.flags import CategoryFlag, PermissionFlags, AuthFlags, FileFlags, InfoFlags
 from models.cursor_flag import CURSOR_BITS_CHECK
 
 from pydantic import BaseModel, Field, model_validator, IPvAnyAddress, field_serializer, field_validator
-
-RequestComponentType: TypeAlias = Union['BaseHeaderComponent', 'BaseAuthComponent', 'BaseFileComponent', 'BasePermissionComponent']
 
 class BaseAuthComponent(BaseModel):
     identity: Annotated[str, Field(min_length=REQUEST_CONSTANTS.auth.username_range[0], max_length=REQUEST_CONSTANTS.auth.username_range[1], pattern=REQUEST_CONSTANTS.auth.username_regex)]
