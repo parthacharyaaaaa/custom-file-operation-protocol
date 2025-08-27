@@ -27,14 +27,16 @@ def make_client_ssl_context(ciphers: str) -> ssl.SSLContext:
     return ssl_context
 
 async def get_rollover_data(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                         client_config: ClientConfig,
-                         host: str, port: int) -> dict[str, Any]:
+                            client_config: ClientConfig,
+                            host: str, port: int) -> dict[str, Any]:
     header_component: Final[BaseHeaderComponent] = BaseHeaderComponent(version=client_config.version,
                                                                        auth_size=0, body_size=0,
                                                                        sender_hostname=host, sender_port=port, sender_timestamp=time.time(),
                                                                        category=CategoryFlag.INFO, subcategory=InfoFlags.SSL_CREDENTIALS)
+
     await send_request(writer, header_component=header_component)
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
+
     if response_header.code != SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value:
         raise ConnectionError(f'Failed to fetch SSL credentials from server running at {host}:{port}')
     

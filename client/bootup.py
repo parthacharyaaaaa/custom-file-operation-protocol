@@ -4,7 +4,7 @@ import asyncio
 import json
 import ssl
 from pathlib import Path
-from typing import Any, Final, Optional
+from typing import Any, Final, Optional, Union
 
 from client import tls_sentinel
 from client.config.constants import ClientConfig
@@ -17,6 +17,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.types import CertificatePublicKeyTypes
 from cryptography.hazmat.primitives import hashes
+from cryptography.exceptions import InvalidSignature
 
 from models.response_codes import SuccessFlags
 
@@ -53,9 +54,8 @@ async def create_server_connection(host: str, port: int, fingerprints_path: Path
                                                    ssl=ssl_context,
                                                    ssl_handshake_timeout=ssl_handshake_timeout)
 
-    peer_certificate_bytes: Final[bytes] = writer.get_extra_info('ssl_object').getpeercert(binary_form=True)
-    peer_certificate: Final[x509.Certificate] = x509.load_der_x509_certificate(peer_certificate_bytes)
-    fingerprint: str = peer_certificate.fingerprint(hashes.SHA256()).hex()
+    peer_certificate: Final[x509.Certificate] = x509.load_der_x509_certificate(writer.get_extra_info('ssl_object').getpeercert(binary_form=True))
+    fingerprint: Final[str] = peer_certificate.fingerprint(hashes.SHA256()).hex()
 
     if (host not in fingerprints_mapping) or blind_trust:
         fingerprints_mapping[host] = fingerprint
@@ -70,26 +70,32 @@ async def create_server_connection(host: str, port: int, fingerprints_path: Path
         raise ConnectionError(f'Failed SSL reconciliation with server {host}:{port}, key type mismatch: expected {str(ec.EllipticCurvePublicKey)}, received {str(type(pubkey))}')
     
     try:
-        rollover_data: Final[dict[str, Any]] = await tls_sentinel.get_rollover_data(reader, writer, client_config, host, port)
+        last_fingerprint: Final[str] = fingerprints_mapping[host]
+        rollover_data: Final[dict[str, dict[str, Union[str, float]]]] = await tls_sentinel.get_rollover_data(reader, writer, client_config, host, port)
         if not rollover_data:
             raise Exception
         
+        if last_fingerprint not in rollover_data:
+            raise KeyError(f'Last known fingerprint ({fingerprint}) not found in server certificate history (received last {len(rollover_data)} certificates)')
+        
         # Verify that older public key is indeed the one cached by the client
-        old_certificate: Final[x509.Certificate] = x509.load_der_x509_certificate(bytes.fromhex(rollover_data['old_certificate']))
-        if fingerprints_mapping[host] != old_certificate.fingerprint(hashes.SHA256()).hex():
+        old_certificate: Final[x509.Certificate] = x509.load_der_x509_certificate(bytes.fromhex(rollover_data[last_fingerprint]['old_certificate']))
+        if last_fingerprint != old_certificate.fingerprint(hashes.SHA256()).hex():
             raise Exception
 
         old_pubkey: Final[CertificatePublicKeyTypes] = old_certificate.public_key()
         if not isinstance(old_pubkey, ec.EllipticCurvePublicKey):
             raise ConnectionError(f'Failed SSL reconciliation with server {host}:{port}, key type mismatch: expected {str(ec.EllipticCurvePublicKey)}, received {str(type(pubkey))}')
         
-        data_buffer: Final[bytes] = (bytes.fromhex(rollover_data['old_pubkey_hash']) +
-                                     bytes.fromhex(rollover_data['new_pubkey_hash']) +
-                                     bytes.fromhex(rollover_data['nonce']))
+        data_buffer: Final[bytes] = (bytes.fromhex(rollover_data[last_fingerprint]['old_pubkey_hash']) +
+                                     bytes.fromhex(rollover_data[last_fingerprint]['new_pubkey_hash']) +
+                                     bytes.fromhex(rollover_data[last_fingerprint]['nonce']))
         
-        old_pubkey.verify(signature=bytes.fromhex(rollover_data['signature']),
+        old_pubkey.verify(signature=bytes.fromhex(rollover_data[last_fingerprint]['signature']),
                                             data=data_buffer,
                                             signature_algorithm=ec.ECDSA(hashes.SHA256()))
+    except InvalidSignature:
+        raise ssl.SSLError(f'[TOFU]: Reconciliation failed with server {host} (Failed to verify signature). If you are sure that you trust this server, start the shell with the "--blind-trust" flag')
     except Exception as e:
         raise ssl.SSLError(f'[TOFU]: Certification mismatch for {host}. Expected {fingerprints_mapping[host]}, received {fingerprint}. If you are sure that you trust this server, start the shell with the "--blind-trust" flag')
     
