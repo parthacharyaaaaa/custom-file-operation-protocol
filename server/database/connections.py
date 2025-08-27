@@ -41,6 +41,7 @@ class SupportsConnection(Protocol):
     def commit(self) -> None: ...
 
 class ConnectionProxy(SupportsConnection):
+    '''Proxy object for a database connection leased from a ConnectionPoolManager instance'''
     def __init__(self, leased_conn: 'LeasedConnection', token: str):
         __slots__ = '_token', '_conn'
         self._conn = leased_conn
@@ -82,6 +83,8 @@ class ConnectionProxy(SupportsConnection):
         await self._conn._manager.reclaim_connection(proxy=self)
 
 class LeasedConnection:
+    '''Abstraction over `pg.AsyncConnection` to allow for enforcing a timed leased on the underlying connection to the database server.
+    Automatically invalidated once lease duration is expired'''
     exempt_methods: frozenset[str] = frozenset('release')
     def __init__(self, pgconn: pg.AsyncConnection, manager: 'ConnectionPoolManager', lease_duration: float, priority: int, **kwargs):
         self._pgconn = pgconn
@@ -163,6 +166,7 @@ class LeasedConnection:
         return attr
 
 class ConnectionPoolManager:
+    '''Manager for maintaining different connection pools to the Postgres server'''
     def __init__(self, lease_duration: float, high_priority_conns: int, mid_priority_conns: int, low_priority_conns: int, connection_timeout: float = 10, connection_refresh_timer: float = 600) -> None:
         if connection_timeout <= 0:
             raise ValueError('Connection timeout must be positive')

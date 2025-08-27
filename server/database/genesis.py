@@ -1,3 +1,6 @@
+'''Standalone script for generating the server from the defined schema and populating the required generated tables for viability.
+Expects appropriate `genesis.sql` file in the same subpackage'''
+
 import os
 from dotenv import load_dotenv
 

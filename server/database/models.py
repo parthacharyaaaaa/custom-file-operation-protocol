@@ -1,3 +1,5 @@
+'''Database models used by the server'''
+
 from pydantic import BaseModel, Field, IPvAnyAddress
 from typing import Annotated, Optional
 from types import MappingProxyType
@@ -16,6 +18,7 @@ ROLE_PERMISSION_MAPPING: MappingProxyType[RoleTypes, tuple[FilePermissions]] = M
 })
 
 class Severity(Enum):
+    '''Severity of a server event'''
     INFO                    = 'info'
     TRACE                   = 'trace'
     ERROR                   = 'error'

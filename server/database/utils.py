@@ -1,3 +1,5 @@
+'''Database utilities'''
+
 from typing import Any, Optional, Literal
 from datetime import datetime
 
@@ -14,6 +16,22 @@ async def check_file_permission(filename: str, owner: str, grantee: str,
                                 check_for: FilePermissions,
                                 connection_master: ConnectionPoolManager, proxy: Optional[ConnectionProxy] = None, level: Optional[Literal[1,2,3]] = 1,
                                 check_until: Optional[datetime] = None) -> bool:
+    '''Check whether a grantee has a specific permission on a file.
+
+    Args:
+        filename (str): Name of the file to check permissions for.
+        owner (str): Owner of the file.
+        grantee (str): User whose permission is being checked.
+        check_for (FilePermissions): Specific permission to check (e.g., read, write, execute).
+        connection_master (ConnectionPoolManager): Manager to obtain database connections.
+        proxy (Optional[ConnectionProxy]): Optional existing database connection to use. If None, a connection will be requested.
+        level (Optional[Literal[1,2,3]]): Permission level for the connection, defaults to 1.
+        check_until (Optional[datetime]): Optional cutoff datetime; permissions granted beyond this time are ignored.
+
+    Returns:
+        bool: True if the grantee has the specified permission on the file, False otherwise.
+    '''
+
     reclaim_after: bool = proxy is None
     if not proxy:
         proxy: ConnectionProxy = await connection_master.request_connection(level=level)
@@ -39,6 +57,21 @@ async def get_user(username: str,
                    lock_record: bool = False,
                    level: Literal[1,2,3] = 1,
                    check_existence: bool = False) -> Optional[dict[str, Any]]:
+    '''Retrieve user information from the database.
+
+    Args:
+        username (str): Username of the user to retrieve.
+        connection_master (ConnectionPoolManager): Manager to obtain database connections.
+        proxy (Optional[ConnectionProxy]): Optional existing database connection to use. If None, a connection will be requested.
+        reclaim_after (bool): Whether to return the connection to the pool after use, defaults to False.
+        lock_record (bool): Whether to lock the user record for update, defaults to False.
+        level (Literal[1,2,3]): Permission level for the connection, defaults to 1.
+        check_existence (bool): If True, only checks if the user exists and returns minimal data, defaults to False.
+
+    Returns:
+        Optional[dict[str,Any]]: Dictionary containing user data if found, or None if the user does not exist.
+    '''
+
     if not proxy:
         reclaim_after = True
         proxy: ConnectionProxy = await connection_master.request_connection(level)
