@@ -1,7 +1,8 @@
 '''Subhandler routines for INFO operations'''
 # TODO: Perhaps add a caching mechanism for DB reads?
 import asyncio
-from typing import Any, Final
+from functools import lru_cache
+from typing import Any, Final, Union
 
 from models.flags import InfoFlags
 from models.response_codes import SuccessFlags
@@ -109,11 +110,9 @@ async def handle_storage_query(header_component: BaseHeaderComponent, auth_compo
             ResponseBody(contents=storage_data))
 
 async def handle_ssl_query(server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
-    certificate_bytes: str = server_config.certificate_filepath.read_text(encoding='utf-8')
-    rollover_data: dict[str, Any] = {}
-    if server_config.rollover_data_filepath.exists():
-        rollover_data = orjson.loads(server_config.rollover_data_filepath.read_bytes())
-
+    rollover_data: dict[str, dict[str, Union[str, float]]] = {}
+    if server_config.rollover_data_filepath.exists() and (data:=server_config.rollover_data_filepath.read_bytes()):
+        rollover_data = orjson.loads(data)
+    
     return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value),
-            ResponseBody(contents={'certificate' : certificate_bytes,
-                                   'rollover_data' : rollover_data}))
+            ResponseBody(contents={'rollover_data' : rollover_data}))
