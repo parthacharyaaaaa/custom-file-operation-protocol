@@ -34,6 +34,22 @@ INFO_SUBHANDLER_MAPPING: MappingProxyType[int, INFO_SUBHANDLER] = MappingProxyTy
 async def top_info_handler(reader: asyncio.StreamReader,
                            header_component: BaseHeaderComponent,
                            dependency_registry: ServerSingletonsRegistry) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+    '''Entrypoint for handling `info` operations over a stream. Performs optional authentication, validation, and finally dispatches to the appropriate subhandler.
+
+    Args:
+        reader (asyncio.StreamReader): Stream reader from which request components are read.
+        header_component (BaseHeaderComponent): Parsed header containing sizes and metadata for auth and permission components.
+        dependency_registry (ServerSingletonsRegistry): Registry providing server configuration and singleton dependencies required for handling.
+
+    Returns:
+        tuple[ResponseHeader,Optional[ResponseBody]]: Response header and optional response body resulting from the permission operation.
+
+    Raises:
+        InvalidHeaderSemantic: If either auth or permission components are missing in the header.
+        SlowStreamRate: If reading the auth component times out.
+        InvalidAuthSemantic: If the auth component fails validation or is malformed.
+        UnsupportedOperation: If the requested permission subcategory is not supported.
+    '''
     if header_component.subcategory not in InfoFlags._value2member_map_:
         raise UnsupportedOperation(f'Unsupported operation (bits: {header_component.subcategory}) for category: {CategoryFlag.INFO._name_}')
     
