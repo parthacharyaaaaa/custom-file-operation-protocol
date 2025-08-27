@@ -1,3 +1,5 @@
+'''Basic file I/O operations to support higher-level `FILE` request handlers'''
+
 import os
 import shutil
 from uuid import uuid4

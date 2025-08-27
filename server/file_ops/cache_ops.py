@@ -1,3 +1,5 @@
+'''Basic cache operations to support higher-level `FILE` request handlers and file operations'''
+
 from cachetools import TTLCache
 from aiofiles.threadpool.binary import AsyncBufferedReader
 from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
