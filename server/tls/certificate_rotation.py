@@ -1,3 +1,5 @@
+'''Standalone script for rotating server's credentials (certificate and private key)'''
+
 from typing import Final
 
 from server.tls.credentials import rotate_server_certificates

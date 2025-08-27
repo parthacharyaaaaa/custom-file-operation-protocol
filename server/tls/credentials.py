@@ -1,3 +1,5 @@
+'''Utility methods for server-side SSL/TLS logic'''
+
 import certifi
 import hashlib
 import secrets
@@ -21,6 +23,15 @@ __all__ = ('generate_self_signed_credentials', 'generate_rollover_token', 'make_
 def generate_self_signed_credentials(cert_filepath: Path,
                                      key_filepath: Path,
                                      dns_name: str = 'localhost') -> tuple[x509.Certificate, ec.EllipticCurvePrivateKey]:
+    '''Generate a self-signed x.509 certificate for the server
+    Args:
+        cert_filepath (Path): Filepath of the output file to write the generated certificate into (CRT extension).
+        key_filepath (Path): Filepath of the output key file to write the generated private key into (PEM extension).
+        dns_name (str): Domain name of the issuer, defaults to localhost
+
+    Returns:
+        tuple[x509.Certificate,ec.EllipticCurvePrivateKey]: Pair of x.509 certificate and corresponding ec private key
+    '''
     private_key: ec.EllipticCurvePrivateKey = ec.generate_private_key(ec.SECP256R1())
     
     subject = issuer = x509.Name([
@@ -63,6 +74,18 @@ def make_server_ssl_context(certfile: Path,
                             keyfile: Path,
                             ciphers: str,
                             cafile: Optional[Path] = None) -> ssl.SSLContext:
+    '''Create an SSL context for a server
+
+    Args:
+        certfile (Path): Path to the certificate file (CRT/PEM) used by the server.
+        keyfile (Path): Path to the private key file (PEM) used by the server.
+        ciphers (str): String specifying the allowed ciphers (OpenSSL cipher list format).
+        cafile (Optional[Path]): Path to a CA bundle file. If not provided, defaults to certifi's CA store.
+
+    Returns:
+        ssl.SSLContext: Configured SSL context for the server.
+    '''
+
     ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER)
     ssl_context.load_verify_locations(cafile or certifi.where())
     ssl_context.load_cert_chain(certfile, keyfile)
@@ -77,10 +100,26 @@ def generate_rollover_token(new_cert: x509.Certificate,
                             old_cert: x509.Certificate,
                             old_key: ec.EllipticCurvePrivateKey,
                             nonce_length: int,
-                            output_path: Path,
                             host: str, port: int,
                             grace_period: float,
                             reason: str = 'rotation') -> dict[str, dict[str, Union[str, float]]]:
+    '''Generate a rollover token to transition from an old certificate to a new one
+
+    Args:
+        new_cert (x509.Certificate): The new x.509 certificate being rolled over to.
+        old_cert (x509.Certificate): The existing x.509 certificate being replaced.
+        old_key (ec.EllipticCurvePrivateKey): Private key corresponding to the old certificate, used to sign the token.
+        nonce_length (int): Length (in bytes) of the randomly generated nonce.
+        host (str): Hostname associated with the rollover.
+        port (int): Port associated with the rollover.
+        grace_period (float): Time in seconds for which the rollover token remains valid.
+        reason (str): Reason for rollover, defaults to 'rotation'.
+
+    Returns:
+        dict[str,dict[str,Union[str,float]]]: Mapping of the old certificate's SHA256 fingerprint to rollover metadata,
+            including host, port, certificate details, pubkey hashes, timestamps, reason, signature, and nonce.
+    '''
+
     issuance: float = time.time()
     old_pubkey_hash: str = hashlib.sha256(old_cert.public_key().public_bytes(encoding=serialization.Encoding.DER, format=serialization.PublicFormat.SubjectPublicKeyInfo)).hexdigest()
     new_pubkey_hash: str = hashlib.sha256(new_cert.public_key().public_bytes(encoding=serialization.Encoding.DER, format=serialization.PublicFormat.SubjectPublicKeyInfo)).hexdigest()
@@ -106,6 +145,22 @@ def generate_rollover_token(new_cert: x509.Certificate,
 def load_credentials(credentials_directory: Path,
                      cert_filename: Optional[str] = 'certfile.crt',
                      key_filename: Optional[str] = 'keyfile.pem') -> tuple[x509.Certificate, ec.EllipticCurvePrivateKey]:
+    
+    '''Load an x.509 certificate and its corresponding EC private key from disk
+
+    Args:
+        credentials_directory (Path): Directory containing the certificate and private key files.
+        cert_filename (Optional[str]): Filename of the certificate (CRT/PEM), defaults to 'certfile.crt'.
+        key_filename (Optional[str]): Filename of the private key (PEM), defaults to 'keyfile.pem'.
+
+    Raises:
+        FileNotFoundError: If the certificate or key file does not exist at the given path.
+        ValueError: If the loaded private key is not an EC key.
+
+    Returns:
+        tuple[x509.Certificate,ec.EllipticCurvePrivateKey]: The loaded x.509 certificate and its associated EC private key.
+    '''
+
     certificate_filepath: Path = credentials_directory.joinpath(cert_filename)
     if not certificate_filepath.is_file():
         raise FileNotFoundError(f'File {certificate_filepath} not found')
@@ -124,6 +179,17 @@ def load_credentials(credentials_directory: Path,
     return x509.load_pem_x509_certificate(certificate_bytes), private_key
 
 def trim_rollover_data(rollover_data: dict[str, dict[str, Union[str, float]]], size: int, reference_key: str = 'issued_at') -> dict[str, dict[str, Union[str, float]]]:
+    '''Trim rollover data to keep only the most recent entries
+
+    Args:
+        rollover_data (dict[str,dict[str,Union[str,float]]]): Mapping of certificate fingerprints to rollover metadata.
+        size (int): Maximum number of entries to retain.
+        reference_key (str): Metadata field used for sorting, defaults to 'issued_at'.
+
+    Returns:
+        dict[str,dict[str,Union[str,float]]]: Filtered rollover data containing only the most recent entries.
+    '''
+
     return {k:v
             for k,v in rollover_data.items()
             if v[reference_key]
@@ -133,6 +199,15 @@ def trim_rollover_data(rollover_data: dict[str, dict[str, Union[str, float]]], s
 
 def rotate_server_certificates(server_config: ServerConfig,
                                reason: str = 'periodic rotation') -> ssl.SSLContext:
+    '''Rotate the server's SSL certificates and update rollover metadata
+
+    Args:
+        server_config (ServerConfig): Configuration object containing certificate paths, host/port, ciphers, and rollover settings.
+        reason (str): Reason for rotation, defaults to 'periodic rotation'.
+
+    Returns:
+        ssl.SSLContext: New SSL context configured with the rotated certificate and key.
+    '''
 
     old_certificate, old_key = load_credentials(credentials_directory=server_config.certificate_filepath.parent,
                                                 cert_filename=server_config.certificate_filepath,
