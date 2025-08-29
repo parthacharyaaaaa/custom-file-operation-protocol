@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager, contextmanager
-from typing import Literal, Optional, NoReturn, Protocol, AsyncIterator, Iterator, overload
+from typing import Literal, Optional, NoReturn, Protocol, AsyncIterator, Iterator, overload, TYPE_CHECKING
 from typing_extensions import Self
 from types import TracebackType
 from uuid import uuid4
@@ -17,10 +17,7 @@ class SupportsConnection(Protocol):
     '''Protocol supporting interface to psycopg's connection's methods'''
     def info(self) -> pg.ConnectionInfo: ...
 
-    @overload
     def cursor(self, *, binary: bool = False, **kwargs) -> pg.AsyncCursor[TupleRow]: ...
-    @overload
-    def cursor(self, *, binary: bool = False, **kwargs) -> pg.Cursor[TupleRow]: ...
 
     async def execute(self, query: Query, params: Params | None = None, *, prepare: bool | None = None, binary: bool = False) -> pg.AsyncCursor[Row]: ...
    
@@ -40,7 +37,7 @@ class SupportsConnection(Protocol):
     def cancel_safe(self, *, timeout: float = 30.0) -> None: ...
     def commit(self) -> None: ...
 
-class ConnectionProxy(SupportsConnection):
+class ConnectionProxy(SupportsConnection if TYPE_CHECKING else object):
     '''Proxy object for a database connection leased from a ConnectionPoolManager instance'''
     def __init__(self, leased_conn: 'LeasedConnection', token: str):
         __slots__ = '_token', '_conn'
