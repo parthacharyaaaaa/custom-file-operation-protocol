@@ -94,23 +94,29 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
                            file_locks: TTLCache[str, bytes], connection_master: ConnectionPoolManager,
                            delete_cache: TTLCache[str, str], 
                            amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> tuple[ResponseHeader, ResponseBody]:
-    # Check permissions
-    if not await db_utils.check_file_permission(filename=file_component.subject_file,
-                                                owner=file_component.subject_file_owner,
-                                                grantee=auth_component.identity,
-                                                connection_master=connection_master,
-                                                check_for=FilePermissions.WRITE.value,
-                                                check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
-        err_str: str = f'User {auth_component.identity} does not have write permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
-        asyncio.create_task(
-            enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                        log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
-                                                  log_category=db_models.LogType.PERMISSION,
-                                                  log_details=err_str,
-                                                  reported_severity=db_models.Severity.TRACE,
-                                                  user_concerned=auth_component.identity)))
+    async with await connection_master.request_connection(1) as proxy:
+        if not await db_utils.check_file_existence(filename=file_component.subject_file,
+                                                   owner=file_component.subject_file_owner,
+                                                   proxy=proxy):
+            raise errors.FileNotFound(f'No file named {file_component.subject_file} owned by {file_component.subject_file_owner} found')
         
-        raise errors.InsufficientPermissions(err_str)
+        if not await db_utils.check_file_permission(filename=file_component.subject_file,
+                                                    owner=file_component.subject_file_owner,
+                                                    grantee=auth_component.identity,
+                                                    connection_master=connection_master,
+                                                    proxy=proxy,
+                                                    check_for=FilePermissions.WRITE.value,
+                                                    check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
+            err_str: str = f'User {auth_component.identity} does not have write permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
+            asyncio.create_task(
+                enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
+                            log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                    log_category=db_models.LogType.PERMISSION,
+                                                    log_details=err_str,
+                                                    reported_severity=db_models.Severity.TRACE,
+                                                    user_concerned=auth_component.identity)))
+            
+            raise errors.InsufficientPermissions(err_str)
     
     fpath: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
     if file_component.subject_file_owner == auth_component.identity:
