@@ -322,7 +322,7 @@ class UserManager(metaclass=SingletonMetaclass):
                                                     log_details=f'Failed in check ban status: {e.__class__.__name__}',
                                                     log_category=LogType.DATABASE))
             if reclaim_on_exc:
-                self.connection_master.reclaim_connection(proxy)
+                await self.connection_master.reclaim_connection(proxy)
             return True
         finally:
             if new_proxy:
