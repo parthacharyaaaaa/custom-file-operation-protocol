@@ -120,7 +120,7 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     
     fpath: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
     if file_component.subject_file_owner == auth_component.identity:
-        file_locks[fpath] = adler32(auth_component.identity)
+        file_locks[fpath] = adler32(auth_component.identity.encode('utf-8'))
     else:
         try:
             await asyncio.wait_for(base_ops.acquire_file_lock(file_locks=file_locks, filename=fpath, requestor=auth_component.identity, ttl=config.file_lock_ttl),
