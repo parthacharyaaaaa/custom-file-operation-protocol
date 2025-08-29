@@ -1,7 +1,6 @@
 '''Subhandler routines for INFO operations'''
 # TODO: Perhaps add a caching mechanism for DB reads?
 import asyncio
-from functools import lru_cache
 from typing import Any, Final, Union
 
 from models.flags import InfoFlags

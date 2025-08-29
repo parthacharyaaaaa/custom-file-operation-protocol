@@ -16,11 +16,9 @@ from client.cmd.commands import FileModifierCommands
 from client.config import constants as client_constants
 from client.operations import auth_operations, file_operations, permission_operations, info_operations
 from client.parsing import command_parsers
-from client.communication.incoming import process_response
-from client.communication.outgoing import send_request
 from client.auxillary import operational_utils
 
-from models.flags import CategoryFlag, InfoFlags
+from models.flags import InfoFlags
 from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent
 
 __all__ = ('ClientWindow',)

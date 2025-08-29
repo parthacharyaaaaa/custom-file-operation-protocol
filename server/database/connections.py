@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager, contextmanager
-from typing import Literal, Optional, NoReturn, Protocol, AsyncIterator, Iterator, overload, TYPE_CHECKING
+from typing import Literal, Optional, NoReturn, Protocol, AsyncIterator, Iterator, TYPE_CHECKING
 from typing_extensions import Self
 from types import TracebackType
 from uuid import uuid4

@@ -1,4 +1,4 @@
-from functools import lru_cache, partial
+from functools import partial
 import inspect
 from types import MappingProxyType
 from typing import Any, NewType, Callable, Optional, Annotated

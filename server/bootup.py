@@ -1,6 +1,5 @@
 '''Helper module for loading all required instances whenever the server starts'''
 import asyncio
-import ssl
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from math import inf
 from pathlib import Path
@@ -9,7 +8,6 @@ from typing import Any, Optional, Final
 from cachetools import TTLCache
 
 from server import logging
-from server.tls import credentials
 from server.authz.user_manager import UserManager
 from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
