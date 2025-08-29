@@ -222,7 +222,6 @@ def rotate_server_certificates(server_config: ServerConfig,
                                                                                              nonce_length=server_config.rollover_token_nonce_length,
                                                                                              host=str(server_config.host), port=server_config.port,
                                                                                              grace_period=server_config.rollover_grace_window,
-                                                                                             output_path=server_config.rollover_data_filepath,
                                                                                              reason=reason)
     existing_tokens: dict[str, dict[str, Union[str, float]]] = {}
     with open(server_config.rollover_data_filepath, 'r+', encoding='utf-8') as rotation_metadata_file:
