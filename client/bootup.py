@@ -46,6 +46,7 @@ def init_cmd_window(host: str, port: int,
     return ClientWindow(host, port, reader, writer, client_config, session_manager)
 
 async def create_server_connection(host: str, port: int, fingerprints_path: Path, ssl_context: ssl.SSLContext, client_config: ClientConfig, ssl_handshake_timeout: Optional[float] = None, blind_trust: bool = False) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    process_identity: Final[str] = f'{host}:{port}'
     fingerprints_mapping: dict[str, str] = {}
     if fingerprints_path.is_file() and (fingerprint_data := fingerprints_path.read_text(encoding='utf-8')):
         fingerprints_mapping = json.loads(fingerprint_data)
@@ -57,20 +58,20 @@ async def create_server_connection(host: str, port: int, fingerprints_path: Path
     peer_certificate: Final[x509.Certificate] = x509.load_der_x509_certificate(writer.get_extra_info('ssl_object').getpeercert(binary_form=True))
     fingerprint: Final[str] = peer_certificate.fingerprint(hashes.SHA256()).hex()
 
-    if (host not in fingerprints_mapping) or blind_trust:
-        fingerprints_mapping[host] = fingerprint
+    if (process_identity not in fingerprints_mapping) or blind_trust:
+        fingerprints_mapping[process_identity] = fingerprint
         fingerprints_path.write_text(json.dumps(fingerprints_mapping, indent=4), encoding='utf-8')
         return reader, writer
-    if fingerprint == fingerprints_mapping[host]:
+    if fingerprint == fingerprints_mapping[process_identity]:
         return reader, writer
     
     # Attempt to reconcile through server rollover data, if provided
     pubkey: Final[CertificatePublicKeyTypes] = peer_certificate.public_key()
     if not isinstance(pubkey, ec.EllipticCurvePublicKey):
-        raise ConnectionError(f'Failed SSL reconciliation with server {host}:{port}, key type mismatch: expected {str(ec.EllipticCurvePublicKey)}, received {str(type(pubkey))}')
+        raise ConnectionError(f'Failed SSL reconciliation with server {process_identity}, key type mismatch: expected {str(ec.EllipticCurvePublicKey)}, received {str(type(pubkey))}')
     
     try:
-        last_fingerprint: Final[str] = fingerprints_mapping[host]
+        last_fingerprint: Final[str] = fingerprints_mapping[process_identity]
         rollover_data: Final[dict[str, dict[str, Union[str, float]]]] = await tls_sentinel.get_rollover_data(reader, writer, client_config, host, port)
         if not rollover_data:
             raise Exception
@@ -85,22 +86,22 @@ async def create_server_connection(host: str, port: int, fingerprints_path: Path
 
         old_pubkey: Final[CertificatePublicKeyTypes] = old_certificate.public_key()
         if not isinstance(old_pubkey, ec.EllipticCurvePublicKey):
-            raise ConnectionError(f'Failed SSL reconciliation with server {host}:{port}, key type mismatch: expected {str(ec.EllipticCurvePublicKey)}, received {str(type(pubkey))}')
+            raise ConnectionError(f'Failed SSL reconciliation with server {process_identity}, key type mismatch: expected {str(ec.EllipticCurvePublicKey)}, received {str(type(pubkey))}')
         
-        data_buffer: Final[bytes] = (bytes.fromhex(rollover_data[last_fingerprint]['old_pubkey_hash']) +
-                                     bytes.fromhex(rollover_data[last_fingerprint]['new_pubkey_hash']) +
-                                     bytes.fromhex(rollover_data[last_fingerprint]['nonce']))
+        data_buffer: Final[bytes] = (bytes.fromhex(rollover_data[last_fingerprint]['old_pubkey_hash'])
+                                     + bytes.fromhex(rollover_data[last_fingerprint]['new_pubkey_hash'])
+                                     + bytes.fromhex(rollover_data[last_fingerprint]['nonce']))
         
         old_pubkey.verify(signature=bytes.fromhex(rollover_data[last_fingerprint]['signature']),
                                             data=data_buffer,
                                             signature_algorithm=ec.ECDSA(hashes.SHA256()))
     except InvalidSignature:
-        raise ssl.SSLError(f'[TOFU]: Reconciliation failed with server {host} (Failed to verify signature). If you are sure that you trust this server, start the shell with the "--blind-trust" flag')
+        raise ssl.SSLError(f'[TOFU]: Reconciliation failed with server {process_identity} (Failed to verify signature). If you are sure that you trust this server, start the shell with the "--blind-trust" flag')
     except Exception as e:
-        raise ssl.SSLError(f'[TOFU]: Certification mismatch for {host}. Expected {fingerprints_mapping[host]}, received {fingerprint}. If you are sure that you trust this server, start the shell with the "--blind-trust" flag')
+        raise ssl.SSLError(f'[TOFU]: Certification mismatch for {process_identity}. Expected {fingerprints_mapping[process_identity]}, received {fingerprint}. If you are sure that you trust this server, start the shell with the "--blind-trust" flag')
     
-    print(f'Certificate rotated for connection to known server {host}:{port} through TOFU reconciliation')
-    fingerprints_mapping[host] = fingerprint
+    print(f'Certificate rotated for connection to known server {process_identity} through TOFU reconciliation')
+    fingerprints_mapping[process_identity] = fingerprint
     fingerprints_path.write_text(json.dumps(fingerprints_mapping, indent=4), encoding='utf-8')
     
     return reader, writer
