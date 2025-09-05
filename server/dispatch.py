@@ -1,5 +1,4 @@
 from typing import Final
-from types import MappingProxyType
 
 from models.flags import CategoryFlag, AuthFlags, PermissionFlags, InfoFlags, FileFlags
 
@@ -21,14 +20,13 @@ __all__ = ('TOP_LEVEL_REQUEST_MAPPING',
            'permission_subhandler_mapping',
            'file_subhandler_mapping')
 
-TOP_LEVEL_REQUEST_MAPPING: Final[MappingProxyType[CategoryFlag, RequestHandler]] = MappingProxyType(
-    {
-        CategoryFlag.AUTH : top_auth_handler,
-        CategoryFlag.INFO : top_info_handler,
-        CategoryFlag.FILE_OP : top_file_handler,
-        CategoryFlag.PERMISSION : top_permission_handler
-    }
-)
+TOP_LEVEL_REQUEST_MAPPING: Final[dict[CategoryFlag, RequestHandler]] = {
+    CategoryFlag.AUTH : top_auth_handler,
+    CategoryFlag.INFO : top_info_handler,
+    CategoryFlag.FILE_OP : top_file_handler,
+    CategoryFlag.PERMISSION : top_permission_handler
+}
+
 
 auth_subhandler_mapping: Final[dict[AuthFlags, AuthSubhandler]] = {
     AuthFlags.REGISTER : auth_subhandlers.handle_registration,
