@@ -1,6 +1,5 @@
 import asyncio
-from typing import Optional, TypeAlias, Callable, Coroutine, Any
-from types import MappingProxyType
+from typing import Mapping, Optional
 
 from models.flags import PermissionFlags, CategoryFlag
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent
@@ -9,7 +8,7 @@ from models.response_models import ResponseHeader, ResponseBody
 from server.comms_utils.incoming import process_component
 from server.dependencies import ServerSingletonsRegistry
 from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, SlowStreamRate, UnsupportedOperation
-from server.permission_ops.permission_subhandlers import grant_permission, revoke_permission, hide_file, publicise_file, transfer_ownership
+from server.typing import AuthSubhandler, SubhandlerResponse
 
 import orjson
 from pydantic import ValidationError
@@ -17,20 +16,11 @@ from pydantic import ValidationError
 
 __all__ = ('top_permission_handler', 'PERMISSION_SUBHABDLER')
 
-PERMISSION_SUBHABDLER: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent],
-                                      Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]
 
-_PERMISSION_SUBHANDLER_MAPPING: MappingProxyType[int, PERMISSION_SUBHABDLER] = MappingProxyType(
-    dict(
-        zip(
-            list(PermissionFlags._member_map_.values())[:5],
-            [grant_permission, revoke_permission, hide_file, publicise_file, transfer_ownership]
-        )
-    )
-)
-
-async def top_permission_handler(reader: asyncio.StreamReader, header_component: BaseHeaderComponent,
-                                    dependency_registry: ServerSingletonsRegistry) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+async def top_permission_handler(reader: asyncio.StreamReader,
+                                 header_component: BaseHeaderComponent,
+                                 dependency_registry: ServerSingletonsRegistry,
+                                 subhandler_mapping: Mapping[AuthSubhandler, SubhandlerResponse]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     '''Entrypoint for handling `permission` operations over a stream. Performs authentication, validation, and dispatches to the appropriate subhandler.
 
     Args:
@@ -72,11 +62,9 @@ async def top_permission_handler(reader: asyncio.StreamReader, header_component:
                                                                             component_type='permission', timeout=dependency_registry.server_config.read_timeout)
     
     # For permission operations, we'll need to mask the role bits 
-    subhandler = _PERMISSION_SUBHANDLER_MAPPING[header_component.subcategory & ~PermissionFlags.ROLE_EXTRACTION_BITMASK]
-    prepped_subhandler = dependency_registry.inject_global_singletons(func=subhandler,
-                                                                      header_component=header_component,
-                                                                      auth_component=auth_component,
-                                                                      permission_component=permission_component)
+    subhandler = subhandler_mapping[header_component.subcategory & ~PermissionFlags.ROLE_EXTRACTION_BITMASK]
     
-    header, body = await prepped_subhandler()
+    header, body = await subhandler(header_component=header_component,
+                                    auth_component=auth_component,
+                                    permission_component=permission_component)
     return header, body

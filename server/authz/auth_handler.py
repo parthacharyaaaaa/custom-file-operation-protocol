@@ -1,33 +1,22 @@
 import asyncio
+from typing import Mapping, Optional
 
 from models.flags import AuthFlags, CategoryFlag
 from models.response_models import ResponseHeader, ResponseBody
 from models.request_model import BaseHeaderComponent, BaseAuthComponent
 
-from server.authz.auth_subhandlers import handle_registration, handle_login, handle_session_refresh, handle_password_change, handle_deletion, handle_session_termination
 from server.comms_utils.incoming import process_component
 from server.dependencies import ServerSingletonsRegistry
 from server.errors import InvalidAuthSemantic, UnsupportedOperation
+from server.typing import AuthSubhandler, SubhandlerResponse
 
-from typing import Optional, Coroutine, Any, Callable, TypeAlias
-from types import MappingProxyType
+__all__ = ('top_auth_handler',)
 
-__all__ = ('AUTH_SUBHABDLER', 'top_auth_handler')
 
-AUTH_SUBHABDLER: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent],
-                                      Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]
-
-_AUTH_SUBHANDLER_MAPPING: MappingProxyType[int, AUTH_SUBHABDLER] = MappingProxyType(
-    dict(
-        zip(
-            AuthFlags._member_map_.values(),
-            [handle_registration, handle_login, handle_session_refresh, handle_password_change, handle_deletion, handle_session_termination]
-        )
-    )
-)
-
-async def top_auth_handler(reader: asyncio.StreamReader, header_component: BaseHeaderComponent,
-                           dependency_registry: ServerSingletonsRegistry) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+async def top_auth_handler(reader: asyncio.StreamReader,
+                           header_component: BaseHeaderComponent,
+                           dependency_registry: ServerSingletonsRegistry,
+                           subhandler_mapping: Mapping[AuthSubhandler, SubhandlerResponse]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     '''Entrypoint for handling `AUTH` operations over a stream. Performs authentication, validation, and dispatches to the appropriate subhandler.
 
     Args:
@@ -54,9 +43,8 @@ async def top_auth_handler(reader: asyncio.StreamReader, header_component: BaseH
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.AUTH._name_}')
     
     # Delegate actual handling to defined functions/coroutines
-    subhandler = _AUTH_SUBHANDLER_MAPPING[header_component.subcategory]
-    prepped_subhandler = dependency_registry.inject_global_singletons(func=subhandler,
-                                                                      header_component=header_component,
-                                                                      auth_component=auth_component)
-    header, body = await prepped_subhandler()
+    subhandler = subhandler_mapping[header_component.subcategory]
+
+    header, body = await subhandler(header_component=header_component,
+                                    auth_component=auth_component)
     return header, body

@@ -1,6 +1,5 @@
 import asyncio
-from typing import Optional, TypeAlias, Callable, Coroutine, Any
-from types import MappingProxyType
+from typing import Mapping, Optional
 
 from models.flags import FileFlags, CategoryFlag
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent
@@ -9,27 +8,17 @@ from models.response_models import ResponseHeader, ResponseBody
 from server.comms_utils.incoming import process_component
 from server.dependencies import ServerSingletonsRegistry
 from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, SlowStreamRate, UnsupportedOperation
-from server.file_ops.file_subhandlers import handle_read, handle_amendment, handle_deletion, handle_creation
+from server.typing import FileSubhandler, SubhandlerResponse
 
 import orjson
 from pydantic import ValidationError
 
-__all__ = ('FILE_SUBHANDLERS', 'top_file_handler')
+__all__ = ('top_file_handler',)
 
-FILE_SUBHANDLERS: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent, BaseFileComponent],
-                                      Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]
-
-_FILE_SUBHANDLER_MAPPING: MappingProxyType[int, FILE_SUBHANDLERS] = MappingProxyType(
-    dict(
-        zip(
-            [FileFlags.CREATE, FileFlags.READ, FileFlags.WRITE, FileFlags.OVERWRITE, FileFlags.APPEND, FileFlags.DELETE],
-            [handle_creation, handle_read, handle_amendment, handle_amendment, handle_amendment, handle_deletion]
-        )
-    )
-)
-
-async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseHeaderComponent,
-                           dependency_registry: ServerSingletonsRegistry) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+async def top_file_handler(reader: asyncio.StreamReader,
+                           header_component: BaseHeaderComponent,
+                           dependency_registry: ServerSingletonsRegistry,
+                            subhandler_mapping: Mapping[FileSubhandler, SubhandlerResponse]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     '''Entrypoint for handling `file` operations over a stream. Performs authentication, validation, and dispatches to the appropriate subhandler.
 
     Args:
@@ -69,11 +58,9 @@ async def top_file_handler(reader: asyncio.StreamReader, header_component: BaseH
     file_component: BaseFileComponent = await process_component(n_bytes=header_component.body_size, reader=reader,
                                                                 component_type='file', timeout=dependency_registry.server_config.read_timeout)
     
-    subhandler = _FILE_SUBHANDLER_MAPPING[header_component.subcategory]
-    prepped_subhandler = dependency_registry.inject_global_singletons(func=subhandler,
-                                                                      header_component=header_component,
-                                                                      auth_component=auth_component,
-                                                                      file_component=file_component)
+    subhandler = subhandler_mapping[header_component.subcategory]
     
-    header, body = await prepped_subhandler()
+    header, body = await subhandler(header_component=header_component,
+                                    auth_component=auth_component,
+                                    file_component=file_component)
     return header, body
