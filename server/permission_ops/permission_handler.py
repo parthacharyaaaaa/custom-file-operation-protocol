@@ -8,7 +8,7 @@ from models.response_models import ResponseHeader, ResponseBody
 from server.comms_utils.incoming import process_component
 from server.dependencies import ServerSingletonsRegistry
 from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, SlowStreamRate, UnsupportedOperation
-from server.typing import AuthSubhandler, SubhandlerResponse
+from server.typing import PermissionSubhandler, SubhandlerResponse
 
 import orjson
 from pydantic import ValidationError
@@ -20,7 +20,7 @@ __all__ = ('top_permission_handler', 'PERMISSION_SUBHABDLER')
 async def top_permission_handler(reader: asyncio.StreamReader,
                                  header_component: BaseHeaderComponent,
                                  dependency_registry: ServerSingletonsRegistry,
-                                 subhandler_mapping: Mapping[AuthSubhandler, SubhandlerResponse]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+                                 subhandler_mapping: Mapping[PermissionSubhandler, SubhandlerResponse]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     '''Entrypoint for handling `permission` operations over a stream. Performs authentication, validation, and dispatches to the appropriate subhandler.
 
     Args:
