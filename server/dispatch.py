@@ -16,10 +16,10 @@ from server.file_ops import file_subhandlers
 from server.typing import AuthSubhandler, InfoSubhandler, FileSubhandler, PermissionSubhandler, RequestHandler
 
 __all__ = ('TOP_LEVEL_REQUEST_MAPPING',
-           'AUTH_SUBHABDLER_MAPPING',
-           'INFO_SUBHANDLER_MAPPING',
-           'PERMISSION_SUBHANDLER_MAPPING',
-           'FILE_SUBHANDLER_MAPPING')
+           'auth_subhandler_mapping',
+           'info_subhandler_mapping',
+           'permission_subhandler_mapping',
+           'file_subhandler_mapping')
 
 TOP_LEVEL_REQUEST_MAPPING: Final[MappingProxyType[CategoryFlag, RequestHandler]] = MappingProxyType(
     {
@@ -30,7 +30,7 @@ TOP_LEVEL_REQUEST_MAPPING: Final[MappingProxyType[CategoryFlag, RequestHandler]]
     }
 )
 
-AUTH_SUBHABDLER_MAPPING: Final[dict[AuthFlags, AuthSubhandler]] = {
+auth_subhandler_mapping: Final[dict[AuthFlags, AuthSubhandler]] = {
     AuthFlags.REGISTER : auth_subhandlers.handle_registration,
     AuthFlags.LOGIN : auth_subhandlers.handle_login,
     AuthFlags.REFRESH : auth_subhandlers.handle_session_refresh,
@@ -39,7 +39,7 @@ AUTH_SUBHABDLER_MAPPING: Final[dict[AuthFlags, AuthSubhandler]] = {
     AuthFlags.DELETE : auth_subhandlers.handle_deletion
 }
 
-INFO_SUBHANDLER_MAPPING: Final[dict[InfoFlags, InfoSubhandler]] = {
+info_subhandler_mapping: Final[dict[InfoFlags, InfoSubhandler]] = {
     InfoFlags.HEARTBEAT : info_subhandlers.handle_heartbeat,
     InfoFlags.PERMISSION_METADATA : info_subhandlers.handle_permission_query,
     InfoFlags.FILE_METADATA : info_subhandlers.handle_filedata_query,
@@ -48,7 +48,7 @@ INFO_SUBHANDLER_MAPPING: Final[dict[InfoFlags, InfoSubhandler]] = {
     InfoFlags.SSL_CREDENTIALS : info_subhandlers.handle_ssl_query
 }
 
-PERMISSION_SUBHANDLER_MAPPING: Final[dict[PermissionFlags, PermissionSubhandler]] = {
+permission_subhandler_mapping: Final[dict[PermissionFlags, PermissionSubhandler]] = {
     PermissionFlags.GRANT : permission_subhandlers.grant_permission,
     PermissionFlags.REVOKE : permission_subhandlers.revoke_permission,
     PermissionFlags.HIDE : permission_subhandlers.hide_file,
@@ -57,7 +57,7 @@ PERMISSION_SUBHANDLER_MAPPING: Final[dict[PermissionFlags, PermissionSubhandler]
 }
 
 # Write, append, and overwrite share the same handler
-FILE_SUBHANDLER_MAPPING: Final[dict[FileFlags, FileSubhandler]] = {
+file_subhandler_mapping: Final[dict[FileFlags, FileSubhandler]] = {
     FileFlags.CREATE : file_subhandlers.handle_creation,
     FileFlags.WRITE : file_subhandlers.handle_amendment,
     FileFlags.APPEND : file_subhandlers.handle_amendment,
