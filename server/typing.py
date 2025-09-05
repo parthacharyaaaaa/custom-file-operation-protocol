@@ -10,6 +10,7 @@ from server.dependencies import (GlobalFileLockType, GlobalLogQueueType,
 
 from models.response_models import ResponseHeader, ResponseBody
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseInfoComponent, BaseFileComponent, BasePermissionComponent
+from models.typing import SubcategoryFlag
 
 __all__ = ('PermissionSubhandler',
            'InfoSubhandler',
@@ -40,4 +41,4 @@ RequestSubhandler: TypeAlias = Union[AuthSubhandler, InfoSubhandler, FileSubhand
 
 SubhandlerResponse: TypeAlias = Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]
 
-RequestHandler: TypeAlias = Callable[[asyncio.StreamReader, BaseHeaderComponent, ServerSingletonsRegistry], SubhandlerResponse]
+RequestHandler: TypeAlias = Callable[[asyncio.StreamReader, BaseHeaderComponent, ServerSingletonsRegistry, dict[SubcategoryFlag, RequestSubhandler]], SubhandlerResponse]
