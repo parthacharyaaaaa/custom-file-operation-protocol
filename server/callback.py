@@ -1,10 +1,9 @@
 import asyncio
-from typing import Optional, Any, Coroutine, Callable
 from traceback import format_exc, format_exception_only
 
 from models.flags import CategoryFlag
 from models.request_model import BaseHeaderComponent
-from models.response_models import ResponseHeader, ResponseBody
+from models.response_models import ResponseHeader
 from models.constants import REQUEST_CONSTANTS
 
 from server import errors
@@ -14,10 +13,13 @@ from server.comms_utils.outgoing import send_response
 from server.database import models as db_models
 from server.dependencies import ServerSingletonsRegistry
 from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
+from server.typing import TopRequestHandler
 
 __all__ = ('callback',)
 
-async def callback(dependency_registry: ServerSingletonsRegistry, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+async def callback(dependency_registry: ServerSingletonsRegistry,
+                   reader: asyncio.StreamReader,
+                   writer: asyncio.StreamWriter) -> None:
     while not reader.at_eof():
         header_component: BaseHeaderComponent = None
         try:
@@ -27,8 +29,7 @@ async def callback(dependency_registry: ServerSingletonsRegistry, reader: asynci
                                                                             timeout=dependency_registry.server_config.socket_connection_timeout)
             if not header_component:
                 raise errors.SlowStreamRate('Unable to parse header')
-            handler: Callable[[asyncio.StreamReader, BaseHeaderComponent, ServerSingletonsRegistry],
-                              Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]] = TOP_LEVEL_REQUEST_MAPPING.get(header_component.category)
+            handler: TopRequestHandler = TOP_LEVEL_REQUEST_MAPPING.get(header_component.category)
             if not handler:
                 raise errors.UnsupportedOperation(f'Operation category must be in: {", ".join(CategoryFlag._member_names_)}')
 
