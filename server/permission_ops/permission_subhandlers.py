@@ -2,18 +2,13 @@ import asyncio
 import os
 import time
 from datetime import datetime
-from typing import Any
 from traceback import format_exception_only
-
-from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
-
-from cachetools import TTLCache
+from typing import Any
 
 from models.flags import PermissionFlags
-from models.permissions import ROLE_MAPPING
-from models.permissions import RoleTypes, FilePermissions
-from models.response_models import ResponseHeader, ResponseBody
+from models.permissions import ROLE_MAPPING, RoleTypes, FilePermissions
 from models.response_codes import SuccessFlags
+from models.response_models import ResponseHeader, ResponseBody
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent
 
 import psycopg.errors as pg_exc
@@ -24,12 +19,17 @@ from server import logging
 from server.config import server_config
 from server.database.connections import ConnectionPoolManager
 from server.database import models as db_models, utils as db_utils
+from server.dependencies import GlobalLogQueueType, GlobalDeleteCacheType, GlobalReadCacheType, GlobalAmendCacheType
 from server.file_ops import base_operations as base_ops
 
-__all__ = ('publicise_file', 'hide_file', 'grant_permission', 'revoke_permission', 'transfer_ownership')
+__all__ = ('publicise_file', 'hide_file', 'grant_permission',
+           'revoke_permission', 'transfer_ownership')
 
-async def publicise_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
-                         config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
+async def publicise_file(header_component: BaseHeaderComponent,
+                         auth_component: BaseAuthComponent,
+                         permission_component: BasePermissionComponent,
+                         config: server_config.ServerConfig,
+                         log_queue: GlobalLogQueueType,
                          connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
     async with await connection_master.request_connection(level=2) as proxy:
         try:
@@ -66,8 +66,11 @@ async def publicise_file(header_component: BaseHeaderComponent, auth_component: 
     return (ResponseHeader.from_server(config=config, version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value, ended_connection=header_component.finish),
             None)
 
-async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
-                    config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
+async def hide_file(header_component: BaseHeaderComponent,
+                    auth_component: BaseAuthComponent,
+                    permission_component: BasePermissionComponent,
+                    config: server_config.ServerConfig,
+                    log_queue: GlobalLogQueueType,
                     connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, ResponseBody]:
     async with await connection_master.request_connection(level=2) as proxy:
         try:
@@ -113,8 +116,11 @@ async def hide_file(header_component: BaseHeaderComponent, auth_component: BaseA
                                        ended_connection=header_component.finish),
             ResponseBody(contents={'revoked_grantee_info' : revoked_grantees}))
 
-async def grant_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
-                           config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
+async def grant_permission(header_component: BaseHeaderComponent,
+                           auth_component: BaseAuthComponent,
+                           permission_component: BasePermissionComponent,
+                           config: server_config.ServerConfig,
+                           log_queue: GlobalLogQueueType,
                            connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
     allowed_permission: FilePermissions = FilePermissions.MANAGE_RW
     
@@ -207,8 +213,11 @@ async def grant_permission(header_component: BaseHeaderComponent, auth_component
     return (ResponseHeader.from_server(config=config, version=header_component.version, code=SuccessFlags.SUCCESSFUL_GRANT, ended_connection=header_component.finish),
             None)
 
-async def revoke_permission(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
-                            config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
+async def revoke_permission(header_component: BaseHeaderComponent,
+                            auth_component: BaseAuthComponent,
+                            permission_component: BasePermissionComponent,
+                            config: server_config.ServerConfig,
+                            log_queue: GlobalLogQueueType,
                             connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, ResponseBody]:
     async with await connection_master.request_connection(level=2) as proxy:
         try:
@@ -262,12 +271,15 @@ async def revoke_permission(header_component: BaseHeaderComponent, auth_componen
             
             raise errors.DatabaseFailure('Failed to revoke permission')
 
-async def transfer_ownership(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, permission_component: BasePermissionComponent,
-                             config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
+async def transfer_ownership(header_component: BaseHeaderComponent,
+                             auth_component: BaseAuthComponent,
+                             permission_component: BasePermissionComponent,
+                             config: server_config.ServerConfig,
+                             log_queue: GlobalLogQueueType,
                              connection_master: ConnectionPoolManager,
-                             deleted_cache: TTLCache[str, str],
-                             read_cache: TTLCache[str, dict[str, AsyncBufferedReader]],
-                             amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> tuple[ResponseHeader, ResponseBody]:
+                             deleted_cache: GlobalDeleteCacheType,
+                             read_cache: GlobalReadCacheType,
+                             amendment_cache: GlobalAmendCacheType) -> tuple[ResponseHeader, ResponseBody]:
     if auth_component.identity != permission_component.subject_file_owner:
         raise errors.InsufficientPermissions(f'Only file owner {permission_component.subject_file_owner} is permitted to transfer ownership of file {permission_component.subject_file}')
     if permission_component.subject_file_owner == permission_component.subject_user:
@@ -367,4 +379,3 @@ async def transfer_ownership(header_component: BaseHeaderComponent, auth_compone
                 
                 raise errors.DatabaseFailure(f'Failed to transfer ownership of file {permission_component.subject_file} to {permission_component.subject_user}')
             raise e
-

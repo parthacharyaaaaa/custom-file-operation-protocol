@@ -17,33 +17,55 @@ from server.database import models as db_models
 
 import pydantic
 
-__all__ = ('NT_GLOBAL_LOG_QUEUE', 'NT_GLOBAL_READ_CACHE', 'NT_GLOBAL_AMEND_CACHE', 'NT_GLOBAL_DELETE_CACHE', 'NT_GLOBAL_FILE_LOCK',
-           'ServerSingletonsRegistry',)
+__all__ = ('GlobalLogQueueType',
+           'GlobalReadCacheType',
+           'GlobalAmendCacheType',
+           'GlobalDeleteCacheType',
+           'GlobalFileLockType',
+           'ServerSingletonsRegistry')
+
+# Utility objects for this module
+_RegistryMissPlaceholder = NewType('_RegistryMissPlaceholder', None)
+_singleton_registry_config_dict: pydantic.ConfigDict = pydantic.ConfigDict(
+    {
+        'arbitrary_types_allowed':True
+    })
+
 
 # NewType annotations for global singletons with data types that can be repeated in a function signature
-NT_GLOBAL_LOG_QUEUE = NewType('NT_GLOBAL_LOG_QUEUE', asyncio.queues.Queue[db_models.ActivityLog])
-NT_GLOBAL_READ_CACHE = NewType('NT_GLOBAL_READ_CACHE', TTLCache[str, dict[str, AsyncBufferedReader]])
-NT_GLOBAL_AMEND_CACHE = NewType('NT_GLOBAL_AMEND_CACHE', TTLCache[str, dict[str, AsyncBufferedIOBase]])
-NT_GLOBAL_DELETE_CACHE = NewType('NT_GLOBAL_DELETE_CACHE', TTLCache[str, str])
-NT_GLOBAL_FILE_LOCK = NewType('NT_GLOBAL_FILE_LOCK', TTLCache[str, bytes])
+GlobalLogQueueType = NewType('GlobalLogQueueType', asyncio.queues.Queue[db_models.ActivityLog])
+GlobalReadCacheType = NewType('GlobalReadCacheType', TTLCache[str, dict[str, AsyncBufferedReader]])
+GlobalAmendCacheType = NewType('GlobalAmendCacheType', TTLCache[str, dict[str, AsyncBufferedIOBase]])
+GlobalDeleteCacheType = NewType('GlobalDeleteCacheType', TTLCache[str, str])
+GlobalFileLockType = NewType('GlobalFileLockType', TTLCache[str, bytes])
 
-@pydantic.dataclasses.dataclass(slots=True, config={'arbitrary_types_allowed': True})
+@pydantic.dataclasses.dataclass(slots=True, config=_singleton_registry_config_dict)
 class ServerSingletonsRegistry(metaclass=SingletonMetaclass):
-    server_config: ServerConfig
-    user_manager: UserManager
-    connection_pool_manager: ConnectionPoolManager
-    log_queue: NT_GLOBAL_LOG_QUEUE
-    reader_cache: NT_GLOBAL_READ_CACHE
-    amendment_cache: NT_GLOBAL_AMEND_CACHE
-    deletion_cache: NT_GLOBAL_DELETE_CACHE
-    file_locks: NT_GLOBAL_FILE_LOCK
+    # Custom singleton classes are not assigned an explicit NewType 
+    # since it is impossible to have a function signature having duplicate type annotations for them
+    server_config: Annotated[ServerConfig, pydantic.Field(frozen=True)]
+    user_manager: Annotated[UserManager, pydantic.Field(frozen=True)]
+    connection_pool_manager: Annotated[ConnectionPoolManager, pydantic.Field(frozen=True)]
 
-    _registry_reverse_mapping: Annotated[Optional[MappingProxyType[type, str]], pydantic.Field(default=None)]
+    log_queue: Annotated[GlobalLogQueueType, pydantic.Field(frozen=True)]
+    reader_cache: Annotated[GlobalReadCacheType, pydantic.Field(frozen=True)]
+    amendment_cache: Annotated[GlobalAmendCacheType, pydantic.Field(frozen=True)]
+    deletion_cache: GlobalDeleteCacheType
+    file_locks: GlobalFileLockType
+
+    _registry_reverse_mapping: MappingProxyType[type, str] = pydantic.PrivateAttr(default={})
 
     def __post_init__(self) -> None:
-        self._registry_reverse_mapping = MappingProxyType(
-            {dtype if not isinstance((dtype:=v.type), NewType) else dtype.__supertype__: k for k, v in self.__dataclass_fields__.items()}
-        )
+        self._registry_reverse_mapping = MappingProxyType({
+            ServerConfig : self.server_config,
+            UserManager : self.user_manager,
+            ConnectionPoolManager : self.connection_pool_manager,
+            GlobalLogQueueType : self.log_queue,
+            GlobalReadCacheType : self.reader_cache,
+            GlobalAmendCacheType : self.amendment_cache,
+            GlobalDeleteCacheType : self.deletion_cache,
+            GlobalFileLockType : self.file_locks
+        })
 
     @property
     def registry_reverse_mapping(self) -> MappingProxyType[type, str]:
@@ -51,6 +73,7 @@ class ServerSingletonsRegistry(metaclass=SingletonMetaclass):
 
     def inject_global_singletons(self,
                                  func: Callable[..., tuple[ResponseHeader, Optional[ResponseBody]]],
+                                 strict: bool = False,
                                  **overrides_kwargs) -> Callable[..., tuple[ResponseHeader, Optional[ResponseBody]]]:
         bound_args: dict[str, Any] = {}
         for paramname, paramtype in inspect.signature(func).parameters.items():
@@ -58,9 +81,10 @@ class ServerSingletonsRegistry(metaclass=SingletonMetaclass):
                 bound_args[paramname] = overrides_kwargs[paramname]
                 continue
             
-            singleton: str = self.registry_reverse_mapping.get(paramtype.annotation)
-            if not singleton:
+            singleton: Any = self.registry_reverse_mapping.get(paramtype.annotation, _RegistryMissPlaceholder)
+            if singleton != _RegistryMissPlaceholder:
+                bound_args[paramname] = singleton
+            elif strict:
                 raise TypeError(f'Parameter mismatch on calling {func} with parameter {paramname} of type {paramtype}')
-            bound_args[paramname] = self.__getattribute__(singleton)
         
         return partial(func, **bound_args)

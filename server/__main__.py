@@ -7,15 +7,20 @@ import sys
 from functools import partial
 from typing import Final
 
+from cachetools import TTLCache
+
 from psycopg.conninfo import make_conninfo
 
 from server.authz.user_manager import UserManager
-from server.bootup import create_server_config, create_connection_master, create_log_queue, create_user_master, create_caches, create_file_lock, start_logger
+from server.bootup import (create_server_config, create_connection_master,
+                           create_log_queue, create_user_master,
+                           create_caches, create_file_lock, start_logger)
 from server.callback import callback
 from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
-from server.dependencies import ServerSingletonsRegistry, NT_GLOBAL_FILE_LOCK, NT_GLOBAL_LOG_QUEUE
+from server.dependencies import ServerSingletonsRegistry
 from server.tls import credentials
+from server.logging import ActivityLog
 
 async def start_server(dependency_registry: ServerSingletonsRegistry) -> None:
     ssl_context: ssl.SSLContext = credentials.make_server_ssl_context(certfile=dependency_registry.server_config.certificate_filepath,
@@ -31,47 +36,47 @@ async def start_server(dependency_registry: ServerSingletonsRegistry) -> None:
 
 async def main() -> None:
     # Initialize all global singletons
-    SERVER_CONFIG: Final[ServerConfig] = create_server_config()
-    CONNECTION_MASTER: Final[ConnectionPoolManager] = await create_connection_master(conninfo=make_conninfo(user=os.environ['PG_USERNAME'],
+    server_config: Final[ServerConfig] = create_server_config()
+    connection_master: Final[ConnectionPoolManager] = await create_connection_master(conninfo=make_conninfo(user=os.environ['PG_USERNAME'],
                                                                                                             password=os.environ['PG_PASSWORD'],
                                                                                                             host=os.environ['PG_HOST'],
                                                                                                             port=os.environ['PG_PORT'],
                                                                                                             dbname=os.environ['PG_DBNAME']),
-                                                                                    config=SERVER_CONFIG)
+                                                                                    config=server_config)
     
-    LOG_QUEUE: Final[NT_GLOBAL_LOG_QUEUE] = create_log_queue(SERVER_CONFIG)
+    log_queue: Final[asyncio.Queue[ActivityLog]] = create_log_queue(server_config)
     
-    USER_MASTER: Final[UserManager] = create_user_master(connection_master=CONNECTION_MASTER,
-                                                  config=SERVER_CONFIG,
-                                                  log_queue=LOG_QUEUE)
+    user_master: Final[UserManager] = create_user_master(connection_master=connection_master,
+                                                  config=server_config,
+                                                  log_queue=log_queue)
     
-    FILE_LOCK: Final[NT_GLOBAL_FILE_LOCK] =  create_file_lock(config=SERVER_CONFIG)
+    file_lock: Final[TTLCache[str, bytes]] = create_file_lock(config=server_config)
    
-    READ_CACHE, AMENDMENT_CACHE, DELETION_CACHE = create_caches(config=SERVER_CONFIG)
+    read_cache, amendment_cache, deletion_cache = create_caches(config=server_config)
 
-    SERVER_DEPENDENCY_REGISTRY: Final[ServerSingletonsRegistry] = ServerSingletonsRegistry(server_config=SERVER_CONFIG,
-                                                                                           user_manager=USER_MASTER,
-                                                                                           connection_pool_manager=CONNECTION_MASTER,
-                                                                                           log_queue=LOG_QUEUE,
-                                                                                           reader_cache=READ_CACHE,
-                                                                                           amendment_cache=AMENDMENT_CACHE,
-                                                                                           deletion_cache=DELETION_CACHE,
-                                                                                           file_locks=FILE_LOCK)
+    server_dependency_registry: Final[ServerSingletonsRegistry] = ServerSingletonsRegistry(server_config=server_config,
+                                                                                           user_manager=user_master,
+                                                                                           connection_pool_manager=connection_master,
+                                                                                           log_queue=log_queue,
+                                                                                           reader_cache=read_cache,
+                                                                                           amendment_cache=amendment_cache,
+                                                                                           deletion_cache=deletion_cache,
+                                                                                           file_locks=file_lock)
 
-    start_logger(log_queue=LOG_QUEUE, config=SERVER_CONFIG, connection_master=CONNECTION_MASTER)
+    start_logger(log_queue=log_queue, config=server_config, connection_master=connection_master)
 
     # Initially generate certificates if not present
-    if not (SERVER_CONFIG.key_filepath.is_file() and SERVER_CONFIG.certificate_filepath.is_file()):
-        credentials.generate_self_signed_credentials(dns_name=str(SERVER_CONFIG.host),
-                                                     cert_filename=SERVER_CONFIG.certificate_filepath.name,
-                                                     key_filename=SERVER_CONFIG.key_filepath.name)
+    if not (server_config.key_filepath.is_file() and server_config.certificate_filepath.is_file()):
+        credentials.generate_self_signed_credentials(dns_name=str(server_config.host),
+                                                     cert_filename=server_config.certificate_filepath.name,
+                                                     key_filename=server_config.key_filepath.name)
 
-    reference_time: float = os.stat(SERVER_CONFIG.certificate_filepath, follow_symlinks=False).st_mtime
+    reference_time: float = os.stat(server_config.certificate_filepath, follow_symlinks=False).st_mtime
     while True:
-        running_server: asyncio.Task = asyncio.create_task(start_server(SERVER_DEPENDENCY_REGISTRY))
+        running_server: asyncio.Task = asyncio.create_task(start_server(server_dependency_registry))
         while not running_server.done():
-            await asyncio.sleep(SERVER_CONFIG.rollover_check_poll_interval)
-            modification_time: float = os.stat(SERVER_CONFIG.certificate_filepath, follow_symlinks=False).st_mtime
+            await asyncio.sleep(server_config.rollover_check_poll_interval)
+            modification_time: float = os.stat(server_config.certificate_filepath, follow_symlinks=False).st_mtime
             if modification_time != reference_time:
                 reference_time = modification_time
                 running_server.cancel()

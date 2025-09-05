@@ -4,7 +4,6 @@ from datetime import datetime
 from typing import Any
 from zlib import adler32
 
-from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 
 from models.cursor_flag import CursorFlag
 from models.flags import FileFlags
@@ -22,17 +21,21 @@ from server.file_ops import base_operations as base_ops
 from server.file_ops import cache_ops
 from server import errors
 from server.logging import enqueue_log
+from server.dependencies import GlobalLogQueueType, GlobalFileLockType, GlobalDeleteCacheType, GlobalReadCacheType, GlobalAmendCacheType
 
-from cachetools import TTLCache
 
 __all__ = ('handle_deletion', 'handle_amendment', 'handle_read', 'handle_creation')
 
-async def handle_deletion(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
-                          config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
-                          connection_master: ConnectionPoolManager, file_locks: TTLCache[str, bytes],
-                          deleted_cache: TTLCache[str, str],
-                          read_cache: TTLCache[str, dict[str, AsyncBufferedReader]],
-                          amendment_cache: TTLCache[str, dict[str, AsyncBufferedReader]]) -> tuple[ResponseHeader, ResponseBody]:
+async def handle_deletion(header_component: BaseHeaderComponent,
+                          auth_component: BaseAuthComponent,
+                          file_component: BaseFileComponent,
+                          config: server_config.ServerConfig,
+                          log_queue: GlobalLogQueueType,
+                          connection_master: ConnectionPoolManager,
+                          file_locks: GlobalFileLockType,
+                          deleted_cache: GlobalDeleteCacheType,
+                          read_cache: GlobalReadCacheType,
+                          amendment_cache: GlobalAmendCacheType) -> tuple[ResponseHeader, ResponseBody]:
     # Make sure request is coming from file owner
     if file_component.subject_file_owner != auth_component.identity:
         err_str: str = f'Missing permission to delete file {file_component.subject_file} owned by {file_component.subject_file_owner}'
@@ -89,11 +92,15 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
     return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_DELETION.value, ended_connection=header_component.finish, config=config),
             ResponseBody(contents={'revoked_info' : revoked_info, 'deletion_time' : deletion_time.isoformat()}))
 
-async def handle_amendment(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
-                           config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
-                           file_locks: TTLCache[str, bytes], connection_master: ConnectionPoolManager,
-                           delete_cache: TTLCache[str, str], 
-                           amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> tuple[ResponseHeader, ResponseBody]:
+async def handle_amendment(header_component: BaseHeaderComponent,
+                           auth_component: BaseAuthComponent,
+                           file_component: BaseFileComponent,
+                           config: server_config.ServerConfig,
+                           log_queue: GlobalLogQueueType,
+                           file_locks: GlobalFileLockType,
+                           connection_master: ConnectionPoolManager,
+                           delete_cache: GlobalDeleteCacheType,
+                           amendment_cache: GlobalAmendCacheType) -> tuple[ResponseHeader, ResponseBody]:
     async with await connection_master.request_connection(1) as proxy:
         if not await db_utils.check_file_existence(filename=file_component.subject_file,
                                                    owner=file_component.subject_file_owner,
@@ -155,12 +162,15 @@ async def handle_amendment(header_component: BaseHeaderComponent, auth_component
     return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_AMEND, ended_connection=header_component.finish, config=config),
             ResponseBody(cursor_position=cursor_position, cursor_keepalive_accepted=bool(keepalive_accepted)))
 
-async def handle_read(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
-                      config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
+async def handle_read(header_component: BaseHeaderComponent,
+                      auth_component: BaseAuthComponent,
+                      file_component: BaseFileComponent,
+                      config: server_config.ServerConfig,
+                      log_queue: GlobalLogQueueType,
                       connection_master: ConnectionPoolManager,
-                      file_locks: TTLCache[str, bytes],
-                      delete_cache: TTLCache[str, str],
-                      read_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> tuple[ResponseHeader, ResponseBody]:    
+                      file_locks: GlobalFileLockType,
+                      delete_cache: GlobalDeleteCacheType,
+                      read_cache: GlobalReadCacheType) -> tuple[ResponseHeader, ResponseBody]:    
     # Check permissions
     if not await db_utils.check_file_permission(filename=file_component.subject_file,
                                                 owner=file_component.subject_file_owner,
@@ -198,10 +208,12 @@ async def handle_read(header_component: BaseHeaderComponent, auth_component: Bas
                          cursor_position=cursor_position,
                          keepalive_accepted=not cursor_killed))
 
-async def handle_creation(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, file_component: BaseFileComponent,
-                          config: server_config.ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog],
-                          connection_master: ConnectionPoolManager
-                          ) -> tuple[ResponseHeader, None]:
+async def handle_creation(header_component: BaseHeaderComponent,
+                          auth_component: BaseAuthComponent,
+                          file_component: BaseFileComponent,
+                          config: server_config.ServerConfig,
+                          log_queue: GlobalLogQueueType,
+                          connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
     if file_component.subject_file_owner != auth_component.identity:
         asyncio.create_task(
             enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,

@@ -1,8 +1,5 @@
 import asyncio
-from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
 import time
-
-from cachetools import TTLCache
 
 from models.request_model import BaseHeaderComponent, BaseAuthComponent
 from models.response_codes import SuccessFlags
@@ -13,11 +10,15 @@ from server.authz import user_manager
 from server.config import server_config
 from server.errors import InvalidAuthSemantic
 from server.file_ops.base_operations import delete_directory
+from server.dependencies import GlobalAmendCacheType, GlobalReadCacheType
 
-__all__ = ('handle_registration', 'handle_login', 'handle_deletion', 'handle_password_change', 'handle_session_refresh', 'handle_session_termination')
+__all__ = ('handle_registration', 'handle_login', 'handle_deletion',
+           'handle_password_change', 'handle_session_refresh', 'handle_session_termination')
 
-async def handle_registration(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
-                              config: server_config.ServerConfig, user_manager: user_manager.UserManager) -> tuple[ResponseHeader, None]:
+async def handle_registration(header_component: BaseHeaderComponent,
+                              auth_component: BaseAuthComponent,
+                              config: server_config.ServerConfig,
+                              user_manager: user_manager.UserManager) -> tuple[ResponseHeader, None]:
     if not auth_component.auth_logical_check('authorization'):
         raise InvalidAuthSemantic('Account creation requires only the following fields: identity, password')
     
@@ -26,8 +27,10 @@ async def handle_registration(header_component: BaseHeaderComponent, auth_compon
     return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_CREATION.value, ended_connection=header_component.finish, config=config),
             ResponseBody(contents={'epoch' : time.time(), 'username' : auth_component.identity}))
 
-async def handle_login(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
-                       config: server_config.ServerConfig, user_manager: user_manager.UserManager) -> tuple[ResponseHeader, ResponseBody]:
+async def handle_login(header_component: BaseHeaderComponent,
+                       auth_component: BaseAuthComponent,
+                       config: server_config.ServerConfig,
+                       user_manager: user_manager.UserManager) -> tuple[ResponseHeader, ResponseBody]:
     if not auth_component.auth_logical_check('authorization'):
         raise InvalidAuthSemantic('Login requires only the following fields: identity, password')
     
@@ -37,10 +40,12 @@ async def handle_login(header_component: BaseHeaderComponent, auth_component: Ba
 
     return header, body
 
-async def handle_deletion(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
-                          config: server_config.ServerConfig, user_manager: user_manager.UserManager,
-                          reader_cache: TTLCache[str, dict[str, AsyncBufferedReader]],
-                          amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]]) -> tuple[ResponseHeader, ResponseBody]:
+async def handle_deletion(header_component: BaseHeaderComponent,
+                          auth_component: BaseAuthComponent,
+                          config: server_config.ServerConfig,
+                          user_manager: user_manager.UserManager,
+                          reader_cache: GlobalReadCacheType,
+                          amendment_cache: GlobalAmendCacheType) -> tuple[ResponseHeader, ResponseBody]:
     await user_manager.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
 
     await user_manager.delete_user(auth_component.identity, auth_component.password,
@@ -56,8 +61,9 @@ async def handle_deletion(header_component: BaseHeaderComponent, auth_component:
 
     return header, body
 
-async def handle_password_change(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
-                                 config: server_config.ServerConfig, user_manager: user_manager.UserManager) -> tuple[ResponseHeader, ResponseBody]:
+async def handle_password_change(header_component: BaseHeaderComponent,
+                                 auth_component: BaseAuthComponent,
+                                 user_manager: user_manager.UserManager) -> tuple[ResponseHeader, ResponseBody]:
     await user_manager.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
     await user_manager.change_password(username=auth_component, new_password=auth_component.password)
 
@@ -69,8 +75,10 @@ async def handle_password_change(header_component: BaseHeaderComponent, auth_com
 
     return header, body
 
-async def handle_session_refresh(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
-                                 config: server_config.ServerConfig, user_manager: user_manager.UserManager) -> tuple[ResponseHeader, ResponseBody]:
+async def handle_session_refresh(header_component: BaseHeaderComponent,
+                                 auth_component: BaseAuthComponent,
+                                 config: server_config.ServerConfig,
+                                 user_manager: user_manager.UserManager) -> tuple[ResponseHeader, ResponseBody]:
     if not auth_component.auth_logical_check('authentication'):
         raise InvalidAuthSemantic('Session refresh requires only the following fields: identity, token, refresh_digest')
     
@@ -81,8 +89,10 @@ async def handle_session_refresh(header_component: BaseHeaderComponent, auth_com
 
     return header, body
 
-async def handle_session_termination(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
-                                     config: server_config.ServerConfig, user_manager: user_manager.UserManager) -> tuple[ResponseHeader, ResponseBody]:
+async def handle_session_termination(header_component: BaseHeaderComponent,
+                                     auth_component: BaseAuthComponent,
+                                     config: server_config.ServerConfig,
+                                     user_manager: user_manager.UserManager) -> tuple[ResponseHeader, ResponseBody]:
     if not auth_component.auth_logical_check('authentication'):
         raise InvalidAuthSemantic('Session termination requires only the following fields: identity, token, refresh_digest')
     
