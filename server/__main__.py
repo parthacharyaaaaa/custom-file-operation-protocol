@@ -5,9 +5,11 @@ import os
 import ssl
 import sys
 from functools import partial
-from typing import Final
+from typing import Final, Mapping
 
 from cachetools import TTLCache
+
+from models.typing import SubcategoryFlag
 
 from psycopg.conninfo import make_conninfo
 
@@ -19,8 +21,15 @@ from server.callback import callback
 from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
 from server.dependencies import ServerSingletonsRegistry
-from server.tls import credentials
+from server.dispatch import auth_subhandler_mapping, file_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping
 from server.logging import ActivityLog
+from server.tls import credentials
+from server.typing import RequestSubhandler
+
+def partialise_request_subhandlers(singleton_registry: ServerSingletonsRegistry,
+                                   handler_mapping: Mapping[SubcategoryFlag, RequestSubhandler]) -> None:
+    for subcategory_flag, request_handler in handler_mapping.items():
+        handler_mapping[subcategory_flag] = singleton_registry.inject_global_singletons(request_handler, strict=False)
 
 async def start_server(dependency_registry: ServerSingletonsRegistry) -> None:
     ssl_context: ssl.SSLContext = credentials.make_server_ssl_context(certfile=dependency_registry.server_config.certificate_filepath,
@@ -33,6 +42,7 @@ async def start_server(dependency_registry: ServerSingletonsRegistry) -> None:
     
     async with server:
         await server.serve_forever()
+
 
 async def main() -> None:
     # Initialize all global singletons
@@ -47,8 +57,8 @@ async def main() -> None:
     log_queue: Final[asyncio.Queue[ActivityLog]] = create_log_queue(server_config)
     
     user_master: Final[UserManager] = create_user_master(connection_master=connection_master,
-                                                  config=server_config,
-                                                  log_queue=log_queue)
+                                                         config=server_config,
+                                                         log_queue=log_queue)
     
     file_lock: Final[TTLCache[str, bytes]] = create_file_lock(config=server_config)
    
@@ -70,6 +80,12 @@ async def main() -> None:
         credentials.generate_self_signed_credentials(dns_name=str(server_config.host),
                                                      cert_filename=server_config.certificate_filepath.name,
                                                      key_filename=server_config.key_filepath.name)
+
+    # Inject singletons into request subhandler coroutines
+    partialise_request_subhandlers(server_dependency_registry, auth_subhandler_mapping)
+    partialise_request_subhandlers(server_dependency_registry, info_subhandler_mapping)
+    partialise_request_subhandlers(server_dependency_registry, permission_subhandler_mapping)
+    partialise_request_subhandlers(server_dependency_registry, file_subhandler_mapping)
 
     reference_time: float = os.stat(server_config.certificate_filepath, follow_symlinks=False).st_mtime
     while True:
