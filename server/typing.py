@@ -17,6 +17,7 @@ __all__ = ('PermissionSubhandler',
            'FileSubhandler',
            'SubhandlerResponse',
            'ServerSingleton',
+           'RequestSubhandler',
            'TopRequestHandler')
 
 ServerSingleton: TypeAlias = Union[GlobalReadCacheType, GlobalAmendCacheType, GlobalDeleteCacheType,
@@ -34,6 +35,8 @@ AuthSubhandler: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent],
 
 FileSubhandler: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent, BaseFileComponent],
                                       Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]
+
+RequestSubhandler: TypeAlias = Union[AuthSubhandler, InfoSubhandler, FileSubhandler, PermissionSubhandler]
 
 SubhandlerResponse: TypeAlias = Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]
 
