@@ -18,7 +18,7 @@ __all__ = ('PermissionSubhandler',
            'SubhandlerResponse',
            'ServerSingleton',
            'RequestSubhandler',
-           'TopRequestHandler')
+           'RequestHandler')
 
 ServerSingleton: TypeAlias = Union[GlobalReadCacheType, GlobalAmendCacheType, GlobalDeleteCacheType,
                                    GlobalFileLockType, GlobalLogQueueType, ServerConfig,
@@ -40,4 +40,4 @@ RequestSubhandler: TypeAlias = Union[AuthSubhandler, InfoSubhandler, FileSubhand
 
 SubhandlerResponse: TypeAlias = Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]
 
-TopRequestHandler: TypeAlias = Callable[[asyncio.StreamReader, BaseHeaderComponent, ServerSingletonsRegistry], SubhandlerResponse]
+RequestHandler: TypeAlias = Callable[[asyncio.StreamReader, BaseHeaderComponent, ServerSingletonsRegistry], SubhandlerResponse]

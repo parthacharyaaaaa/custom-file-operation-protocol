@@ -13,7 +13,7 @@ from server.authz import auth_subhandlers
 from server.permission_ops import permission_subhandlers
 from server.file_ops import file_subhandlers
 
-from server.typing import AuthSubhandler, InfoSubhandler, FileSubhandler, PermissionSubhandler, TopRequestHandler
+from server.typing import AuthSubhandler, InfoSubhandler, FileSubhandler, PermissionSubhandler, RequestHandler
 
 __all__ = ('TOP_LEVEL_REQUEST_MAPPING',
            'AUTH_SUBHABDLER_MAPPING',
@@ -21,7 +21,7 @@ __all__ = ('TOP_LEVEL_REQUEST_MAPPING',
            'PERMISSION_SUBHANDLER_MAPPING',
            'FILE_SUBHANDLER_MAPPING')
 
-TOP_LEVEL_REQUEST_MAPPING: Final[MappingProxyType[CategoryFlag, TopRequestHandler]] = MappingProxyType(
+TOP_LEVEL_REQUEST_MAPPING: Final[MappingProxyType[CategoryFlag, RequestHandler]] = MappingProxyType(
     {
         CategoryFlag.AUTH : top_auth_handler,
         CategoryFlag.INFO : top_info_handler,

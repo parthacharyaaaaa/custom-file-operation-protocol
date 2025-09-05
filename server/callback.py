@@ -13,7 +13,7 @@ from server.comms_utils.outgoing import send_response
 from server.database import models as db_models
 from server.dependencies import ServerSingletonsRegistry
 from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
-from server.typing import TopRequestHandler
+from server.typing import RequestHandler
 
 __all__ = ('callback',)
 
@@ -29,7 +29,7 @@ async def callback(dependency_registry: ServerSingletonsRegistry,
                                                                             timeout=dependency_registry.server_config.socket_connection_timeout)
             if not header_component:
                 raise errors.SlowStreamRate('Unable to parse header')
-            handler: TopRequestHandler = TOP_LEVEL_REQUEST_MAPPING.get(header_component.category)
+            handler: RequestHandler = TOP_LEVEL_REQUEST_MAPPING.get(header_component.category)
             if not handler:
                 raise errors.UnsupportedOperation(f'Operation category must be in: {", ".join(CategoryFlag._member_names_)}')
 
