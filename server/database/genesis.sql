@@ -1,17 +1,24 @@
 CREATE TABLE IF NOT EXISTS users(
     username            VARCHAR(128) PRIMARY KEY,
+    file_count          INTEGER NOT NULL DEFAULT 0,
+    storage_used        INTEGER NOT NULL DEFAULT 0,               
     password_hash       BYTEA NOT NULL,
     password_salt       BYTEA NOT NULL,
-    created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT assert_file_count_integrity CHECK (file_count >= 0),
+    CONSTRAINT assert_storage_used_integrity CHECK (storage_used >= 0)
 );
 
 CREATE TABLE IF NOT EXISTS files(
     filename            VARCHAR(128) NOT NULL,
     owner               VARCHAR(128) NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    file_size           INTEGER NOT NULL DEFAULT 0,
     created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PUBLIC              BOOLEAN NOT NULL DEFAULT false,
 
-    PRIMARY KEY (owner, filename)
+    PRIMARY KEY (owner, filename),
+    CONSTRAINT assert_file_size_integrity CHECK (file_size >= 0)
 );
 CREATE INDEX ix_files_public ON files(PUBLIC);
 
