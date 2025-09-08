@@ -17,7 +17,8 @@ from psycopg.conninfo import make_conninfo
 from server.authz.user_manager import UserManager
 from server.bootup import (create_server_config, create_connection_master,
                            create_log_queue, create_user_master,
-                           create_caches, create_file_lock, start_logger)
+                           create_caches, create_file_lock, create_storage_cache,
+                           start_logger)
 from server.callback import callback
 from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
@@ -73,6 +74,7 @@ async def main() -> None:
     file_lock: Final[TTLCache[str, bytes]] = create_file_lock(config=server_config)
    
     read_cache, amendment_cache, deletion_cache = create_caches(config=server_config)
+    storage_cache = create_storage_cache(connection_master, server_config)
 
     server_dependency_registry: Final[ServerSingletonsRegistry] = ServerSingletonsRegistry(server_config=server_config,
                                                                                            user_manager=user_master,
@@ -81,7 +83,8 @@ async def main() -> None:
                                                                                            reader_cache=read_cache,
                                                                                            amendment_cache=amendment_cache,
                                                                                            deletion_cache=deletion_cache,
-                                                                                           file_locks=file_lock)
+                                                                                           file_locks=file_lock,
+                                                                                           storage_cache=storage_cache)
 
     start_logger(log_queue=log_queue, config=server_config, connection_master=connection_master)
 

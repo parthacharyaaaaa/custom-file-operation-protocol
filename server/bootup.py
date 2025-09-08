@@ -7,11 +7,12 @@ from typing import Any, Optional, Final
 
 from cachetools import TTLCache
 
+import server.database.models as db_models
 from server import logging
 from server.authz.user_manager import UserManager
 from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
-import server.database.models as db_models
+from server.file_ops.storage import StorageCache
 
 import pytomlpp
 
@@ -22,6 +23,7 @@ __all__ = ('create_server_config',
            'create_caches',
            'create_file_lock',
            'create_user_master',
+           'create_storage_cache',
            'start_logger')
 
 def create_server_config(dirname: Optional[str] = None) -> ServerConfig:
@@ -72,6 +74,9 @@ def create_caches(config: ServerConfig) -> tuple[TTLCache[str, dict[str, AsyncBu
 
 def create_log_queue(config: ServerConfig) -> asyncio.Queue[db_models.ActivityLog]:
     return asyncio.Queue(config.log_queue_size)
+
+def create_storage_cache(connection_master: ConnectionPoolManager, server_config: ServerConfig) -> StorageCache:
+    return StorageCache(connection_master, server_config.disk_flush_interval, server_config.disk_flush_batch_size)
 
 def start_logger(log_queue: asyncio.Queue[db_models.ActivityLog], config: ServerConfig, connection_master: ConnectionPoolManager) -> None:
     asyncio.create_task(logging.flush_logs(connection_master=connection_master,
