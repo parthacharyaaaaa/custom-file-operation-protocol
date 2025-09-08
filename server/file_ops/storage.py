@@ -96,6 +96,19 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
         
         return self[username].storage_left
 
+    async def update_file_count(self,
+                                username: str,
+                                file: str,
+                                diff: int = 1,
+                                proxy: Optional[ConnectionProxy] = None,
+                                release_after: bool = False) -> None:
+        if await self.get_storage_data(username, proxy, release_after):
+            self[username].filecount += diff
+            self[username].file_data.setdefault(file, 0)
+            return self[username].filecount
+        
+        raise UserNotFound(f'Attempt to update file count for non-existent user {username}')
+    
     async def get_file_size(self,
                             username: str,
                             file: str,
