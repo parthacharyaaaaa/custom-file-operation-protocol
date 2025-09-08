@@ -53,6 +53,8 @@ class ServerConfig(BaseModel):
     file_contention_timeout: Annotated[float, Field(ge=0)]
     file_transfer_timeout: Annotated[float, Field(frozen=True, ge=0)]
     cache_public_files: Annotated[bool, Field(default=False)]
+    disk_flush_interval: Annotated[float, Field(ge=1)]
+    disk_flush_batch_size: Annotated[int, Field(ge=1)]
 
     # Auth
     max_attempts: Annotated[int, Field(frozen=True, ge=0)]

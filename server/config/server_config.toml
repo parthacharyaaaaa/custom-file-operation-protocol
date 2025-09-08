@@ -23,6 +23,8 @@ cache_public_files = true
 root_directory = 'files'
 user_max_files = 256
 user_max_storage = 268_435_456
+disk_flush_interval = 120
+disk_flush_batch_size = 100
 
 [credentials]
 key_filepath='key.pem'
