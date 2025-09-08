@@ -218,7 +218,8 @@ async def handle_creation(header_component: BaseHeaderComponent,
                           file_component: BaseFileComponent,
                           config: server_config.ServerConfig,
                           log_queue: GlobalLogQueueType,
-                          connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
+                          connection_master: ConnectionPoolManager,
+                          storage_cache: StorageCache) -> tuple[ResponseHeader, None]:
     if file_component.subject_file_owner != auth_component.identity:
         asyncio.create_task(
             enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
@@ -241,6 +242,7 @@ async def handle_creation(header_component: BaseHeaderComponent,
                                 VALUES (%s, %s, %s, %s, %s, %s);''',
                                 (auth_component.identity, file_component.subject_file, auth_component.identity,
                                 RoleTypes.OWNER.value, auth_component.identity, datetime.fromtimestamp(header_component.sender_timestamp),))
+            await storage_cache.update_file_count(auth_component.identity, file_component.subject_file, proxy=proxy)
     else:
         asyncio.create_task(enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
                                         log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
