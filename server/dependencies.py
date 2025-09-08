@@ -14,6 +14,7 @@ from server.authz.user_manager import UserManager
 from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
 from server.database import models as db_models
+from server.file_ops.storage import StorageCache
 
 import pydantic
 
@@ -46,6 +47,7 @@ class ServerSingletonsRegistry(metaclass=SingletonMetaclass):
     server_config: Annotated[ServerConfig, pydantic.Field(frozen=True)]
     user_manager: Annotated[UserManager, pydantic.Field(frozen=True)]
     connection_pool_manager: Annotated[ConnectionPoolManager, pydantic.Field(frozen=True)]
+    storage_cache: Annotated[StorageCache, pydantic.Field(frozen=True)]
 
     log_queue: Annotated[GlobalLogQueueType, pydantic.Field(frozen=True)]
     reader_cache: Annotated[GlobalReadCacheType, pydantic.Field(frozen=True)]
@@ -64,7 +66,8 @@ class ServerSingletonsRegistry(metaclass=SingletonMetaclass):
             GlobalReadCacheType : self.reader_cache,
             GlobalAmendCacheType : self.amendment_cache,
             GlobalDeleteCacheType : self.deletion_cache,
-            GlobalFileLockType : self.file_locks
+            GlobalFileLockType : self.file_locks,
+            StorageCache : self.storage_cache
         })
 
     @property
