@@ -22,7 +22,7 @@ from server.file_ops import cache_ops
 from server import errors
 from server.logging import enqueue_log
 from server.dependencies import GlobalLogQueueType, GlobalFileLockType, GlobalDeleteCacheType, GlobalReadCacheType, GlobalAmendCacheType
-
+from server.file_ops.storage import StorageCache
 
 __all__ = ('handle_deletion', 'handle_amendment', 'handle_read', 'handle_creation')
 
@@ -35,7 +35,8 @@ async def handle_deletion(header_component: BaseHeaderComponent,
                           file_locks: GlobalFileLockType,
                           deleted_cache: GlobalDeleteCacheType,
                           read_cache: GlobalReadCacheType,
-                          amendment_cache: GlobalAmendCacheType) -> tuple[ResponseHeader, ResponseBody]:
+                          amendment_cache: GlobalAmendCacheType,
+                          storage_cache: StorageCache) -> tuple[ResponseHeader, ResponseBody]:
     # Make sure request is coming from file owner
     if file_component.subject_file_owner != auth_component.identity:
         err_str: str = f'Missing permission to delete file {file_component.subject_file} owned by {file_component.subject_file_owner}'
@@ -78,6 +79,10 @@ async def handle_deletion(header_component: BaseHeaderComponent,
             await cursor.execute('''DELETE FROM files
                                  WHERE filename = %s AND owner = %s;''',
                                  (file_component.subject_file, auth_component.identity,))
+        
+        await storage_cache.remove_file(username=auth_component.identity,
+                                        file=file_component.subject_file,
+                                        proxy=proxy)
         await proxy.commit()
     
     deletion_time: datetime = datetime.now()
