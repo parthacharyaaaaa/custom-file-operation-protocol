@@ -58,7 +58,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
         self.flush_batch_size = flush_batch_size
         super().__init__()
 
-        asyncio.create_task(self.background_storage_sync)
+        asyncio.create_task(self.background_storage_sync())
 
     async def get_storage_data(self,
                                username: str,
