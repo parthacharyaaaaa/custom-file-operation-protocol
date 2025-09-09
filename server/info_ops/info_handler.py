@@ -1,10 +1,11 @@
 import asyncio
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Final
 
-from models.constants import UNAUTHENTICATED_INFO_OPERATIONS
+from models.constants import UNAUTHENTICATED_INFO_OPERATIONS, HEADER_ONLY_INFO_OPERATIONS
 from models.flags import CategoryFlag, InfoFlags
-from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseInfoComponent
+from models.request_model import BaseHeaderComponent
 from models.response_models import ResponseHeader, ResponseBody
+from models.typing import ProtocolComponent
 
 from server.comms_utils.incoming import process_component
 from server.dependencies import ServerSingletonsRegistry
@@ -39,9 +40,10 @@ async def top_info_handler(reader: asyncio.StreamReader,
     if header_component.subcategory not in InfoFlags._value2member_map_:
         raise UnsupportedOperation(f'Unsupported operation (bits: {header_component.subcategory}) for category: {CategoryFlag.INFO._name_}')
     
-    auth_component: BaseAuthComponent = None
-    info_component: BaseInfoComponent = None
-    if header_component.subcategory not in UNAUTHENTICATED_INFO_OPERATIONS:
+    subhandler_kwargs: dict[str, ProtocolComponent] = {'header_component' : header_component}
+    routing_bits: Final[int] = header_component.subcategory & InfoFlags.OPERATION_EXTRACTION_BITS
+
+    if routing_bits not in UNAUTHENTICATED_INFO_OPERATIONS:
         if not header_component.auth_size:
             raise InvalidHeaderSemantic(f'Headers for INFO operation {InfoFlags(header_component.subcategory)} require authentication')
         try:
@@ -53,20 +55,19 @@ async def top_info_handler(reader: asyncio.StreamReader,
             raise InvalidAuthSemantic
     
         await dependency_registry.user_manager.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
-    if header_component.body_size:
+        subhandler_kwargs['auth_component'] = auth_component
+    
+    if routing_bits not in HEADER_ONLY_INFO_OPERATIONS:
         try:
             info_component = await process_component(n_bytes=header_component.body_size, reader=reader,
                                                     component_type='info', timeout=dependency_registry.server_config.read_timeout)
+            subhandler_kwargs['info_component'] = info_component
         except asyncio.TimeoutError:
             raise SlowStreamRate
         except (asyncio.IncompleteReadError, pydantic.ValidationError, orjson.JSONDecodeError):
             raise InvalidBodyValues
-
-    # Subcategory bits may also contain addiitonal modifiers, such as the optional verbose bit.
-    # These will need to be masked before mapping to the appropriate subhandler
-    subhandler = subhandler_mapping[header_component.subcategory & InfoFlags.OPERATION_EXTRACTION_BITS]
     
-    header, body = await subhandler(header_component=header_component,
-                                    auth_component=auth_component,
-                                    info_component=info_component)
+    subhandler = subhandler_mapping[routing_bits]
+    header, body = await subhandler(**subhandler_kwargs)
+        
     return header, body
