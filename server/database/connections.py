@@ -164,6 +164,9 @@ class LeasedConnection:
 
 class ConnectionPoolManager:
     '''Manager for maintaining different connection pools to the Postgres server'''
+    __slots__ = ('connection_timeout', 'lease_duration', 'refresh_timer',
+                 '_hp_connection_pool', '_mp_connection_pool', '_lp_connection_pool')
+    
     def __init__(self, lease_duration: float, high_priority_conns: int, mid_priority_conns: int, low_priority_conns: int, connection_timeout: float = 10, connection_refresh_timer: float = 600) -> None:
         if connection_timeout <= 0:
             raise ValueError('Connection timeout must be positive')
@@ -189,7 +192,6 @@ class ConnectionPoolManager:
         for _ in range(self._lp_connection_pool.maxsize):
             await self._lp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, 3, autocommit=True))
 
-        
     async def request_connection(self, level: Literal[1,2,3], max_lease_duration: Optional[float] = None) -> ConnectionProxy:
         '''Request a connection from one of the priority pools. If none available, waits.
         Args:
