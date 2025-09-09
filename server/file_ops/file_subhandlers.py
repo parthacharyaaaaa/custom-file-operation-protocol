@@ -4,7 +4,6 @@ from datetime import datetime
 from typing import Any
 from zlib import adler32
 
-
 from models.cursor_flag import CursorFlag
 from models.flags import FileFlags
 from models.response_models import ResponseHeader, ResponseBody
@@ -23,6 +22,7 @@ from server import errors
 from server.logging import enqueue_log
 from server.dependencies import GlobalLogQueueType, GlobalFileLockType, GlobalDeleteCacheType, GlobalReadCacheType, GlobalAmendCacheType
 from server.file_ops.storage import StorageCache
+from server.file_ops.utils import check_amendmend_storage_integrity
 
 __all__ = ('handle_deletion', 'handle_amendment', 'handle_read', 'handle_creation')
 
@@ -105,7 +105,8 @@ async def handle_amendment(header_component: BaseHeaderComponent,
                            file_locks: GlobalFileLockType,
                            connection_master: ConnectionPoolManager,
                            delete_cache: GlobalDeleteCacheType,
-                           amendment_cache: GlobalAmendCacheType) -> tuple[ResponseHeader, ResponseBody]:
+                           amendment_cache: GlobalAmendCacheType,
+                           storage_cache: StorageCache) -> tuple[ResponseHeader, ResponseBody]:
     async with await connection_master.request_connection(1) as proxy:
         if not await db_utils.check_file_existence(filename=file_component.subject_file,
                                                    owner=file_component.subject_file_owner,
@@ -130,7 +131,25 @@ async def handle_amendment(header_component: BaseHeaderComponent,
             
             raise errors.InsufficientPermissions(err_str)
     
-    fpath: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
+        current_storage_used: int = await storage_cache.get_storage_data(auth_component.identity, proxy=proxy, raise_on_missing=True)
+        file_size: int = await storage_cache.get_file_size(username=file_component.subject_file_owner, file=file_component.subject_file)
+        if not check_amendmend_storage_integrity(content_size=len(file_component.write_data),
+                                                 current_file_size=file_size,
+                                                 current_storage_used=current_storage_used,
+                                                 server_config=config,
+                                                 is_append=header_component.subcategory & FileFlags.APPEND):
+            err_str: str = f'Insufficient storage for amendment on file {file_component.relative_pathlike}, current storage: {current_storage_used}'
+            asyncio.create_task(
+                enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
+                            log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                    log_category=db_models.LogType.PERMISSION,
+                                                    log_details=err_str,
+                                                    reported_severity=db_models.Severity.TRACE,
+                                                    user_concerned=auth_component.identity)))
+            
+            raise errors.FileConflict(err_str)
+
+    fpath: os.PathLike[str] = os.path.join(file_component.subject_file_owner, file_component.subject_file)
     if file_component.subject_file_owner == auth_component.identity:
         file_locks[fpath] = adler32(auth_component.identity.encode('utf-8'))
     else:
@@ -152,6 +171,11 @@ async def handle_amendment(header_component: BaseHeaderComponent,
                                                     purge_writer=file_component.end_operation or (file_component.cursor_bitfield & CursorFlag.PURGE_CURSOR),
                                                     identifier=auth_component.identity,
                                                     trunacate=header_component.subcategory & FileFlags.OVERWRITE)
+        await storage_cache.update_file_size(file_component.subject_file,
+                                             diff=(
+                                                 (cursor_position - file_size) if (header_component.subcategory & FileFlags.OVERWRITE)
+                                                 else max(0, cursor_position - file_size)
+                                            ))
     else:
         cursor_position = await base_ops.append_file(root=config.files_directory, fpath=fpath,
                                                      data=file_component.write_data,
@@ -159,6 +183,8 @@ async def handle_amendment(header_component: BaseHeaderComponent,
                                                      append_writer_keepalive=file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE,
                                                      purge_append_writer=file_component.end_operation or (file_component.cursor_bitfield & CursorFlag.PURGE_CURSOR),
                                                      identifier=auth_component.identity)
+        await storage_cache.update_file_size(file_component.subject_file,
+                                             diff=cursor_position - file_size)
     
     keepalive_accepted = cache_ops.get_reader(amendment_cache, fpath, auth_component.identity)
     if not keepalive_accepted:
