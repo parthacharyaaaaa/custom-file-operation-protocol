@@ -32,10 +32,10 @@ class StorageData:
 class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
     __slots__ = ('connection_master', 'disk_flush_interval', 'flush_batch_size')
     
-    storage_fetch_query: Final[sql.SQL] = (sql.SQL('''SELECT current_storage AS {}, file_count AS {} 
+    storage_fetch_query: Final[sql.SQL] = (sql.SQL('''SELECT file_count AS {}, storage_used AS {} 
                                                    FROM users
                                                    WHERE username = %s;''')
-                                                   .format(*StorageData.__slots__))
+                                                   .format(*(sql.Identifier(slot) for slot in StorageData.__slots__)))
 
     file_size_retrieval_query: Final[sql.SQL] = (sql.SQL('''SELECT file_size
                                                          FROM files
