@@ -39,8 +39,8 @@ class SupportsConnection(Protocol):
 
 class ConnectionProxy(SupportsConnection if TYPE_CHECKING else object):
     '''Proxy object for a database connection leased from a ConnectionPoolManager instance'''
+    __slots__ = '_token', '_conn'
     def __init__(self, leased_conn: 'LeasedConnection', token: str):
-        __slots__ = '_token', '_conn'
         self._conn = leased_conn
         self._token = token
 
@@ -85,7 +85,7 @@ class LeasedConnection:
     exempt_methods: frozenset[str] = frozenset('release')
 
     __slots__ = ('_pgconn', '_manager', '_lease_duration', '_lease_expired', '_in_use', '_priority', '_usage_token')
-    
+
     def __init__(self, pgconn: pg.AsyncConnection, manager: 'ConnectionPoolManager', lease_duration: float, priority: int, **kwargs):
         self._pgconn = pgconn
         self._manager = manager
