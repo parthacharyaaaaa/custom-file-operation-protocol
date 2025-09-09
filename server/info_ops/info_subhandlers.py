@@ -99,7 +99,9 @@ async def handle_user_query(header_component: BaseHeaderComponent, auth_componen
             return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value, ended_connection=header_component.finish),
                     ResponseBody(contents=user_data))
 
-async def handle_storage_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
+async def handle_storage_query(header_component: BaseHeaderComponent,
+                               auth_component: BaseAuthComponent,
+                               info_component: BaseInfoComponent,
                                server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
     scan_task: asyncio.Task = asyncio.create_task(asyncio.to_thread(get_local_storage_data, root=server_config.files_directory, user=auth_component.identity))
     storage_data: dict[str, Any] = await asyncio.wait_for(scan_task, 10)
