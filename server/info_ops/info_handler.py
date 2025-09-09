@@ -58,6 +58,8 @@ async def top_info_handler(reader: asyncio.StreamReader,
         subhandler_kwargs['auth_component'] = auth_component
     
     if routing_bits not in HEADER_ONLY_INFO_OPERATIONS:
+        if not header_component.body_size:
+            raise InvalidHeaderSemantic(f'Headers for INFO operation {InfoFlags(header_component.subcategory)} require body')
         try:
             info_component = await process_component(n_bytes=header_component.body_size, reader=reader,
                                                     component_type='info', timeout=dependency_registry.server_config.read_timeout)
