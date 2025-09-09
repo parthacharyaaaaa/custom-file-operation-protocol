@@ -15,7 +15,7 @@ __all__ = ('StorageData',
            'StorageCache')
 
 class StorageData:
-    __slots__ = ('filecount', 'storage_left')
+    __slots__ = ('filecount', 'storage_left', 'file_data')
     filecount: int
     storage_left: int
     file_data: dict[str, int]
