@@ -33,15 +33,19 @@ __all__ = ('handle_heartbeat',
            'handle_storage_query',
            'handle_ssl_query')
 
-async def handle_heartbeat(header_component: BaseHeaderComponent, server_config: ServerConfig) -> tuple[ResponseHeader, None]:
+async def handle_heartbeat(header_component: BaseHeaderComponent,
+                           server_config: ServerConfig) -> tuple[ResponseHeader, None]:
     '''Send a heartbeat signal back to the client'''
     return (
         ResponseHeader.from_server(config=server_config, code=SuccessFlags.HEARTBEAT.value, version=header_component.version, ended_connection=header_component.finish),
         None
     )
 
-async def handle_permission_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, info_component: BaseInfoComponent,
-                                    connection_master: ConnectionPoolManager, server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
+async def handle_permission_query(header_component: BaseHeaderComponent,
+                                  auth_component: BaseAuthComponent,
+                                  info_component: BaseInfoComponent,
+                                  connection_master: ConnectionPoolManager,
+                                  server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
     owner, filename = derive_file_identity(info_component.subject_resource)
     async with await connection_master.request_connection(1) as proxy:
         if not await db_utils.check_file_permission(filename=filename, owner=owner, grantee=auth_component.identity,
@@ -57,8 +61,11 @@ async def handle_permission_query(header_component: BaseHeaderComponent, auth_co
             return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value, ended_connection=header_component.finish),
                     ResponseBody(contents={result.pop('grantee') : result for result in result_set}))
 
-async def handle_filedata_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent, info_component: BaseInfoComponent,
-                                connection_master: ConnectionPoolManager, server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
+async def handle_filedata_query(header_component: BaseHeaderComponent,
+                                auth_component: BaseAuthComponent,
+                                info_component: BaseInfoComponent,
+                                connection_master: ConnectionPoolManager,
+                                server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
     owner, filename = derive_file_identity(info_component.subject_resource)
     async with await connection_master.request_connection(1) as proxy:
         if not await db_utils.check_file_permission(filename=filename, owner=owner, grantee=auth_component.identity,
@@ -77,8 +84,10 @@ async def handle_filedata_query(header_component: BaseHeaderComponent, auth_comp
             return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value, ended_connection=header_component.finish),
                     ResponseBody(contents=file_data))
 
-async def handle_user_query(header_component: BaseHeaderComponent, auth_component: BaseAuthComponent,
-                            connection_master: ConnectionPoolManager, server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
+async def handle_user_query(header_component: BaseHeaderComponent,
+                            auth_component: BaseAuthComponent,
+                            connection_master: ConnectionPoolManager,
+                            server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
     async with await connection_master.request_connection(1) as proxy:
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute('''SELECT username, created_at
@@ -101,7 +110,6 @@ async def handle_user_query(header_component: BaseHeaderComponent, auth_componen
 
 async def handle_storage_query(header_component: BaseHeaderComponent,
                                auth_component: BaseAuthComponent,
-                               info_component: BaseInfoComponent,
                                server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
     scan_task: asyncio.Task = asyncio.create_task(asyncio.to_thread(get_local_storage_data, root=server_config.files_directory, user=auth_component.identity))
     storage_data: dict[str, Any] = await asyncio.wait_for(scan_task, 10)
