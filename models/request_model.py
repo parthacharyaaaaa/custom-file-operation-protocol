@@ -1,4 +1,5 @@
 '''Module for defining schema of incoming requests'''
+from pathlib import Path
 from typing import Annotated, Optional, Literal, Union
 
 from models.constants import REQUEST_CONSTANTS
@@ -66,6 +67,14 @@ class BaseFileComponent(BaseModel):
         if isinstance(write_data, str): return write_data.encode(encoding='utf-8')
         elif isinstance(write_data, Union[bytearray, memoryview]): return bytes(write_data)
         return write_data
+    
+    @property
+    def relative_pathlike(self) -> str:
+        return f'{self.subject_file_owner}/{self.subject_file}'
+    
+    @property
+    def relative_path(self) -> Path:
+        return Path(self.relative_pathlike)
 
 class BasePermissionComponent(BaseModel):
     # Request subjects
