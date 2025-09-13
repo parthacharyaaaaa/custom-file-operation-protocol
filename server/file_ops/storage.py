@@ -15,19 +15,19 @@ __all__ = ('StorageData',
            'StorageCache')
 
 class StorageData:
-    __slots__ = ('filecount', 'storage_left', 'file_data')
+    __slots__ = ('filecount', 'storage_used', 'file_data')
     filecount: int
-    storage_left: int
+    storage_used: int
     file_data: dict[str, int]
 
-    def __init__(self, filecount: int, storage_left: int):
+    def __init__(self, filecount: int, storage_used: int):
         self.filecount = filecount
-        self.storage_left = storage_left
+        self.storage_used = storage_used
         self.file_data = {}
 
     @property
     def as_tuple(self) -> tuple[str, str]:
-        return self.filecount, self.storage_left
+        return self.filecount, self.storage_used
 
 class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
     __slots__ = ('connection_master', 'disk_flush_interval', 'flush_batch_size')
@@ -92,9 +92,9 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
                                proxy: Optional[ConnectionProxy] = None,
                                release_after: bool = False) -> int:
         if await self.get_storage_data(username, proxy, release_after):
-            self[username].storage_left += diff
+            self[username].storage_used += diff
         
-        return self[username].storage_left
+        return self[username].storage_used
 
     async def update_file_count(self,
                                 username: str,
@@ -135,7 +135,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
             await self.connection_master.reclaim_connection(proxy)
 
         self.setdefault(storage_data)
-        return self[username].file_data.setdefault(file, file_size)
+        return self[username].file_data.setdefault(file, file_size[0])
 
     async def remove_file(self,
                           username: int,
@@ -147,18 +147,18 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
             raise UserNotFound(f'Attempted to remove file from non-existent user: {username}')
 
         if file in user_storage.file_data:
-            user_storage.storage_left += user_storage.file_data.pop(file)
+            user_storage.storage_used -= user_storage.file_data.pop(file)
         else:
             file_size = await self.get_file_size(username, file, proxy, release_after)
-            user_storage.storage_left += file_size
+            user_storage.storage_used -= file_size
 
-        return user_storage.storage_left
+        return user_storage.storage_used
     
     async def _flush_buffer(self, buffer: dict[str, StorageData]) -> None:
         async with await self.connection_master.request_connection(level=1) as proxy:
             async with proxy.cursor() as cursor:
                 await cursor.executemany(StorageCache.storage_flush_query,
-                                         ((user_storage_data.filecount, user_storage_data.storage_left, username)
+                                         ((user_storage_data.filecount, user_storage_data.storage_used, username)
                                           for username, user_storage_data in buffer.items()))
                 await cursor.executemany(StorageCache.file_flush_query,
                                          ((size, username, file)
