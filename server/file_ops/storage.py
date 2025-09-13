@@ -63,8 +63,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
     async def get_storage_data(self,
                                username: str,
                                proxy: Optional[ConnectionProxy] = None,
-                               release_after: bool = False,
-                               raise_on_missing: bool = False) -> Optional[StorageData]:
+                               release_after: bool = False) -> StorageData:
         current_storage: Optional[StorageData] = self.get(username)
         if current_storage:
             return current_storage
@@ -80,9 +79,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
             await self.connection_master.reclaim_connection(proxy)
         
         if not result:
-            if raise_on_missing:
-                raise UserNotFound(f'User {username} not found')
-            return None
+            raise UserNotFound(f'User {username} not found')
         
         return self.setdefault(username, StorageData(**result))
     
@@ -91,8 +88,8 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
                                diff: int,
                                proxy: Optional[ConnectionProxy] = None,
                                release_after: bool = False) -> int:
-        if await self.get_storage_data(username, proxy, release_after):
-            self[username].storage_used += diff
+        await self.get_storage_data(username, proxy, release_after)
+        self[username].storage_used += diff
         
         return self[username].storage_used
 
