@@ -126,8 +126,8 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
                 storage_data = await self.get_storage_data(username, proxy, raise_on_missing=True)
 
             await cursor.execute(StorageCache.file_size_retrieval_query, (username, file,))
-            file_size = await cursor.fetchone()
-            if not file_size:
+            result = await cursor.fetchone()
+            if not result:
                 raise FileNotFound(f'No file named {file} under user {username}')
             
 
@@ -135,7 +135,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
             await self.connection_master.reclaim_connection(proxy)
 
         self.setdefault(storage_data)
-        return self[username].file_data.setdefault(file, file_size[0])
+        return self[username].file_data.setdefault(file, result[0])
 
     async def remove_file(self,
                           username: int,
