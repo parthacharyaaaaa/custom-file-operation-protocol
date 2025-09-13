@@ -37,17 +37,17 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
                                                         WHERE username = %s;''')
                                                         .format(*(sql.Identifier(slot) for slot in StorageData.__slots__)))
 
-    file_size_retrieval_query: Final[sql.SQL] = (sql.SQL('''SELECT file_size
-                                                         FROM files
-                                                         WHERE owner = %s AND filename = %s;'''))
+    file_size_retrieval_query: Final[sql.Composed] = (sql.SQL('''SELECT file_size
+                                                              FROM files
+                                                              WHERE owner = %s AND filename = %s;'''))
     
-    storage_flush_query: Final[sql.SQL] = (sql.SQL('''UPDATE users
-                                                   SET file_count = %s, storage_used = %s
-                                                   WHERE username = %s;'''))
+    storage_flush_query: Final[sql.Composed] = (sql.SQL('''UPDATE users
+                                                        SET file_count = %s, storage_used = %s
+                                                        WHERE username = %s;'''))
     
-    file_flush_query: Final[sql.SQL] = (sql.SQL('''UPDATE files
-                                                   SET file_storage = %s
-                                                   WHERE owner = %s AND filename = %s;'''))
+    file_flush_query: Final[sql.Composed] = (sql.SQL('''UPDATE files
+                                                     SET file_size = %s
+                                                     WHERE owner = %s AND filename = %s;'''))
     
     def __init__(self,
                  connection_master: ConnectionPoolManager,
@@ -130,7 +130,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
         if release_after:
             await self.connection_master.reclaim_connection(proxy)
 
-        self.setdefault(storage_data)
+        self.setdefault(username, storage_data)
         return self[username].file_data.setdefault(file, result[0])
 
     async def remove_file(self,
@@ -165,10 +165,8 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
     async def background_storage_sync(self) -> None:
         current_buffer: dict[str, StorageData] = {}
         while True:
-            print(self)
             while self and len(current_buffer) <= self.flush_batch_size:
                 popped_item: tuple[str, StorageData] =  self.popitem(last=False)
-                print(popped_item, type(popped_item))
                 current_buffer[popped_item[0]] = popped_item[1]
             
             await self._flush_buffer(current_buffer)
