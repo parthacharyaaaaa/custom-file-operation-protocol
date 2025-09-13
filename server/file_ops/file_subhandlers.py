@@ -131,7 +131,7 @@ async def handle_amendment(header_component: BaseHeaderComponent,
             
             raise errors.InsufficientPermissions(err_str)
     
-        current_storage_used: int = await storage_cache.get_storage_data(auth_component.identity, proxy=proxy, raise_on_missing=True)
+        current_storage_used: int = (await storage_cache.get_storage_data(auth_component.identity, proxy=proxy)).storage_used
         file_size: int = await storage_cache.get_file_size(username=file_component.subject_file_owner, file=file_component.subject_file)
         if not check_amendmend_storage_integrity(content_size=len(file_component.write_data),
                                                  current_file_size=file_size,
@@ -183,7 +183,7 @@ async def handle_amendment(header_component: BaseHeaderComponent,
                                                      append_writer_keepalive=file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE,
                                                      purge_append_writer=file_component.end_operation or (file_component.cursor_bitfield & CursorFlag.PURGE_CURSOR),
                                                      identifier=auth_component.identity)
-        await storage_cache.update_file_size(file_component.subject_file,
+        await storage_cache.update_file_size(file_component.subject_file_owner,
                                              diff=cursor_position - file_size)
     
     keepalive_accepted = cache_ops.get_reader(amendment_cache, fpath, auth_component.identity)

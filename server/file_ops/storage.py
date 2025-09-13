@@ -8,7 +8,7 @@ from server.errors import UserNotFound, FileNotFound
 
 from models.singletons import SingletonMetaclass
 
-from psycopg.rows import dict_row
+from psycopg.rows import dict_row, DictRow
 from psycopg import sql
 
 __all__ = ('StorageData',
@@ -26,16 +26,16 @@ class StorageData:
         self.file_data = {}
 
     @property
-    def as_tuple(self) -> tuple[str, str]:
+    def as_tuple(self) -> tuple[int, int]:
         return self.filecount, self.storage_used
 
 class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
     __slots__ = ('connection_master', 'disk_flush_interval', 'flush_batch_size')
     
-    storage_fetch_query: Final[sql.SQL] = (sql.SQL('''SELECT file_count AS {}, storage_used AS {} 
-                                                   FROM users
-                                                   WHERE username = %s;''')
-                                                   .format(*(sql.Identifier(slot) for slot in StorageData.__slots__)))
+    storage_fetch_query: Final[sql.Composed] = (sql.SQL('''SELECT file_count AS {}, storage_used AS {} 
+                                                        FROM users
+                                                        WHERE username = %s;''')
+                                                        .format(*(sql.Identifier(slot) for slot in StorageData.__slots__)))
 
     file_size_retrieval_query: Final[sql.SQL] = (sql.SQL('''SELECT file_size
                                                          FROM files
@@ -70,11 +70,11 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
         
         if not proxy:
             release_after = True
-            proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
+            proxy = await self.connection_master.request_connection(level=1)
         
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute(StorageCache.storage_fetch_query, (username,))
-            result: Optional[dict[str, int]] = await cursor.fetchone()
+            result: Optional[DictRow] = await cursor.fetchone()
         if release_after:
             await self.connection_master.reclaim_connection(proxy)
         
@@ -116,18 +116,17 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
             return file_data
         
         if not proxy:
-            proxy: ConnectionProxy = await self.connection_master.request_connection(level=1)
+            proxy = await self.connection_master.request_connection(level=1)
             release_after = True
         async with proxy.cursor() as cursor:
             if not storage_data:
-                storage_data = await self.get_storage_data(username, proxy, raise_on_missing=True)
+                storage_data = await self.get_storage_data(username, proxy)
 
             await cursor.execute(StorageCache.file_size_retrieval_query, (username, file,))
             result = await cursor.fetchone()
             if not result:
-                raise FileNotFound(f'No file named {file} under user {username}')
-            
-
+                raise FileNotFound(file, username)
+        
         if release_after:
             await self.connection_master.reclaim_connection(proxy)
 
@@ -135,11 +134,11 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
         return self[username].file_data.setdefault(file, result[0])
 
     async def remove_file(self,
-                          username: int,
+                          username: str,
                           file: str,
                           proxy: Optional[ConnectionProxy] = None,
                           release_after: bool = False) -> None:
-        user_storage: Optional[StorageData] = await self.get_storage_data(username, ConnectionProxy, release_after)
+        user_storage: Optional[StorageData] = await self.get_storage_data(username, proxy, release_after)
         if not user_storage:
             raise UserNotFound(f'Attempted to remove file from non-existent user: {username}')
 
@@ -148,8 +147,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
         else:
             file_size = await self.get_file_size(username, file, proxy, release_after)
             user_storage.storage_used -= file_size
-
-        return user_storage.storage_used
+        
     
     async def _flush_buffer(self, buffer: dict[str, StorageData]) -> None:
         async with await self.connection_master.request_connection(level=1) as proxy:
@@ -167,8 +165,10 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
     async def background_storage_sync(self) -> None:
         current_buffer: dict[str, StorageData] = {}
         while True:
+            print(self)
             while self and len(current_buffer) <= self.flush_batch_size:
                 popped_item: tuple[str, StorageData] =  self.popitem(last=False)
+                print(popped_item, type(popped_item))
                 current_buffer[popped_item[0]] = popped_item[1]
             
             await self._flush_buffer(current_buffer)
