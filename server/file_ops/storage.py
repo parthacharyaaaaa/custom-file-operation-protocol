@@ -25,6 +25,12 @@ class StorageData:
         self.storage_used = storage_used
         self.file_data = {}
 
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}({self.filecount=}, {self.storage_used=}, {self.file_data=})'
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}({self.filecount=}, {self.storage_used=}, {self.file_data=}) at {hex(id(self))}>'
+
     @property
     def as_tuple(self) -> tuple[int, int]:
         return self.filecount, self.storage_used
@@ -160,7 +166,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
                                           for username, user_storage_data in buffer.items()
                                           for file, size in user_storage_data.file_data.items()))
             await proxy.commit()
-        buffer = {}
+        buffer.clear()
     
     async def background_storage_sync(self) -> None:
         current_buffer: dict[str, StorageData] = {}
