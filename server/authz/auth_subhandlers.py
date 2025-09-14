@@ -97,7 +97,7 @@ async def handle_session_termination(header_component: BaseHeaderComponent,
         raise InvalidAuthSemantic('Session termination requires only the following fields: identity, token, refresh_digest')
     
     await user_manager.authenticate_session(username=auth_component.identity, token=auth_component.token)
-    terminated_session: SessionMetadata = user_manager.terminate_session(username=auth_component.identity, token=auth_component.token)
+    terminated_session: SessionMetadata = await user_manager.terminate_session(username=auth_component.identity, token=auth_component.token)
 
     termination_time: float = time.time()
     header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_SESSION_TERMINATION.value, ended_connection=header_component.finish, config=config)
