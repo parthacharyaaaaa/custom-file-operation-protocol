@@ -10,7 +10,7 @@ class ProtocolException(ABC, Exception):
     '''Abstract base exception class for all protocol specific exceptions. Contains all the bare minimum data required to construct and send a response to an erroneous request'''
     code: str
     description: str
-    exception_iso_timestamp: datetime
+    exception_iso_timestamp: str
 
     def __init__(self, description: Optional[str] = None):
         self.description = description or self.__class__.description
