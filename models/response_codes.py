@@ -1,5 +1,7 @@
 from enum import Enum
 
+__all__ = ('SuccessFlags', 'ClientErrorFlags', 'ServerErrorFlags')
+
 class SuccessFlags(Enum):
     # File I/O
     SUCCESSFUL_FILE_CREATION = "1:fnew"
@@ -25,15 +27,6 @@ class SuccessFlags(Enum):
     
     # Heartbeat
     HEARTBEAT = "1:hb"
-
-class IntermediaryFlags(Enum):
-    # File I/O
-    PARTIAL_AMEND = "0:a"
-    PARTIAL_READ = "0:r"
-
-    # General
-    WAIT = "0:wait"
-    RETRY_NEEDED = "0:retry"
 
 class ClientErrorFlags(Enum):
     # General
@@ -93,6 +86,5 @@ class ServerErrorFlags(Enum):
 
 CODES: tuple[str] = tuple(k for k, v in (ServerErrorFlags._value2member_map_
                                          | ClientErrorFlags._value2member_map_
-                                         | IntermediaryFlags._value2member_map_
                                          | SuccessFlags._value2member_map_
                                          ).items())
