@@ -1,10 +1,11 @@
-from functools import partial
-import inspect
-from types import MappingProxyType
-from typing import Any, NewType, Callable, Optional, Annotated
-
 import asyncio
+import inspect
+from functools import partial
+from types import MappingProxyType
+from typing import Any, NewType, Callable, Optional, Annotated, TypeAlias, Union
+
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
+
 from cachetools import TTLCache
 
 from models.response_models import ResponseHeader, ResponseBody
@@ -12,8 +13,8 @@ from models.singletons import SingletonMetaclass
 
 from server.authz.user_manager import UserManager
 from server.config.server_config import ServerConfig
-from server.database.connections import ConnectionPoolManager
 from server.database import models as db_models
+from server.database.connections import ConnectionPoolManager
 from server.file_ops.storage import StorageCache
 
 import pydantic
@@ -23,6 +24,7 @@ __all__ = ('GlobalLogQueueType',
            'GlobalAmendCacheType',
            'GlobalDeleteCacheType',
            'GlobalFileLockType',
+           'SingletonTypes',
            'ServerSingletonsRegistry')
 
 # Utility objects for this module
@@ -40,6 +42,18 @@ GlobalAmendCacheType = NewType('GlobalAmendCacheType', TTLCache[str, dict[str, A
 GlobalDeleteCacheType = NewType('GlobalDeleteCacheType', TTLCache[str, str])
 GlobalFileLockType = NewType('GlobalFileLockType', TTLCache[str, bytes])
 
+SingletonTypes: TypeAlias = Union[
+    type[ServerConfig],
+    type[UserManager],
+    type[ConnectionPoolManager],
+    type[StorageCache],
+    type[GlobalAmendCacheType],
+    type[GlobalDeleteCacheType],
+    type[GlobalReadCacheType],
+    type[GlobalFileLockType],
+    type[GlobalLogQueueType],
+]
+
 @pydantic.dataclasses.dataclass(slots=True, config=_singleton_registry_config_dict)
 class ServerSingletonsRegistry(metaclass=SingletonMetaclass):
     # Custom singleton classes are not assigned an explicit NewType 
@@ -55,7 +69,7 @@ class ServerSingletonsRegistry(metaclass=SingletonMetaclass):
     deletion_cache: GlobalDeleteCacheType
     file_locks: GlobalFileLockType
 
-    _registry_reverse_mapping: MappingProxyType[type, str] = pydantic.PrivateAttr(default={})
+    _registry_reverse_mapping: MappingProxyType[SingletonTypes, Any] = pydantic.PrivateAttr(default=MappingProxyType({}))
 
     def __post_init__(self) -> None:
         self._registry_reverse_mapping = MappingProxyType({
