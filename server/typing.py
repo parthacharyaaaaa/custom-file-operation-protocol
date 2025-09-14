@@ -3,6 +3,8 @@
 import asyncio
 from typing import Any, Callable, Coroutine, Optional, TypeAlias, Union
 
+from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
+
 from server.dependencies import (GlobalFileLockType, GlobalLogQueueType,
                                  GlobalAmendCacheType, GlobalDeleteCacheType, GlobalReadCacheType,
                                  ServerConfig, ConnectionPoolManager, UserManager,
@@ -19,7 +21,8 @@ __all__ = ('PermissionSubhandler',
            'SubhandlerResponse',
            'ServerSingleton',
            'RequestSubhandler',
-           'RequestHandler')
+           'RequestHandler',
+           'FileBuffer')
 
 ServerSingleton: TypeAlias = Union[GlobalReadCacheType, GlobalAmendCacheType, GlobalDeleteCacheType,
                                    GlobalFileLockType, GlobalLogQueueType, ServerConfig,
@@ -42,3 +45,5 @@ RequestSubhandler: TypeAlias = Union[AuthSubhandler, InfoSubhandler, FileSubhand
 SubhandlerResponse: TypeAlias = Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]
 
 RequestHandler: TypeAlias = Callable[[asyncio.StreamReader, BaseHeaderComponent, ServerSingletonsRegistry, dict[SubcategoryFlag, RequestSubhandler]], SubhandlerResponse]
+
+FileBuffer: TypeAlias = Union[AsyncBufferedReader, AsyncBufferedIOBase]
