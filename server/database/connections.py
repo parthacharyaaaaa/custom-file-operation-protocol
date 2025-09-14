@@ -1,6 +1,6 @@
 import asyncio
-from contextlib import asynccontextmanager, contextmanager
-from typing import Literal, Optional, NoReturn, Protocol, AsyncIterator, Iterator, TYPE_CHECKING
+from contextlib import asynccontextmanager
+from typing import Literal, Optional, NoReturn, Protocol, AsyncIterator, TYPE_CHECKING
 from typing_extensions import Self
 from types import TracebackType
 from uuid import uuid4
@@ -8,7 +8,7 @@ from uuid import uuid4
 import psycopg as pg
 from psycopg.abc import Query, Params
 from psycopg.rows import TupleRow, Row
-from psycopg.transaction import AsyncTransaction, Transaction
+from psycopg.transaction import AsyncTransaction
 
 __all__ = ('SupportsConnection', 'ConnectionPoolManager', 'LeasedConnection', 'ConnectionProxy')
 
@@ -27,15 +27,9 @@ class SupportsConnection(Protocol):
    
     async def commit(self) -> None: ...
    
-    @asynccontextmanager
+    @asynccontextmanager    #type: ignore
     async def transaction(self, savepoint_name: str | None = None, force_rollback: bool = False) -> AsyncIterator[AsyncTransaction]: ...
 
-    @contextmanager
-    async def transaction(self, savepoint_name: str | None = None, force_rollback: bool = False) -> Iterator[Transaction]: ...
-
-    def rollback(self) -> None: ...
-    def cancel_safe(self, *, timeout: float = 30.0) -> None: ...
-    def commit(self) -> None: ...
 
 class ConnectionProxy(SupportsConnection if TYPE_CHECKING else object):
     '''Proxy object for a database connection leased from a ConnectionPoolManager instance'''
@@ -58,9 +52,9 @@ class ConnectionProxy(SupportsConnection if TYPE_CHECKING else object):
                 raise PermissionError('Lease expired for this connection')
             
             if asyncio.iscoroutinefunction(attr):
-                async def wrapped(*args, **kwargs): 
+                async def coro(*args, **kwargs):
                     return await attr(*args, **kwargs)
-                return wrapped
+                return coro
             else:
                 def wrapped(*args, **kwargs):
                     return attr(*args, **kwargs)
@@ -93,7 +87,7 @@ class LeasedConnection:
         self._lease_expired: bool = False
         self._in_use: bool = False
         self._priority: int = priority
-        self._usage_token: str = None
+        self._usage_token: Optional[str] = None
 
     @classmethod
     async def connect(cls, conninfo: str, manager: 'ConnectionPoolManager', lease_duration: float, priority: int, **kwargs) -> 'LeasedConnection':
@@ -101,7 +95,7 @@ class LeasedConnection:
         return cls(pgconn, manager, lease_duration, priority)
     
     @property
-    def priority(self) -> str:
+    def priority(self) -> int:
         return self._priority
     @priority.setter
     def priority(self, value) -> NoReturn:
@@ -155,9 +149,9 @@ class LeasedConnection:
                 raise TypeError('Connection not in use. Leaase a connection from the pool to use it')
             
             if asyncio.iscoroutinefunction(attr):
-                async def wrapped(*args, **kwargs):
+                async def coro(*args, **kwargs):
                     return await attr(*args, **kwargs)
-                return wrapped
+                return coro
             else:
                 def wrapped(*args, **kwargs):
                     return attr(*args, **kwargs)
@@ -183,9 +177,9 @@ class ConnectionPoolManager:
         self.lease_duration: float = lease_duration
 
         # Create connection pools as queue and populate them with AsyncConnection objects
-        self._hp_connection_pool: asyncio.Queue = asyncio.Queue(maxsize=high_priority_conns)
-        self._mp_connection_pool: asyncio.Queue = asyncio.Queue(maxsize=mid_priority_conns)
-        self._lp_connection_pool: asyncio.Queue = asyncio.Queue(maxsize=low_priority_conns)
+        self._hp_connection_pool: asyncio.Queue[LeasedConnection] = asyncio.Queue(maxsize=high_priority_conns)
+        self._mp_connection_pool: asyncio.Queue[LeasedConnection] = asyncio.Queue(maxsize=mid_priority_conns)
+        self._lp_connection_pool: asyncio.Queue[LeasedConnection] = asyncio.Queue(maxsize=low_priority_conns)
 
     async def populate_pools(self, conninfo: str) -> None:
         for _ in range(self._hp_connection_pool.maxsize):
@@ -203,19 +197,12 @@ class ConnectionPoolManager:
         Returns:
             AsyncConnection object
         '''
-        requested_connection: LeasedConnection = None
-        if level == 1:
-            requested_connection = await self._hp_connection_pool.get()
-        elif level == 2:
-            requested_connection  = await self._mp_connection_pool.get()
-        elif level == 3:
-            requested_connection = await self._lp_connection_pool.get()
-        else:
-            raise ValueError('Invalid connection priority level provided')
+        pool = self._hp_connection_pool if level == 1 else self._mp_connection_pool if level == 2 else self._lp_connection_pool
+        requested_connection: LeasedConnection = await pool.get()
         
         token: str = uuid4().hex
         requested_connection._set_usage(token)
-        max_lease_duration: float = min(self.lease_duration, (max_lease_duration or self.lease_duration))
+        max_lease_duration = min(self.lease_duration, (max_lease_duration or self.lease_duration))
 
         requested_connection._lease_duration = max_lease_duration
         proxy: ConnectionProxy = ConnectionProxy(leased_conn=requested_connection, token=token)
