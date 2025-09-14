@@ -1,7 +1,7 @@
 '''Database models used by the server'''
 
 from pydantic import BaseModel, Field, IPvAnyAddress
-from typing import Annotated, Optional
+from typing import Optional
 from types import MappingProxyType
 from datetime import datetime
 from enum import Enum
@@ -10,7 +10,7 @@ from models.permissions import RoleTypes, FilePermissions
 
 __all__ = ('ROLE_PERMISSION_MAPPING', 'Severity', 'LogType', 'LogAuthor', 'ActivityLog')
 
-ROLE_PERMISSION_MAPPING: MappingProxyType[RoleTypes, tuple[FilePermissions]] = MappingProxyType({
+ROLE_PERMISSION_MAPPING: MappingProxyType[RoleTypes, tuple[FilePermissions, ...]] = MappingProxyType({
     RoleTypes.READER : (FilePermissions.READ,),
     RoleTypes.EDITOR : (FilePermissions.READ, FilePermissions.WRITE),
     RoleTypes.MANAGER : (FilePermissions.READ, FilePermissions.WRITE, FilePermissions.MANAGE_RW),
@@ -53,13 +53,13 @@ class LogAuthor(Enum):
 
 class ActivityLog(BaseModel):
     '''Pydantic object mapping to relation ACTIVITY_LOGS'''
-    occurance_time: Annotated[datetime, Field(frozen=True, default_factory=datetime.now)]
+    occurance_time: datetime = Field(default_factory=datetime.now, frozen=True)
     reported_severity: Severity
-    logged_by: Annotated[LogAuthor, Field(default=LogAuthor.CONNECTION_MASTER)]
-    log_category: Annotated[LogType, Field(default=LogType.UNKNOWN)]
-    log_details: Annotated[Optional[str], Field(max_length=512, default=None)]
-    user_concerned: Annotated[Optional[str], Field(max_length=128, default=None)]
-    host_concerned: Annotated[Optional[IPvAnyAddress], Field(frozen=True, default=None)]
+    logged_by: LogAuthor = Field(default=LogAuthor.CONNECTION_MASTER)
+    log_category: LogType = Field(default=LogType.UNKNOWN)
+    log_details: Optional[str] = Field(default=None, max_length=512)
+    user_concerned: Optional[str] = Field(default=None, max_length=128)
+    host_concerned: Optional[IPvAnyAddress] = Field(default=None, frozen=True)
 
     model_config = {
         'use_enum_values' : True
