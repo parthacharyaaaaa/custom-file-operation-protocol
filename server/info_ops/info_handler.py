@@ -3,14 +3,14 @@ from typing import Mapping, Optional, Final
 
 from models.constants import UNAUTHENTICATED_INFO_OPERATIONS, HEADER_ONLY_INFO_OPERATIONS
 from models.flags import CategoryFlag, InfoFlags
-from models.request_model import BaseHeaderComponent
+from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseInfoComponent
 from models.response_models import ResponseHeader, ResponseBody
 from models.typing import ProtocolComponent
 
 from server.comms_utils.incoming import process_component
 from server.dependencies import ServerSingletonsRegistry
 from server.errors import InvalidAuthSemantic, UnsupportedOperation, InvalidHeaderSemantic, SlowStreamRate, InvalidBodyValues
-from server.typing import InfoSubhandler, SubhandlerResponse
+from server.typing import InfoSubhandler
 
 import orjson
 import pydantic
@@ -20,7 +20,7 @@ __all__ = ('top_info_handler',)
 async def top_info_handler(reader: asyncio.StreamReader,
                            header_component: BaseHeaderComponent,
                            dependency_registry: ServerSingletonsRegistry,
-                           subhandler_mapping: Mapping[InfoSubhandler, SubhandlerResponse]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+                           subhandler_mapping: Mapping[InfoFlags, InfoSubhandler]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     '''Entrypoint for handling `info` operations over a stream. Performs optional authentication, validation, and finally dispatches to the appropriate subhandler.
 
     Args:
@@ -42,13 +42,17 @@ async def top_info_handler(reader: asyncio.StreamReader,
     
     subhandler_kwargs: dict[str, ProtocolComponent] = {'header_component' : header_component}
     routing_bits: Final[int] = header_component.subcategory & InfoFlags.OPERATION_EXTRACTION_BITS
+    assert isinstance(routing_bits, InfoFlags)
 
     if routing_bits not in UNAUTHENTICATED_INFO_OPERATIONS:
         if not header_component.auth_size:
             raise InvalidHeaderSemantic(f'Headers for INFO operation {InfoFlags(header_component.subcategory)} require authentication')
         try:
-            auth_component = await process_component(n_bytes=header_component.auth_size, reader=reader,
-                                                     component_type='auth', timeout=dependency_registry.server_config.read_timeout)
+            auth_component: ProtocolComponent = await process_component(n_bytes=header_component.auth_size,
+                                                                        reader=reader,
+                                                                        component_type='auth',
+                                                                        timeout=dependency_registry.server_config.read_timeout)
+            assert isinstance(auth_component, BaseAuthComponent) and auth_component.token
         except asyncio.TimeoutError:
             raise SlowStreamRate
         except (asyncio.IncompleteReadError, pydantic.ValidationError, orjson.JSONDecodeError):
