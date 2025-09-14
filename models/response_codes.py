@@ -1,6 +1,8 @@
-from enum import Flag
+from enum import Enum
 
-class SuccessFlags(Flag):
+__all__ = ('SuccessFlags', 'ClientErrorFlags', 'ServerErrorFlags')
+
+class SuccessFlags(Enum):
     # File I/O
     SUCCESSFUL_FILE_CREATION = "1:fnew"
     SUCCESSFUL_AMEND = "1:amnd"
@@ -26,16 +28,7 @@ class SuccessFlags(Flag):
     # Heartbeat
     HEARTBEAT = "1:hb"
 
-class IntermediaryFlags(Flag):
-    # File I/O
-    PARTIAL_AMEND = "0:a"
-    PARTIAL_READ = "0:r"
-
-    # General
-    WAIT = "0:wait"
-    RETRY_NEEDED = "0:retry"
-
-class ClientErrorFlags(Flag):
+class ClientErrorFlags(Enum):
     # General
     MALFORMED_REQUEST_STRUCTURE = "2:malf"
     NON_JSON_SCHEMA = "2:njs"
@@ -75,7 +68,7 @@ class ClientErrorFlags(Flag):
 
     UNKNOWN_EXCEPTION = "2:?"
 
-class ServerErrorFlags(Flag):
+class ServerErrorFlags(Enum):
     # Umbrella codes
     INTERNAL_SERVER_ERROR = "3:*"
     UNKNOWN_EXCEPTION = "3:?"
@@ -91,4 +84,7 @@ class ServerErrorFlags(Flag):
     OUT_OF_MEMORY = "3:mem"
     OUT_OF_DISK_SPACE = "3:disk"
 
-CODES: tuple[str] = tuple(k for k, v in (ServerErrorFlags._value2member_map_ | ClientErrorFlags._value2member_map_ | IntermediaryFlags._value2member_map_ | SuccessFlags._value2member_map_).items())
+CODES: tuple[str] = tuple(k for k, v in (ServerErrorFlags._value2member_map_
+                                         | ClientErrorFlags._value2member_map_
+                                         | SuccessFlags._value2member_map_
+                                         ).items())

@@ -1,4 +1,5 @@
 import asyncio
+from typing import Optional, Final
 from traceback import format_exception_only
 
 from server.database.connections import ConnectionProxy, ConnectionPoolManager
@@ -6,15 +7,19 @@ from server.database.models import ActivityLog, Severity
 
 from psycopg import sql
 
-__all__ = ('enqueue_log', 'flush_logs', 'LOG_INSERTION_SQL')
+__all__ = ('enqueue_log',
+           'flush_logs',
+           'LOG_INSERTION_SQL')
 
-LOG_INSERTION_SQL: sql.SQL = (sql.SQL('''INSERT INTO {tablename} ({columns_template})
-                                        VALUES ({placeholder_template});''')
-                                        .format(tablename=sql.Identifier('activity_logs'),
-                                                columns_template=sql.SQL(', ').join([sql.Identifier(key) for key in list(ActivityLog.model_fields.keys())]),
-                                                placeholder_template=sql.SQL(', ').join([sql.Placeholder() for _ in range(len(ActivityLog.model_fields))])))
+LOG_INSERTION_SQL: Final[sql.Composed] = (sql.SQL('''INSERT INTO {tablename} ({columns_template})
+                                                  VALUES ({placeholder_template});''')
+                                                  .format(tablename=sql.Identifier('activity_logs'),
+                                                          columns_template=sql.SQL(', ').join([sql.Identifier(key)
+                                                                                               for key in list(ActivityLog.model_fields.keys())]),
+                                                          placeholder_template=sql.SQL(', ').join([sql.Placeholder()
+                                                                                                   for _ in range(len(ActivityLog.model_fields))])))
 
-async def enqueue_log(log: ActivityLog, queue: asyncio.PriorityQueue[ActivityLog], waiting_period: float = None) -> None:
+async def enqueue_log(log: ActivityLog, queue: asyncio.Queue[ActivityLog], waiting_period: Optional[float] = None) -> None:
     try:
         await asyncio.wait_for(queue.put(log), timeout=waiting_period)
     except asyncio.TimeoutError:

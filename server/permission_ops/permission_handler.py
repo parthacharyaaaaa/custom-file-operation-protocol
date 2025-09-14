@@ -4,23 +4,24 @@ from typing import Mapping, Optional
 from models.flags import PermissionFlags, CategoryFlag
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent
 from models.response_models import ResponseHeader, ResponseBody
+from models.typing import ProtocolComponent
 
 from server.comms_utils.incoming import process_component
 from server.dependencies import ServerSingletonsRegistry
 from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, SlowStreamRate, UnsupportedOperation
-from server.typing import PermissionSubhandler, SubhandlerResponse
+from server.typing import PermissionSubhandler
 
 import orjson
 from pydantic import ValidationError
 
 
-__all__ = ('top_permission_handler', 'PERMISSION_SUBHABDLER')
+__all__ = ('top_permission_handler',)
 
 
 async def top_permission_handler(reader: asyncio.StreamReader,
                                  header_component: BaseHeaderComponent,
                                  dependency_registry: ServerSingletonsRegistry,
-                                 subhandler_mapping: Mapping[PermissionSubhandler, SubhandlerResponse]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+                                 subhandler_mapping: Mapping[PermissionFlags, PermissionSubhandler]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     '''Entrypoint for handling `permission` operations over a stream. Performs authentication, validation, and dispatches to the appropriate subhandler.
 
     Args:
@@ -43,8 +44,11 @@ async def top_permission_handler(reader: asyncio.StreamReader,
         raise InvalidHeaderSemantic('Headers for permission operations require BOTH auth component and permission (body) component')
 
     try:
-        auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size, reader=reader,
-                                                                    component_type='auth', timeout=dependency_registry.server_config.read_timeout)
+        auth_component: ProtocolComponent = await process_component(n_bytes=header_component.auth_size,
+                                                                    reader=reader,
+                                                                    component_type='auth',
+                                                                    timeout=dependency_registry.server_config.read_timeout)
+        assert isinstance(auth_component, BaseAuthComponent) and auth_component.token
     except asyncio.TimeoutError:
         raise SlowStreamRate
     except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
@@ -58,9 +62,11 @@ async def top_permission_handler(reader: asyncio.StreamReader,
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.PERMISSION._name_}')
     
     # All checks at the component level passed, read permission component
-    permission_component: BasePermissionComponent = await process_component(n_bytes=header_component.body_size, reader=reader,
-                                                                            component_type='permission', timeout=dependency_registry.server_config.read_timeout)
-    
+    permission_component: ProtocolComponent = await process_component(n_bytes=header_component.body_size,
+                                                                      reader=reader,
+                                                                      component_type='permission',
+                                                                      timeout=dependency_registry.server_config.read_timeout)
+    assert isinstance(permission_component, BasePermissionComponent)
     # For permission operations, we'll need to mask the role bits 
     subhandler = subhandler_mapping[header_component.subcategory & ~PermissionFlags.ROLE_EXTRACTION_BITMASK]
     
