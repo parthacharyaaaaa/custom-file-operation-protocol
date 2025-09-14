@@ -65,7 +65,7 @@ def generate_self_signed_credentials(cert_filepath: Path,
         if not certfile_exists:
             Path.unlink(cert_filepath, missing_ok=True)
         if not keyfile_exists:
-            Path.unlink(keyfile_exists, missing_ok=True)
+            Path.unlink(key_filepath, missing_ok=True)
         raise e
     
     return cert, private_key
