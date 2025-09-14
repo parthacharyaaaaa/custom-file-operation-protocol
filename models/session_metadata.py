@@ -88,7 +88,7 @@ class SessionMetadata:
     def update_digest(self, new_digest: bytes) -> None:
         self._refresh_digest = new_digest
         self._last_refresh = time.time()
-        self.valid_until = self._last_refresh + self.lifespan
+        self._valid_until = self._last_refresh + self.lifespan
         self._iteration+=1
 
     def get_validity(self) -> float:
