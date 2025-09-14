@@ -4,11 +4,12 @@ from typing import Mapping, Optional
 from models.flags import AuthFlags, CategoryFlag
 from models.response_models import ResponseHeader, ResponseBody
 from models.request_model import BaseHeaderComponent, BaseAuthComponent
+from models.typing import ProtocolComponent
 
 from server.comms_utils.incoming import process_component
 from server.dependencies import ServerSingletonsRegistry
 from server.errors import InvalidAuthSemantic, UnsupportedOperation
-from server.typing import AuthSubhandler, SubhandlerResponse
+from server.typing import AuthSubhandler
 
 __all__ = ('top_auth_handler',)
 
@@ -16,7 +17,7 @@ __all__ = ('top_auth_handler',)
 async def top_auth_handler(reader: asyncio.StreamReader,
                            header_component: BaseHeaderComponent,
                            dependency_registry: ServerSingletonsRegistry,
-                           subhandler_mapping: Mapping[AuthSubhandler, SubhandlerResponse]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+                           subhandler_mapping: Mapping[AuthFlags, AuthSubhandler]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     '''Entrypoint for handling `AUTH` operations over a stream. Performs authentication, validation, and dispatches to the appropriate subhandler.
 
     Args:
@@ -36,13 +37,17 @@ async def top_auth_handler(reader: asyncio.StreamReader,
     if not header_component.auth_size:
         raise InvalidAuthSemantic('Missing auth component in header, and no unauthenticated operation requested')
 
-    auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size, reader=reader,
-                                                                component_type='auth', timeout=dependency_registry.server_config.read_timeout)
+    auth_component: ProtocolComponent  = await process_component(n_bytes=header_component.auth_size,
+                                                                 reader=reader,
+                                                                 component_type='auth',
+                                                                 timeout=dependency_registry.server_config.read_timeout)
+    assert isinstance(auth_component, BaseAuthComponent) 
 
     if header_component.subcategory not in AuthFlags._value2member_map_:    # R level function name, absolutely vile.
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.AUTH._name_}')
     
     # Delegate actual handling to defined functions/coroutines
+    assert isinstance(header_component.subcategory, AuthFlags)
     subhandler = subhandler_mapping[header_component.subcategory]
 
     header, body = await subhandler(header_component=header_component,

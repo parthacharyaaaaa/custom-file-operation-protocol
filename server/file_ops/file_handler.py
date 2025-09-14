@@ -4,11 +4,12 @@ from typing import Mapping, Optional
 from models.flags import FileFlags, CategoryFlag
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent
 from models.response_models import ResponseHeader, ResponseBody
+from models.typing import ProtocolComponent
 
 from server.comms_utils.incoming import process_component
 from server.dependencies import ServerSingletonsRegistry
 from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, SlowStreamRate, UnsupportedOperation
-from server.typing import FileSubhandler, SubhandlerResponse
+from server.typing import FileSubhandler
 
 import orjson
 from pydantic import ValidationError
@@ -18,7 +19,7 @@ __all__ = ('top_file_handler',)
 async def top_file_handler(reader: asyncio.StreamReader,
                            header_component: BaseHeaderComponent,
                            dependency_registry: ServerSingletonsRegistry,
-                            subhandler_mapping: Mapping[FileSubhandler, SubhandlerResponse]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
+                            subhandler_mapping: Mapping[FileFlags, FileSubhandler]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     '''Entrypoint for handling `file` operations over a stream. Performs authentication, validation, and dispatches to the appropriate subhandler.
 
     Args:
@@ -40,8 +41,11 @@ async def top_file_handler(reader: asyncio.StreamReader,
         raise InvalidHeaderSemantic('Headers for permission operations require BOTH auth component and permission (body) component')
 
     try:
-        auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size, reader=reader,
-                                                                    component_type='auth', timeout=dependency_registry.server_config.read_timeout)
+        auth_component: ProtocolComponent = await process_component(n_bytes=header_component.auth_size,
+                                                                    reader=reader,
+                                                                    component_type='auth',
+                                                                    timeout=dependency_registry.server_config.read_timeout)
+        assert isinstance(auth_component, BaseAuthComponent) and auth_component.token
     except asyncio.TimeoutError:
         raise SlowStreamRate
     except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
@@ -55,9 +59,12 @@ async def top_file_handler(reader: asyncio.StreamReader,
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.FILE_OP._name_}')
     
     # All checks at the component level passed, read and process file component
-    file_component: BaseFileComponent = await process_component(n_bytes=header_component.body_size, reader=reader,
-                                                                component_type='file', timeout=dependency_registry.server_config.read_timeout)
-    
+    file_component: ProtocolComponent = await process_component(n_bytes=header_component.body_size,
+                                                                reader=reader,
+                                                                component_type='file',
+                                                                timeout=dependency_registry.server_config.read_timeout)
+    assert isinstance(file_component, BaseFileComponent) and isinstance(header_component.subcategory, FileFlags)
+
     subhandler = subhandler_mapping[header_component.subcategory]
     
     header, body = await subhandler(header_component=header_component,
