@@ -130,7 +130,3 @@ class BaseHeaderComponent(BaseModel):
     # Message category
     category: CategoryFlag = Field(ge=1)
     subcategory: Union[AuthFlags, PermissionFlags, InfoFlags, FileFlags]
-
-    model_config = {
-        'use_enum_values' : True
-    }
