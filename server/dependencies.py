@@ -39,7 +39,7 @@ class GlobalLogQueueType(asyncio.Queue[db_models.ActivityLog]): pass
 class GlobalReadCacheType(TTLCache[str, dict[str, AsyncBufferedReader]]): pass
 class GlobalAmendCacheType(TTLCache[str, dict[str, AsyncBufferedIOBase]]): pass
 class GlobalDeleteCacheType(TTLCache[str, str]): pass
-class GlobalFileLockType(TTLCache[str, bytes]): pass
+class GlobalFileLockType(TTLCache[str, str]): pass
 
 SubhandlerResponse: TypeAlias = Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]
 
