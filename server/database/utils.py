@@ -14,7 +14,9 @@ __all__ = ('check_file_permission', 'get_user')
 
 async def check_file_permission(filename: str, owner: str, grantee: str,
                                 check_for: FilePermissions,
-                                connection_master: ConnectionPoolManager, proxy: Optional[ConnectionProxy] = None, level: Optional[Literal[1,2,3]] = 1,
+                                connection_master: ConnectionPoolManager,
+                                proxy: Optional[ConnectionProxy] = None,
+                                level: Literal[1,2,3] = 1,
                                 check_until: Optional[datetime] = None) -> bool:
     '''Check whether a grantee has a specific permission on a file.
 
@@ -34,7 +36,7 @@ async def check_file_permission(filename: str, owner: str, grantee: str,
 
     reclaim_after: bool = proxy is None
     if not proxy:
-        proxy: ConnectionProxy = await connection_master.request_connection(level=level)
+        proxy = await connection_master.request_connection(level=level)
     try:
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute('''SELECT roles.permission
@@ -43,7 +45,7 @@ async def check_file_permission(filename: str, owner: str, grantee: str,
                                  ON roles.role = fp.role
                                  WHERE fp.file_owner = %s AND fp.filename = %s AND fp.grantee = %s AND (fp.granted_until > %s OR fp.granted_until IS NULL)
                                  AND roles.permission = %s;''',
-                                 (owner, filename, grantee, check_until or datetime.now(), check_for,))
+                                 (owner, filename, grantee, check_until or datetime.now(), check_for.value,))
             role_mapping: dict[str, str] = await cursor.fetchone()
     finally:
         if reclaim_after:
@@ -74,14 +76,14 @@ async def get_user(username: str,
 
     if not proxy:
         reclaim_after = True
-        proxy: ConnectionProxy = await connection_master.request_connection(level)
-    query: sql.SQL = (sql.SQL('''SELECT {projection}
-                             FROM users
-                             WHERE username = {username}
-                             {lock};''')
-                             .format(projection=sql.SQL("username" if check_existence else "*"),
-                                     username=sql.Literal(username),
-                                     lock=sql.SQL('FOR UPDATE' if lock_record else '')))
+        proxy = await connection_master.request_connection(level)
+    query: sql.Composed = (sql.SQL('''SELECT {projection}
+                                   FROM users
+                                   WHERE username = {username}
+                                   {lock};''')
+                                   .format(projection=sql.SQL("username" if check_existence else "*"),
+                                           username=sql.Literal(username),
+                                           lock=sql.SQL('FOR UPDATE' if lock_record else '')))
     try:
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute(query)
@@ -92,7 +94,7 @@ async def get_user(username: str,
 
 async def check_file_existence(filename: str,
                                owner: str,
-                               connection_master: Optional[ConnectionPoolManager] = None,
+                               connection_master: ConnectionPoolManager,
                                proxy: Optional[ConnectionProxy] = None,
                                reclaim_after: bool = False,
                                level: Literal[1,2,3] = 1) -> bool:
@@ -114,7 +116,7 @@ async def check_file_existence(filename: str,
             raise ValueError('Missing connection master for requesting proxy')
         
         reclaim_after = True
-        proxy: ConnectionProxy = await connection_master.request_connection(level)
+        proxy = await connection_master.request_connection(level)
     try:
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute('''SELECT filename
