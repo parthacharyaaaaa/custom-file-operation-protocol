@@ -37,11 +37,11 @@ class BaseFileComponent(BaseModel):
 
     # Sequencing logic
     cursor_position: Optional[int] = Field(default=None, ge=0)
-    chunk_size: Optional[int] = Field(default=None, ge=1, le=REQUEST_CONSTANTS.file.chunk_max_size)  # For read operations. Must be at least 1 byte if specified
+    chunk_size: int = Field(default=REQUEST_CONSTANTS.file.chunk_max_size, ge=1, le=REQUEST_CONSTANTS.file.chunk_max_size)  # For read operations. Must be at least 1 byte if specified
     write_data: Optional[bytes] = Field(default=None, min_length=1, max_length=REQUEST_CONSTANTS.file.chunk_max_size)  # For write operations, must be at least 1 byte if specified
 
     # Attributes exclusive to file operations
-    cursor_bitfield: Optional[int] = Field(default=0, ge=0)
+    cursor_bitfield: int = Field(default=0, ge=0)
     end_operation: bool = Field(default=True)
 
     model_config = {
