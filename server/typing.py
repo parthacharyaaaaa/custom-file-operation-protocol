@@ -1,7 +1,8 @@
 '''Typing support for server-specific data structures'''
 
 import asyncio
-from typing import Any, Callable, Coroutine, Optional, TypeAlias, Union
+from enum import IntFlag
+from typing import Any, Callable, Coroutine, Optional, TypeAlias, Union, Mapping, ParamSpec, Concatenate
 
 from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
 
@@ -24,26 +25,40 @@ __all__ = ('PermissionSubhandler',
            'RequestHandler',
            'FileBuffer')
 
+P = ParamSpec('P')
+
 ServerSingleton: TypeAlias = Union[GlobalReadCacheType, GlobalAmendCacheType, GlobalDeleteCacheType,
                                    GlobalFileLockType, GlobalLogQueueType, ServerConfig,
                                    ConnectionPoolManager, UserManager]
 
-PermissionSubhandler: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent],
-                                      Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]
+PermissionSubhandler: TypeAlias = Callable[
+    Concatenate[BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent, P],
+    Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]
+]
 
-InfoSubhandler: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent, BaseInfoComponent],
-                                      Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]
+InfoSubhandler: TypeAlias = Callable[
+    Concatenate[P],
+    Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]
+]
 
-AuthSubhandler: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent],
-                                      Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]
+AuthSubhandler: TypeAlias = Callable[
+    Concatenate[BaseHeaderComponent, BaseAuthComponent, P],
+    Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]
+]
 
-FileSubhandler: TypeAlias = Callable[[BaseHeaderComponent, BaseAuthComponent, BaseFileComponent],
-                                      Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]
+FileSubhandler: TypeAlias = Callable[
+    Concatenate[BaseHeaderComponent, BaseAuthComponent, BaseFileComponent, P],
+    Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]]
 
 RequestSubhandler: TypeAlias = Union[AuthSubhandler, InfoSubhandler, FileSubhandler, PermissionSubhandler]
 
 SubhandlerResponse: TypeAlias = Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]
 
-RequestHandler: TypeAlias = Callable[[asyncio.StreamReader, BaseHeaderComponent, ServerSingletonsRegistry, dict[SubcategoryFlag, RequestSubhandler]], SubhandlerResponse]
+RequestHandler: TypeAlias = Callable[[asyncio.StreamReader,
+                                      BaseHeaderComponent,
+                                      ServerSingletonsRegistry,
+                                      Mapping[Any, Any]
+                                      ],
+                                     SubhandlerResponse]
 
 FileBuffer: TypeAlias = Union[AsyncBufferedReader, AsyncBufferedIOBase]
