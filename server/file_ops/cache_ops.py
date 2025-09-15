@@ -1,21 +1,22 @@
 '''Basic cache operations to support higher-level `FILE` request handlers and file operations'''
 
 from cachetools import TTLCache
-from aiofiles.threadpool.binary import AsyncBufferedReader
 from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
 from typing import Literal, Optional, Union
 
+from server.file_ops.typing import FileBufferCache, FileBuffer
+
 __all__ = ('remove_reader', 'get_reader', 'purge_file_entries', 'rename_file_entries')
 
-def remove_reader(read_cache: TTLCache[str, dict[str, Union[AsyncBufferedReader, AsyncBufferedIOBase]]],
+def remove_reader(read_cache: FileBufferCache,
                   fpath: str, identifier: str) -> None:
     try:
         read_cache[fpath].pop(identifier, None)
     except KeyError:
         return None
     
-def get_reader(read_cache: TTLCache[str, dict[str, AsyncBufferedReader]],
-               fpath: str, identifier: str) -> Optional[AsyncBufferedReader]:
+def get_reader(read_cache: FileBufferCache,
+               fpath: str, identifier: str) -> Optional[FileBuffer]:
     try:
         return read_cache[fpath][identifier]
     except KeyError:
@@ -23,7 +24,7 @@ def get_reader(read_cache: TTLCache[str, dict[str, AsyncBufferedReader]],
     
 async def purge_file_entries(fpath: str,
                              deleted_cache: TTLCache[str, Literal[True]],
-                             *cache_list: TTLCache[str, dict[str, Union[AsyncBufferedIOBase, AsyncBufferedReader]]]) -> None:
+                             *cache_list: FileBufferCache) -> None:
     deleted_cache.update({fpath:True})
     for cache in cache_list:
         buffered_mapping = cache.pop(fpath, {})
