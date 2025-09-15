@@ -1,6 +1,6 @@
 '''Utils for incoming streams from client to server'''
 import asyncio
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 from types import MappingProxyType
 
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent, BasePermissionComponent, BaseInfoComponent
@@ -47,7 +47,7 @@ async def parse_body(header: BaseHeaderComponent, body: bytes) -> BaseModel:
         ValueError: If the header's category is unsupported.
     '''
 
-    component_cls: type[BaseModel] = CATEGORY_MODEL_MAP.get(header.category)
+    component_cls: Optional[type[BaseModel]] = CATEGORY_MODEL_MAP.get(header.category)
     if not component_cls:
         raise ValueError('Unsupported category')
     
@@ -71,7 +71,7 @@ async def process_component(n_bytes: int, reader: asyncio.StreamReader, componen
         InvalidHeaderSemantic: If the component cannot be parsed or fails validation.
     '''
 
-    model: ProtocolComponent = None
+    model: Optional[type[ProtocolComponent]] = None
     if component_type == 'header':
         model = BaseHeaderComponent
     elif component_type == 'auth':
@@ -82,6 +82,9 @@ async def process_component(n_bytes: int, reader: asyncio.StreamReader, componen
         model = BasePermissionComponent
     elif component_type == 'info':
         model = BaseInfoComponent
+    
+    if not model:
+        raise ValueError()
     try:
         raw_component: bytes = await asyncio.wait_for(reader.readexactly(n_bytes), timeout)
         return model.model_validate_json(raw_component)
