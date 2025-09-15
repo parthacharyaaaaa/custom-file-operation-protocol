@@ -1,17 +1,15 @@
-from typing import Final
+from typing import Final, Any
 
 from models.flags import CategoryFlag, AuthFlags, PermissionFlags, InfoFlags, FileFlags
 
-from server.authz.auth_handler import top_auth_handler
-from server.info_ops.info_handler import top_info_handler
-from server.file_ops.file_handler import top_file_handler
-from server.permission_ops.permission_handler import top_permission_handler
-from server.info_ops import info_subhandlers
 from server.authz import auth_subhandlers
-
-from server.permission_ops import permission_subhandlers
+from server.authz.auth_handler import top_auth_handler
+from server.info_ops import info_subhandlers
+from server.info_ops.info_handler import top_info_handler
 from server.file_ops import file_subhandlers
-
+from server.file_ops.file_handler import top_file_handler
+from server.permission_ops import permission_subhandlers
+from server.permission_ops.permission_handler import top_permission_handler
 from server.typing import AuthSubhandler, InfoSubhandler, FileSubhandler, PermissionSubhandler, RequestHandler
 
 __all__ = ('TOP_LEVEL_REQUEST_MAPPING',
