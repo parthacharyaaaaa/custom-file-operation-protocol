@@ -61,4 +61,7 @@ RequestHandler: TypeAlias = Callable[[asyncio.StreamReader,
                                       ],
                                      SubhandlerResponse]
 
+PartialRequestHandler: TypeAlias = Callable[Concatenate[asyncio.StreamReader, BaseHeaderComponent, ServerSingletonsRegistry, P],
+                                             SubhandlerResponse]
+
 FileBuffer: TypeAlias = Union[AsyncBufferedReader, AsyncBufferedIOBase]
