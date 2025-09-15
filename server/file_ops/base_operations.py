@@ -28,7 +28,7 @@ __all__ = ('acquire_file_lock',
 async def acquire_file_lock(file_locks: TTLCache[str, str],
                             filename: str,
                             requestor: str,
-                            max_attempts: int) -> Optional[Literal[True]]:
+                            max_attempts: int = 10000) -> Optional[Literal[True]]:
     '''Indefinitely start a coroutine to wait for a lock on a file to be acquired. It is best to use this with `asyncio.wait_for` to prevent the caller from being stalled indefinitely.'''
     attempt: int = 0
     while attempt < max_attempts:
