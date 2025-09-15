@@ -5,11 +5,10 @@ import os
 import ssl
 import sys
 from functools import partial
-from typing import Final, Mapping, Sequence
+from typing import Any, Final, Sequence
 
 from cachetools import TTLCache
 
-from models.typing import SubcategoryFlag
 from models.flags import CategoryFlag
 
 from psycopg.conninfo import make_conninfo
@@ -23,20 +22,20 @@ from server.callback import callback
 from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
 from server.dependencies import ServerSingletonsRegistry
-from server.dispatch import TOP_LEVEL_REQUEST_MAPPING, auth_subhandler_mapping, file_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping
+from server.dispatch import (TOP_LEVEL_REQUEST_MAPPING, auth_subhandler_mapping,
+                             file_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping)
 from server.logging import ActivityLog
 from server.tls import credentials
-from server.typing import RequestHandler, RequestSubhandler
+from server.typing import RequestHandler
 
 def partialise_request_subhandlers(singleton_registry: ServerSingletonsRegistry,
-                                   handler_mapping: Mapping[CategoryFlag, RequestHandler],
-                                   subhandler_mappings: Sequence[Mapping[SubcategoryFlag, RequestSubhandler]]) -> None:
+                                   handler_mapping: dict[CategoryFlag, RequestHandler],
+                                   subhandler_mappings: Sequence[dict[Any, Any]]) -> None:
     # Update actual references of request subhandlers
     for subhandler_mapping in subhandler_mappings:
         for subcategory_flag, request_handler in subhandler_mapping.items():
             subhandler_mapping[subcategory_flag] = singleton_registry.inject_global_singletons(request_handler, strict=False)
     
-    # Update request handlers (#TODO: Make this more readable and more versatile against different function signatures)
     handler_mapping[CategoryFlag.AUTH] = partial(handler_mapping[CategoryFlag.AUTH], **{'subhandler_mapping' : auth_subhandler_mapping})
     handler_mapping[CategoryFlag.INFO] = partial(handler_mapping[CategoryFlag.INFO], **{'subhandler_mapping' : info_subhandler_mapping})
     handler_mapping[CategoryFlag.PERMISSION] = partial(handler_mapping[CategoryFlag.PERMISSION], **{'subhandler_mapping' : permission_subhandler_mapping})
@@ -53,7 +52,6 @@ async def start_server(dependency_registry: ServerSingletonsRegistry) -> None:
     
     async with server:
         await server.serve_forever()
-
 
 async def main() -> None:
     # Initialize all global singletons
@@ -91,8 +89,8 @@ async def main() -> None:
     # Initially generate certificates if not present
     if not (server_config.key_filepath.is_file() and server_config.certificate_filepath.is_file()):
         credentials.generate_self_signed_credentials(dns_name=str(server_config.host),
-                                                     cert_filename=server_config.certificate_filepath.name,
-                                                     key_filename=server_config.key_filepath.name)
+                                                     cert_filepath=server_config.certificate_filepath,
+                                                     key_filepath=server_config.key_filepath)
 
     # Inject singletons into request subhandler coroutines
     partialise_request_subhandlers(singleton_registry=server_dependency_registry,
