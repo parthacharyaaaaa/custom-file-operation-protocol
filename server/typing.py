@@ -1,35 +1,22 @@
 '''Typing support for server-specific data structures'''
 
 import asyncio
-from enum import IntFlag
 from typing import Any, Callable, Coroutine, Optional, TypeAlias, Union, Mapping, ParamSpec, Concatenate
 
-from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
-
-from server.dependencies import (GlobalFileLockType, GlobalLogQueueType,
-                                 GlobalAmendCacheType, GlobalDeleteCacheType, GlobalReadCacheType,
-                                 ServerConfig, ConnectionPoolManager, UserManager,
-                                 ServerSingletonsRegistry)
+from server.dependencies import ServerSingletonsRegistry
 
 from models.response_models import ResponseHeader, ResponseBody
-from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseInfoComponent, BaseFileComponent, BasePermissionComponent
-from models.typing import SubcategoryFlag
+from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent, BasePermissionComponent
 
 __all__ = ('PermissionSubhandler',
            'InfoSubhandler',
            'AuthSubhandler',
            'FileSubhandler',
            'SubhandlerResponse',
-           'ServerSingleton',
            'RequestSubhandler',
-           'RequestHandler',
-           'FileBuffer')
+           'RequestHandler')
 
 P = ParamSpec('P')
-
-ServerSingleton: TypeAlias = Union[GlobalReadCacheType, GlobalAmendCacheType, GlobalDeleteCacheType,
-                                   GlobalFileLockType, GlobalLogQueueType, ServerConfig,
-                                   ConnectionPoolManager, UserManager]
 
 PermissionSubhandler: TypeAlias = Callable[
     Concatenate[BaseHeaderComponent, BaseAuthComponent, BasePermissionComponent, P],
@@ -63,5 +50,3 @@ RequestHandler: TypeAlias = Callable[[asyncio.StreamReader,
 
 PartialRequestHandler: TypeAlias = Callable[Concatenate[asyncio.StreamReader, BaseHeaderComponent, ServerSingletonsRegistry, P],
                                              SubhandlerResponse]
-
-FileBuffer: TypeAlias = Union[AsyncBufferedReader, AsyncBufferedIOBase]
