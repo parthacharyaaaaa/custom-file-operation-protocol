@@ -35,11 +35,12 @@ _singleton_registry_config_dict: pydantic.ConfigDict = pydantic.ConfigDict(
 
 
 # NewType annotations for global singletons with data types that can be repeated in a function signature
-GlobalLogQueueType = NewType('GlobalLogQueueType', asyncio.Queue[db_models.ActivityLog])
-GlobalReadCacheType = NewType('GlobalReadCacheType', TTLCache[str, dict[str, AsyncBufferedReader]])
-GlobalAmendCacheType = NewType('GlobalAmendCacheType', TTLCache[str, dict[str, AsyncBufferedIOBase]])
-GlobalDeleteCacheType = NewType('GlobalDeleteCacheType', TTLCache[str, str])
-GlobalFileLockType = NewType('GlobalFileLockType', TTLCache[str, bytes])
+class GlobalLogQueueType(asyncio.Queue[db_models.ActivityLog]): pass
+class GlobalReadCacheType(TTLCache[str, dict[str, AsyncBufferedReader]]): pass
+class GlobalAmendCacheType(TTLCache[str, dict[str, AsyncBufferedIOBase]]): pass
+class GlobalDeleteCacheType(TTLCache[str, str]): pass
+class GlobalFileLockType(TTLCache[str, bytes]): pass
+
 SubhandlerResponse: TypeAlias = Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]
 
 SingletonTypes: TypeAlias = Union[
