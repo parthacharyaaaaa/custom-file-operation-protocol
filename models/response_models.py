@@ -18,7 +18,7 @@ __all__ = ('ResponseHeader',
            'ResponseBody')
 
 def _cast_as_ip_address(ip_address: str) -> IPvAnyAddress:
-    return IPv4Address(ip_address) if ip_address.isnumeric() else IPv6Address(ip_address)
+    return IPv6Address(ip_address) if ':' in ip_address else IPv4Address(ip_address)
 
 def _cast_as_response_code(code: str) -> Union[ClientErrorFlags, ServerErrorFlags]:
     if code in (flag.value for flag in ClientErrorFlags):
