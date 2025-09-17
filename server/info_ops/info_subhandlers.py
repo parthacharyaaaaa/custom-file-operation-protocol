@@ -1,7 +1,7 @@
 '''Subhandler routines for INFO operations'''
 # TODO: Perhaps add a caching mechanism for DB reads?
 import asyncio
-from typing import Any, Final, Union
+from typing import Any, Final, Union, Optional
 
 from models.flags import InfoFlags
 from models.response_codes import SuccessFlags
@@ -18,6 +18,7 @@ from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
 from server.database import models as db_models, utils as db_utils
 from server.info_ops.utils import derive_file_identity, get_local_filedata, get_local_storage_data
+from server.errors import UserNotFound
 
 file_permissions_selection_query: Final[sql.SQL] = sql.SQL('''SELECT {projection} FROM file_permissions
                                                            WHERE file_owner = %s AND filename = %s;''')
@@ -85,7 +86,8 @@ async def handle_filedata_query(header_component: BaseHeaderComponent,
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute(file_data_selection_query.format(projection=sql.SQL('*')),
                                  (owner, filename))
-            file_data: dict[str, Any] = await cursor.fetchone()
+            file_data: Optional[dict[str, Any]] = await cursor.fetchone()
+            assert file_data
 
             if header_component.subcategory & InfoFlags.VERBOSE:
                 file_data |= get_local_filedata(server_config.files_directory.joinpath(owner, filename))
@@ -103,7 +105,9 @@ async def handle_user_query(header_component: BaseHeaderComponent,
                                     FROM users
                                     WHERE username = %s;''',
                                     (auth_component.identity,))
-            user_data: dict[str, Any] = await cursor.fetchone()
+            user_data: Optional[dict[str, Any]] = await cursor.fetchone()
+            if not user_data:
+                raise UserNotFound(f'User {auth_component.identity} not found')
             if header_component.subcategory & InfoFlags.VERBOSE:
                 await cursor.execute('''SELECT file_owner, filename, role, granted_at, granted_by, granted_until
                                         FROM file_permissions
