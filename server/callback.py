@@ -30,7 +30,7 @@ async def callback(dependency_registry: ServerSingletonsRegistry,
         try:
             header_component = await process_component(n_bytes=REQUEST_CONSTANTS.header.max_bytesize,
                                                        reader=reader,
-                                                       component_type='header',
+                                                       component_type=BaseHeaderComponent,
                                                        timeout=dependency_registry.server_config.socket_connection_timeout)
             
             if not header_component:

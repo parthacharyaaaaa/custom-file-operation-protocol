@@ -48,11 +48,11 @@ async def top_info_handler(stream_reader: asyncio.StreamReader,
         if not header_component.auth_size:
             raise InvalidHeaderSemantic(f'Headers for INFO operation {InfoFlags(header_component.subcategory)} require authentication')
         try:
-            auth_component: ProtocolComponent = await process_component(n_bytes=header_component.auth_size,
+            auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size,
                                                                         reader=stream_reader,
-                                                                        component_type='auth',
+                                                                        component_type=BaseAuthComponent,
                                                                         timeout=server_singleton_registry.server_config.read_timeout)
-            assert isinstance(auth_component, BaseAuthComponent) and auth_component.token
+            auth_component.auth_logical_check('authentication'); assert auth_component.token
         except asyncio.TimeoutError:
             raise SlowStreamRate
         except (asyncio.IncompleteReadError, pydantic.ValidationError, orjson.JSONDecodeError):
@@ -65,10 +65,10 @@ async def top_info_handler(stream_reader: asyncio.StreamReader,
         if not header_component.body_size:
             raise InvalidHeaderSemantic(f'Headers for INFO operation {InfoFlags(header_component.subcategory)} require body')
         try:
-            info_component = await process_component(n_bytes=header_component.body_size,
-                                                     reader=stream_reader,
-                                                     component_type='info',
-                                                     timeout=server_singleton_registry.server_config.read_timeout)
+            info_component: BaseInfoComponent = await process_component(n_bytes=header_component.body_size,
+                                                                        reader=stream_reader,
+                                                                        component_type=BaseInfoComponent,
+                                                                        timeout=server_singleton_registry.server_config.read_timeout)
             subhandler_kwargs['info_component'] = info_component
         except asyncio.TimeoutError:
             raise SlowStreamRate

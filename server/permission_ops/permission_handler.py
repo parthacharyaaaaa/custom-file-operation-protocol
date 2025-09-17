@@ -46,7 +46,7 @@ async def top_permission_handler(stream_reader: asyncio.StreamReader,
     try:
         auth_component: ProtocolComponent = await process_component(n_bytes=header_component.auth_size,
                                                                     reader=stream_reader,
-                                                                    component_type='auth',
+                                                                    component_type=BaseAuthComponent,
                                                                     timeout=server_singleton_registry.server_config.read_timeout)
         assert isinstance(auth_component, BaseAuthComponent) and auth_component.token
     except asyncio.TimeoutError:
@@ -64,7 +64,7 @@ async def top_permission_handler(stream_reader: asyncio.StreamReader,
     # All checks at the component level passed, read permission component
     permission_component: ProtocolComponent = await process_component(n_bytes=header_component.body_size,
                                                                       reader=stream_reader,
-                                                                      component_type='permission',
+                                                                      component_type=BasePermissionComponent,
                                                                       timeout=server_singleton_registry.server_config.read_timeout)
     assert isinstance(permission_component, BasePermissionComponent)
     # For permission operations, we'll need to mask the role bits 

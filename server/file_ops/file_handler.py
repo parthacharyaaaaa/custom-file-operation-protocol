@@ -4,11 +4,10 @@ from typing import Mapping, Optional
 from models.flags import FileFlags, CategoryFlag
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent
 from models.response_models import ResponseHeader, ResponseBody
-from models.typing import ProtocolComponent
 
 from server.comms_utils.incoming import process_component
 from server.dependencies import ServerSingletonsRegistry
-from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, SlowStreamRate, UnsupportedOperation
+from server.errors import InvalidHeaderSemantic, InvalidAuthSemantic, InvalidAuthData, SlowStreamRate, UnsupportedOperation
 from server.typing import FileSubhandler
 
 import orjson
@@ -41,11 +40,14 @@ async def top_file_handler(stream_reader: asyncio.StreamReader,
         raise InvalidHeaderSemantic('Headers for permission operations require BOTH auth component and permission (body) component')
 
     try:
-        auth_component: ProtocolComponent = await process_component(n_bytes=header_component.auth_size,
+        auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size,
                                                                     reader=stream_reader,
-                                                                    component_type='auth',
+                                                                    component_type=BaseAuthComponent,
                                                                     timeout=server_singleton_registry.server_config.read_timeout)
-        assert isinstance(auth_component, BaseAuthComponent) and auth_component.token
+        if not auth_component.auth_logical_check('authentication'):
+            raise InvalidAuthData("Missing authentication details")
+        assert auth_component.token
+        
     except asyncio.TimeoutError:
         raise SlowStreamRate
     except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
@@ -59,9 +61,9 @@ async def top_file_handler(stream_reader: asyncio.StreamReader,
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.FILE_OP._name_}')
     
     # All checks at the component level passed, read and process file component
-    file_component: ProtocolComponent = await process_component(n_bytes=header_component.body_size,
+    file_component: BaseFileComponent = await process_component(n_bytes=header_component.body_size,
                                                                 reader=stream_reader,
-                                                                component_type='file',
+                                                                component_type=BaseFileComponent,
                                                                 timeout=server_singleton_registry.server_config.read_timeout)
     assert isinstance(file_component, BaseFileComponent) and isinstance(header_component.subcategory, FileFlags)
 

@@ -37,12 +37,10 @@ async def top_auth_handler(stream_reader: asyncio.StreamReader,
     if not header_component.auth_size:
         raise InvalidAuthSemantic('Missing auth component in header, and no unauthenticated operation requested')
 
-    auth_component: ProtocolComponent  = await process_component(n_bytes=header_component.auth_size,
+    auth_component: BaseAuthComponent  = await process_component(n_bytes=header_component.auth_size,
                                                                  reader=stream_reader,
-                                                                 component_type='auth',
+                                                                 component_type=BaseAuthComponent,
                                                                  timeout=server_singleton_registry.server_config.read_timeout)
-    assert isinstance(auth_component, BaseAuthComponent) 
-
     if header_component.subcategory not in AuthFlags._value2member_map_:    # R level function name, absolutely vile.
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.AUTH._name_}')
     
