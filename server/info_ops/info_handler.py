@@ -41,8 +41,7 @@ async def top_info_handler(stream_reader: asyncio.StreamReader,
         raise UnsupportedOperation(f'Unsupported operation (bits: {header_component.subcategory}) for category: {CategoryFlag.INFO._name_}')
     
     subhandler_kwargs: dict[str, ProtocolComponent] = {'header_component' : header_component}
-    routing_bits: Final[int] = header_component.subcategory & InfoFlags.OPERATION_EXTRACTION_BITS
-    assert isinstance(routing_bits, InfoFlags)
+    routing_bits: Final[InfoFlags] = InfoFlags.OPERATION_EXTRACTION_BITS & header_component.subcategory
 
     if routing_bits not in UNAUTHENTICATED_INFO_OPERATIONS:
         if not header_component.auth_size:
