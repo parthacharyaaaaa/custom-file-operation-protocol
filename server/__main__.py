@@ -4,23 +4,29 @@ import asyncio
 import os
 import sys
 from typing import Final
+from types import MappingProxyType
 
 from cachetools import TTLCache
 
 from psycopg.conninfo import make_conninfo
+
+from models.flags import CategoryFlag
 
 from server.authz.user_manager import UserManager
 from server.bootup import (create_server_config, create_connection_master,
                            create_log_queue, create_user_master,
                            create_caches, create_file_lock, create_storage_cache,
                            start_logger, start_server, partialise_request_subhandlers)
+
 from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
 from server.dependencies import ServerSingletonsRegistry
 from server.dispatch import (TOP_LEVEL_REQUEST_MAPPING, auth_subhandler_mapping,
                              file_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping)
+
 from server.logging import ActivityLog
 from server.tls import credentials
+from server.typing import PartialisedRequestHandler
 
 async def main() -> None:
     # Initialize all global singletons
@@ -62,13 +68,14 @@ async def main() -> None:
                                                      key_filepath=server_config.key_filepath)
 
     # Inject singletons into request subhandler coroutines
-    partialise_request_subhandlers(singleton_registry=server_dependency_registry,
-                                   handler_mapping=TOP_LEVEL_REQUEST_MAPPING,
-                                   subhandler_mappings=[auth_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping, file_subhandler_mapping])
+    routing_map: Final[MappingProxyType[CategoryFlag, PartialisedRequestHandler]] = partialise_request_subhandlers(
+        singleton_registry=server_dependency_registry,
+        top_handler_mapping=TOP_LEVEL_REQUEST_MAPPING,
+        subhandler_mappings=[auth_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping, file_subhandler_mapping])
 
     reference_time: float = os.stat(server_config.certificate_filepath, follow_symlinks=False).st_mtime
     while True:
-        running_server: asyncio.Task = asyncio.create_task(start_server(server_dependency_registry))
+        running_server: asyncio.Task = asyncio.create_task(start_server(dependency_registry=server_dependency_registry, request_handler_map=routing_map))
         while not running_server.done():
             await asyncio.sleep(server_config.rollover_check_poll_interval)
             modification_time: float = os.stat(server_config.certificate_filepath, follow_symlinks=False).st_mtime

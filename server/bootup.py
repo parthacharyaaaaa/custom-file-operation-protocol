@@ -4,6 +4,7 @@ import ssl
 from functools import partial
 from math import inf
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Final, Optional, Sequence
 
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
@@ -22,7 +23,7 @@ from server.dependencies import ServerSingletonsRegistry
 from server.dispatch import auth_subhandler_mapping, file_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping
 from server.file_ops.storage import StorageCache
 from server.tls import credentials
-from server.typing import RequestHandler
+from server.typing import RequestHandler, PartialisedRequestHandler
 
 import pytomlpp
 
@@ -95,24 +96,27 @@ def start_logger(log_queue: asyncio.Queue[db_models.ActivityLog], config: Server
                                            flush_interval=config.log_interval))
 
 def partialise_request_subhandlers(singleton_registry: ServerSingletonsRegistry,
-                                   handler_mapping: dict[CategoryFlag, RequestHandler],
-                                   subhandler_mappings: Sequence[dict[Any, Any]]) -> None:
+                                   top_handler_mapping: dict[CategoryFlag, RequestHandler],
+                                   subhandler_mappings: Sequence[dict[Any, Any]]) -> MappingProxyType[CategoryFlag, PartialisedRequestHandler]:
     # Update actual references of request subhandlers
     for subhandler_mapping in subhandler_mappings:
         for subcategory_flag, request_handler in subhandler_mapping.items():
             subhandler_mapping[subcategory_flag] = singleton_registry.inject_global_singletons(request_handler, strict=False)
-    
-    handler_mapping[CategoryFlag.AUTH] = partial(handler_mapping[CategoryFlag.AUTH], **{'subhandler_mapping' : auth_subhandler_mapping})
-    handler_mapping[CategoryFlag.INFO] = partial(handler_mapping[CategoryFlag.INFO], **{'subhandler_mapping' : info_subhandler_mapping})
-    handler_mapping[CategoryFlag.PERMISSION] = partial(handler_mapping[CategoryFlag.PERMISSION], **{'subhandler_mapping' : permission_subhandler_mapping})
-    handler_mapping[CategoryFlag.FILE_OP] = partial(handler_mapping[CategoryFlag.FILE_OP], **{'subhandler_mapping' : file_subhandler_mapping})
 
-async def start_server(dependency_registry: ServerSingletonsRegistry) -> None:
+    partialised_mapping: Final[dict[CategoryFlag, PartialisedRequestHandler]] = {}
+    partialised_mapping[CategoryFlag.AUTH] = partial(top_handler_mapping[CategoryFlag.AUTH], **{'subhandler_mapping' : auth_subhandler_mapping})
+    partialised_mapping[CategoryFlag.INFO] = partial(top_handler_mapping[CategoryFlag.INFO], **{'subhandler_mapping' : info_subhandler_mapping})
+    partialised_mapping[CategoryFlag.PERMISSION] = partial(top_handler_mapping[CategoryFlag.PERMISSION], **{'subhandler_mapping' : permission_subhandler_mapping})
+    partialised_mapping[CategoryFlag.FILE_OP] = partial(top_handler_mapping[CategoryFlag.FILE_OP], **{'subhandler_mapping' : file_subhandler_mapping})
+
+    return MappingProxyType(partialised_mapping)
+
+async def start_server(dependency_registry: ServerSingletonsRegistry,
+                       request_handler_map: MappingProxyType[CategoryFlag, PartialisedRequestHandler]) -> None:
     ssl_context: ssl.SSLContext = credentials.make_server_ssl_context(certfile=dependency_registry.server_config.certificate_filepath,
                                                                       keyfile=dependency_registry.server_config.key_filepath,
                                                                       ciphers=dependency_registry.server_config.ciphers)
-    
-    server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback, dependency_registry),
+    server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback, dependency_registry, request_handler_map),
                                                         host=str(dependency_registry.server_config.host), port=dependency_registry.server_config.port,
                                                         ssl=ssl_context)
     
