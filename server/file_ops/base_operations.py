@@ -45,7 +45,7 @@ async def preemptive_eof_check(reader: AsyncBufferedReader) -> bool:
     return True
 
 async def read_file(root: os.PathLike, fpath: str, identifier: str,
-                    deleted_cache: TTLCache[str, str], read_cache: TTLCache[str, dict[str, AsyncBufferedReader]],
+                    deleted_cache: TTLCache[str, Literal[True]], read_cache: TTLCache[str, dict[str, AsyncBufferedReader]],
                     cursor_position: int, nbytes: int = -1,
                     reader_keepalive: bool = False, purge_reader: bool = False) -> tuple[bytes, int, bool]:
     abs_fpath: Final[str] = os.path.join(root, fpath)
@@ -77,7 +77,7 @@ async def read_file(root: os.PathLike, fpath: str, identifier: str,
 
 async def write_file(root: os.PathLike, fpath: str, data: bytes,
                      identifier: str,
-                     deleted_cache: TTLCache[str, str], amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]],
+                     deleted_cache: TTLCache[str, Literal[True]], amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]],
                      cursor_position: int, trunacate: bool = False,
                      writer_keepalive: bool = False, purge_writer: bool = False) -> int:
     abs_fpath: str = os.path.join(root, fpath)
@@ -109,7 +109,7 @@ async def write_file(root: os.PathLike, fpath: str, data: bytes,
 async def append_file(root: os.PathLike, fpath: str,
                       data: bytes,
                       identifier: str,
-                      deleted_cache: TTLCache[str, str], amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]],
+                      deleted_cache: TTLCache[str, Literal[True]], amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]],
                       append_writer_keepalive: bool = False, purge_append_writer: bool = False, writer_cached: bool = False) -> int:
     abs_fpath: str = os.path.join(root, fpath)
     if deleted_cache.get(fpath) or not os.path.isfile(abs_fpath):

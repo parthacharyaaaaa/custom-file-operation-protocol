@@ -54,7 +54,7 @@ async def handle_deletion(header_component: BaseHeaderComponent,
     # Request validated. No need to acquire lock since owner's deletion request is more important than any concurrent file amendment locks
     file: Final[str] = os.path.join(file_component.subject_file_owner, file_component.subject_file)
 
-    file_deleted: bool = await base_ops.delete_file(config.files_directory, file, deleted_cache, read_cache, amendment_cache)
+    file_deleted: bool = await base_ops.delete_file(config.files_directory, file, deleted_cache)
     if not file_deleted:
         err_str: str = f'Failed to delete file {file_component.subject_file}'
         asyncio.create_task(
@@ -126,7 +126,7 @@ async def handle_amendment(header_component: BaseHeaderComponent,
                                                     grantee=auth_component.identity,
                                                     connection_master=connection_master,
                                                     proxy=proxy,
-                                                    check_for=FilePermissions.WRITE.value,
+                                                    check_for=FilePermissions.WRITE,
                                                     check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
             err_str: str = f'User {auth_component.identity} does not have write permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
             asyncio.create_task(
