@@ -11,7 +11,7 @@ from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 from cachetools import TTLCache
 
 from server import errors
-from server.file_ops.cache_ops import remove_reader, get_reader, purge_file_entries, rename_file_entries
+from server.file_ops.cache_ops import remove_buffer, get_buffer, purge_buffers, rename_buffers
 from server.file_ops.typing import FileBuffer
 
 __all__ = ('acquire_file_lock',
@@ -38,7 +38,7 @@ async def acquire_file_lock(file_locks: TTLCache[str, str],
         attempt += 1
         await asyncio.sleep(0.1)
 
-async def preemptive_eof_check(reader: AsyncBufferedReader) -> bool:
+async def preemptive_eof_check(reader: FileBuffer) -> bool:
     if not await reader.read(1):
         return False
     await reader.seek(await reader.tell() - 1)
@@ -53,7 +53,7 @@ async def read_file(root: os.PathLike, fpath: str, identifier: str,
         raise FileNotFoundError
 
     eof_reached: bool = False
-    reader = get_reader(read_cache, fpath, identifier)
+    reader: Optional[AsyncBufferedReader] = get_buffer(read_cache, fpath, identifier)
     if not reader:
         reader = await aiofiles.open(file=abs_fpath, mode='rb')
     
@@ -69,7 +69,7 @@ async def read_file(root: os.PathLike, fpath: str, identifier: str,
 
     if purge_reader:
         await reader.close()
-        remove_reader(read_cache, fpath, identifier)
+        remove_buffer(read_cache, fpath, identifier)
     elif reader_keepalive:
         read_cache.setdefault(fpath, {})[identifier] = reader
 
@@ -84,9 +84,14 @@ async def write_file(root: os.PathLike, fpath: str, data: bytes,
     if deleted_cache.get(fpath) or not os.path.isfile(abs_fpath):
         raise FileNotFoundError()
     
-    writer = get_reader(amendment_cache, fpath, identifier)
+    writer: Optional[AsyncBufferedIOBase] = get_buffer(amendment_cache, fpath, identifier)
     if not writer:
-        writer = await aiofiles.open(abs_fpath, 'wb' if trunacate else 'r+b')
+        # The entire writer assignment is put in conditions instead of an inline condition like mode='wb' if truncate else 'r+b'
+        # to satisfy type checkers. A variable mode makes the return type as _UnknownAsyncBinaryIO, not what we want >:(
+        if trunacate:
+            writer = await aiofiles.open(abs_fpath, mode='wb')
+        else:
+            writer = await aiofiles.open(abs_fpath, mode='r+b')
 
     if await writer.tell() != cursor_position:
         await writer.seek(cursor_position)
@@ -95,12 +100,12 @@ async def write_file(root: os.PathLike, fpath: str, data: bytes,
     try:
         await writer.write(data)
         if purge_writer:
-            remove_reader(amendment_cache, fpath, identifier)
+            remove_buffer(amendment_cache, fpath, identifier)
             await writer.close()
         elif writer_keepalive:
             amendment_cache.setdefault(fpath, {}).update({identifier:writer})
     except IOError:
-        remove_reader(amendment_cache, fpath, identifier)
+        remove_buffer(amendment_cache, fpath, identifier)
         await writer.close()
         raise IOError
     
@@ -119,7 +124,7 @@ async def append_file(root: os.PathLike, fpath: str,
     append_writer: Optional[AsyncBufferedIOBase] = None
     if writer_cached:
         if not identifier: raise ValueError('Cached usage requires identifier for writer')
-        append_writer = get_reader(amendment_cache, fpath, identifier)
+        append_writer = get_buffer(amendment_cache, fpath, identifier)
 
         if not append_writer:
             append_writer = await aiofiles.open(abs_fpath, '+ab')
@@ -128,13 +133,13 @@ async def append_file(root: os.PathLike, fpath: str,
     try:
         await append_writer.write(data)
     except IOError:
-        remove_reader(amendment_cache, fpath, identifier)
+        remove_buffer(amendment_cache, fpath, identifier)
         await append_writer.close()
         return -1
     if append_writer_keepalive and not writer_cached:
         amendment_cache.setdefault(fpath, {}).update({identifier:append_writer})
     elif purge_append_writer:
-        remove_reader(amendment_cache, fpath, identifier)
+        remove_buffer(amendment_cache, fpath, identifier)
     
     return len(data)
 
@@ -159,7 +164,7 @@ async def delete_file(root: os.PathLike, fpath: str,
         return False
     try:
         os.remove(abs_fpath)
-        await purge_file_entries(fpath, deleted_cache, *caches)
+        await purge_buffers(fpath, deleted_cache, *caches)
         return True
     except (FileNotFoundError, PermissionError, OSError):
         return False
@@ -174,7 +179,7 @@ def rename_file(root: os.PathLike, fpath: str, name: str,
     try:
         new_fpath: str = os.path.join(os.path.dirname(abs_fpath), name)
         os.rename(fpath, new_fpath)
-        rename_file_entries(fpath, new_fpath, *caches)
+        rename_buffers(fpath, new_fpath, *caches)
         
         return True
     except (PermissionError, OSError):

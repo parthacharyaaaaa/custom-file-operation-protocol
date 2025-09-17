@@ -1,28 +1,29 @@
 '''Basic cache operations to support higher-level `FILE` request handlers and file operations'''
 
-from cachetools import TTLCache
+from typing import Literal, Optional, TypeVar
 from aiofiles.threadpool.binary import AsyncBufferedIOBase, AsyncBufferedReader
-from typing import Literal, Optional, Union
+from cachetools import TTLCache
+from server.file_ops.typing import FileBufferCacheItem, FileBufferCache
 
-from server.file_ops.typing import FileBufferCache, FileBuffer
+__all__ = ('remove_buffer', 'get_buffer', 'rename_buffers', 'purge_buffers')
 
-__all__ = ('remove_reader', 'get_reader', 'purge_file_entries', 'rename_file_entries')
+T = TypeVar('T', AsyncBufferedIOBase, AsyncBufferedReader)
 
-def remove_reader(read_cache: FileBufferCache,
+def remove_buffer(read_cache: FileBufferCache,
                   fpath: str, identifier: str) -> None:
     try:
         read_cache[fpath].pop(identifier, None)
     except KeyError:
         return None
     
-def get_reader(read_cache: FileBufferCache,
-               fpath: str, identifier: str) -> Optional[FileBuffer]:
+def get_buffer(buffer_cache: TTLCache[str, dict[str, T]],
+               fpath: str, identifier: str) -> Optional[T]:
     try:
-        return read_cache[fpath][identifier]
+        return buffer_cache[fpath][identifier]
     except KeyError:
         return None
-    
-async def purge_file_entries(fpath: str,
+
+async def purge_buffers(fpath: str,
                              deleted_cache: TTLCache[str, Literal[True]],
                              *cache_list: FileBufferCache) -> None:
     deleted_cache.update({fpath:True})
@@ -31,8 +32,8 @@ async def purge_file_entries(fpath: str,
         for _, buffered_obj in buffered_mapping.items():
             await buffered_obj.close()
 
-def rename_file_entries(old_fpath: str, new_fpath: str,
-                        *cache_list: TTLCache[str, dict[str, Union[AsyncBufferedIOBase, AsyncBufferedReader]]]) -> None:
+def rename_buffers(old_fpath: str, new_fpath: str,
+                        *cache_list: FileBufferCache) -> None:
     for cache in cache_list:
-        buffered_mapping = cache.pop(old_fpath, {})
-        cache[new_fpath] = buffered_mapping
+        buffered_mapping: FileBufferCacheItem = cache.pop(old_fpath, {})
+        cache[new_fpath] = buffered_mapping #type: ignore since buffered_mapping was popped from the same cache
