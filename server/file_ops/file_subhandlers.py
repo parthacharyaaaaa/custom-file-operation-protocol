@@ -2,7 +2,6 @@ import asyncio
 import os
 from datetime import datetime
 from typing import Any
-from zlib import adler32
 from typing import Final
 
 from models.cursor_flag import CursorFlag
@@ -191,7 +190,7 @@ async def handle_amendment(header_component: BaseHeaderComponent,
         await storage_cache.update_file_size(file_component.subject_file_owner,
                                              diff=cursor_position - file_size)
     
-    keepalive_accepted = cache_ops.get_reader(amendment_cache, fpath, auth_component.identity)
+    keepalive_accepted = cache_ops.get_buffer(amendment_cache, fpath, auth_component.identity)
     if not keepalive_accepted:
         file_locks.pop(fpath)
     
@@ -234,7 +233,7 @@ async def handle_read(header_component: BaseHeaderComponent,
     
     ongoing_amendment: bool = bool(file_locks.get(fpath))
     if (cursor_killed:=eof_reached and not (file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE)):
-        cache_ops.remove_reader(read_cache, fpath, auth_component.identity)
+        cache_ops.remove_buffer(read_cache, fpath, auth_component.identity)
 
     return (ResponseHeader.from_server(config=config,
                                        version=header_component.version,
