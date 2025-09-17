@@ -46,7 +46,7 @@ async def check_file_permission(filename: str, owner: str, grantee: str,
                                  WHERE fp.file_owner = %s AND fp.filename = %s AND fp.grantee = %s AND (fp.granted_until > %s OR fp.granted_until IS NULL)
                                  AND roles.permission = %s;''',
                                  (owner, filename, grantee, check_until or datetime.now(), check_for.value,))
-            role_mapping: dict[str, str] = await cursor.fetchone()
+            role_mapping: Optional[dict[str, str]] = await cursor.fetchone()
     finally:
         if reclaim_after:
             await connection_master.reclaim_connection(proxy)
