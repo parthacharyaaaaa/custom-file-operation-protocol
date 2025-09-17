@@ -17,16 +17,16 @@ import pydantic
 
 __all__ = ('top_info_handler',)
 
-async def top_info_handler(reader: asyncio.StreamReader,
+async def top_info_handler(stream_reader: asyncio.StreamReader,
                            header_component: BaseHeaderComponent,
-                           dependency_registry: ServerSingletonsRegistry,
+                           server_singleton_registry: ServerSingletonsRegistry,
                            subhandler_mapping: Mapping[InfoFlags, InfoSubhandler]) -> tuple[ResponseHeader, Optional[ResponseBody]]:
     '''Entrypoint for handling `info` operations over a stream. Performs optional authentication, validation, and finally dispatches to the appropriate subhandler.
 
     Args:
-        reader (asyncio.StreamReader): Stream reader from which request components are read.
+        stream_reader (asyncio.StreamReader): Stream reader from which request components are read.
         header_component (BaseHeaderComponent): Parsed header containing sizes and metadata for auth and permission components.
-        dependency_registry (ServerSingletonsRegistry): Registry providing server configuration and singleton dependencies required for handling.
+        server_singleton_registry (ServerSingletonsRegistry): Registry providing server configuration and singleton dependencies required for handling.
 
     Returns:
         tuple[ResponseHeader,Optional[ResponseBody]]: Response header and optional response body resulting from the permission operation.
@@ -49,24 +49,26 @@ async def top_info_handler(reader: asyncio.StreamReader,
             raise InvalidHeaderSemantic(f'Headers for INFO operation {InfoFlags(header_component.subcategory)} require authentication')
         try:
             auth_component: ProtocolComponent = await process_component(n_bytes=header_component.auth_size,
-                                                                        reader=reader,
+                                                                        reader=stream_reader,
                                                                         component_type='auth',
-                                                                        timeout=dependency_registry.server_config.read_timeout)
+                                                                        timeout=server_singleton_registry.server_config.read_timeout)
             assert isinstance(auth_component, BaseAuthComponent) and auth_component.token
         except asyncio.TimeoutError:
             raise SlowStreamRate
         except (asyncio.IncompleteReadError, pydantic.ValidationError, orjson.JSONDecodeError):
             raise InvalidAuthSemantic
     
-        await dependency_registry.user_manager.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
+        await server_singleton_registry.user_manager.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
         subhandler_kwargs['auth_component'] = auth_component
     
     if routing_bits not in HEADER_ONLY_INFO_OPERATIONS:
         if not header_component.body_size:
             raise InvalidHeaderSemantic(f'Headers for INFO operation {InfoFlags(header_component.subcategory)} require body')
         try:
-            info_component = await process_component(n_bytes=header_component.body_size, reader=reader,
-                                                    component_type='info', timeout=dependency_registry.server_config.read_timeout)
+            info_component = await process_component(n_bytes=header_component.body_size,
+                                                     reader=stream_reader,
+                                                     component_type='info',
+                                                     timeout=server_singleton_registry.server_config.read_timeout)
             subhandler_kwargs['info_component'] = info_component
         except asyncio.TimeoutError:
             raise SlowStreamRate

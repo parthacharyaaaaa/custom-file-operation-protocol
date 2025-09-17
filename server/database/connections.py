@@ -219,7 +219,7 @@ class ConnectionPoolManager:
         max_lease_duration = min(self.lease_duration, (max_lease_duration or self.lease_duration))
 
         requested_connection._lease_duration = max_lease_duration
-        proxy: ConnectionProxy = ConnectionProxy(leased_conn=requested_connection, token=token)
+        proxy: ConnectionProxy = ConnectionProxy(leased_conn=requested_connection, token=token) # type: ignore
         asyncio.create_task(requested_connection.begin_lease_timer())
 
         return proxy
