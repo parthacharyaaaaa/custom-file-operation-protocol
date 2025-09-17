@@ -1,6 +1,6 @@
 import asyncio
 from traceback import format_exc, format_exception_only
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from models.flags import CategoryFlag
 from models.request_model import BaseHeaderComponent
@@ -18,6 +18,8 @@ from server.dispatch import TOP_LEVEL_REQUEST_MAPPING
 from server.typing import PartialRequestHandler
 
 __all__ = ('callback',)
+
+if TYPE_CHECKING: assert REQUEST_CONSTANTS
 
 async def callback(dependency_registry: ServerSingletonsRegistry,
                    reader: asyncio.StreamReader,

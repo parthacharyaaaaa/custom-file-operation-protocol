@@ -1,11 +1,13 @@
 '''Outgoing messages from server to client'''
 import asyncio
-from typing import Optional, Union
+from typing import Optional, Union, TYPE_CHECKING
 
 from models.response_models import ResponseHeader, ResponseBody
 from models.constants import RESPONSE_CONSTANTS
 
 __all__ = ('send_response',)
+
+if TYPE_CHECKING: assert RESPONSE_CONSTANTS
 
 async def send_response(writer: asyncio.StreamWriter,
                         header: Union[ResponseHeader, bytes],
