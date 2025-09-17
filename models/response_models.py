@@ -1,7 +1,7 @@
 '''Module for defining schema of outgoing responses'''
 from ipaddress import IPv4Address, IPv6Address
 from time import time
-from typing import Optional, Any, Union
+from typing import Optional, Any, Union, TYPE_CHECKING
 from typing_extensions import Self
 
 from models.constants import REQUEST_CONSTANTS
@@ -16,6 +16,8 @@ from server.errors import ProtocolException
 
 __all__ = ('ResponseHeader',
            'ResponseBody')
+
+if TYPE_CHECKING: assert REQUEST_CONSTANTS
 
 def _cast_as_ip_address(ip_address: str) -> IPvAnyAddress:
     return IPv6Address(ip_address) if ':' in ip_address else IPv4Address(ip_address)
