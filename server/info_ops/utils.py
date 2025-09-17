@@ -5,11 +5,9 @@ import os
 from datetime import datetime
 from typing import Any
 
-from models.constants import REQUEST_CONSTANTS
-
 from server.errors import InvalidBodyValues
 
-def derive_file_identity(identity: str) -> list[str, str]:
+def derive_file_identity(identity: str) -> list[str]:
     split_args: list[str] = identity.split('/')
     if len(split_args) != 2:
         raise InvalidBodyValues(f'Invalid file identity: {identity}')
