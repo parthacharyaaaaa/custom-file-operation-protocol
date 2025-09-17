@@ -68,7 +68,7 @@ async def top_permission_handler(reader: asyncio.StreamReader,
                                                                       timeout=dependency_registry.server_config.read_timeout)
     assert isinstance(permission_component, BasePermissionComponent)
     # For permission operations, we'll need to mask the role bits 
-    subhandler = subhandler_mapping[header_component.subcategory & ~PermissionFlags.ROLE_EXTRACTION_BITMASK]
+    subhandler = subhandler_mapping[PermissionFlags(header_component.subcategory & ~PermissionFlags.ROLE_EXTRACTION_BITMASK)]
     
     header, body = await subhandler(header_component=header_component,
                                     auth_component=auth_component,
