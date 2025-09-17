@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import time
@@ -5,9 +6,9 @@ from datetime import datetime
 from secrets import token_hex
 from hmac import compare_digest
 from hashlib import pbkdf2_hmac
-from typing import Optional, Final
+from typing import Optional, Final, TypeAlias, Union
 
-import asyncio
+from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 
 from cachetools import TTLCache
 
@@ -20,9 +21,10 @@ import psycopg.errors as pg_errors
 from server.database.connections import ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog, LogAuthor, Severity, LogType
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned, InvalidAuthData, OperationContested
-from server.typing import FileBuffer
 
 __all__ = ('UserManager',)
+
+FileBuffer: TypeAlias = Union[AsyncBufferedReader, AsyncBufferedIOBase]
 
 class UserManager(metaclass=SingletonMetaclass):
     '''Class for managing user sessions and user-related operations'''

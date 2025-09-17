@@ -13,8 +13,8 @@ from psycopg.rows import dict_row
 
 __all__ = ('main',)
 
-def _update_storage_details(directory: os.PathLike[str],
-                            user_storage_mapping: dict[str, int],
+def _update_storage_details(directory: os.PathLike[str] | str,
+                            user_storage_mapping: dict[str, dict[str, int]],
                             file_storage_mapping: dict[str, dict[str, int]],
                             username: Optional[str] = None) -> None:
     username = username or os.path.basename(directory)
@@ -46,7 +46,7 @@ def main() -> None:
                                                                  (filename, owner, file_size)
                                                                  VALUES (%s, %s, %s);''')
     
-    server_root: Final[os.PathLike[str]] = os.path.dirname(os.path.dirname(__file__))
+    server_root: Final[str] = os.path.dirname(os.path.dirname(__file__))
     loaded: bool = load_dotenv(dotenv_path=os.path.join(server_root, '.env'),
                                override=True, verbose=True)
     if not loaded:
@@ -57,7 +57,7 @@ def main() -> None:
         host=os.environ['PG_HOST'], port=os.environ['PG_PORT'], dbname=os.environ['PG_DBNAME'])
         )
     
-    files_directory: os.PathLike[str] = os.path.join(server_root, 'files')
+    files_directory: Final[str] = os.path.join(server_root, 'files')
     user_storage_mapping: dict[str, dict[str, int]] = {}
     file_storage_mapping: dict[str, dict[str, int]] = {}
 

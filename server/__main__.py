@@ -2,58 +2,31 @@
 
 import asyncio
 import os
-import ssl
 import sys
-from functools import partial
-from typing import Final, Mapping, Sequence
+from typing import Final
+from types import MappingProxyType
 
 from cachetools import TTLCache
 
-from models.typing import SubcategoryFlag
-from models.flags import CategoryFlag
-
 from psycopg.conninfo import make_conninfo
+
+from models.flags import CategoryFlag
 
 from server.authz.user_manager import UserManager
 from server.bootup import (create_server_config, create_connection_master,
                            create_log_queue, create_user_master,
                            create_caches, create_file_lock, create_storage_cache,
-                           start_logger)
-from server.callback import callback
+                           start_logger, start_server, partialise_request_subhandlers)
+
 from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
 from server.dependencies import ServerSingletonsRegistry
-from server.dispatch import TOP_LEVEL_REQUEST_MAPPING, auth_subhandler_mapping, file_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping
+from server.dispatch import (TOP_LEVEL_REQUEST_MAPPING, auth_subhandler_mapping,
+                             file_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping)
+
 from server.logging import ActivityLog
 from server.tls import credentials
-from server.typing import RequestHandler, RequestSubhandler
-
-def partialise_request_subhandlers(singleton_registry: ServerSingletonsRegistry,
-                                   handler_mapping: Mapping[CategoryFlag, RequestHandler],
-                                   subhandler_mappings: Sequence[Mapping[SubcategoryFlag, RequestSubhandler]]) -> None:
-    # Update actual references of request subhandlers
-    for subhandler_mapping in subhandler_mappings:
-        for subcategory_flag, request_handler in subhandler_mapping.items():
-            subhandler_mapping[subcategory_flag] = singleton_registry.inject_global_singletons(request_handler, strict=False)
-    
-    # Update request handlers (#TODO: Make this more readable and more versatile against different function signatures)
-    handler_mapping[CategoryFlag.AUTH] = partial(handler_mapping[CategoryFlag.AUTH], **{'subhandler_mapping' : auth_subhandler_mapping})
-    handler_mapping[CategoryFlag.INFO] = partial(handler_mapping[CategoryFlag.INFO], **{'subhandler_mapping' : info_subhandler_mapping})
-    handler_mapping[CategoryFlag.PERMISSION] = partial(handler_mapping[CategoryFlag.PERMISSION], **{'subhandler_mapping' : permission_subhandler_mapping})
-    handler_mapping[CategoryFlag.FILE_OP] = partial(handler_mapping[CategoryFlag.FILE_OP], **{'subhandler_mapping' : file_subhandler_mapping})
-
-async def start_server(dependency_registry: ServerSingletonsRegistry) -> None:
-    ssl_context: ssl.SSLContext = credentials.make_server_ssl_context(certfile=dependency_registry.server_config.certificate_filepath,
-                                                                      keyfile=dependency_registry.server_config.key_filepath,
-                                                                      ciphers=dependency_registry.server_config.ciphers)
-    
-    server: asyncio.Server = await asyncio.start_server(client_connected_cb=partial(callback, dependency_registry),
-                                                        host=str(dependency_registry.server_config.host), port=dependency_registry.server_config.port,
-                                                        ssl=ssl_context)
-    
-    async with server:
-        await server.serve_forever()
-
+from server.typing import PartialisedRequestHandler
 
 async def main() -> None:
     # Initialize all global singletons
@@ -91,17 +64,18 @@ async def main() -> None:
     # Initially generate certificates if not present
     if not (server_config.key_filepath.is_file() and server_config.certificate_filepath.is_file()):
         credentials.generate_self_signed_credentials(dns_name=str(server_config.host),
-                                                     cert_filename=server_config.certificate_filepath.name,
-                                                     key_filename=server_config.key_filepath.name)
+                                                     cert_filepath=server_config.certificate_filepath,
+                                                     key_filepath=server_config.key_filepath)
 
     # Inject singletons into request subhandler coroutines
-    partialise_request_subhandlers(singleton_registry=server_dependency_registry,
-                                   handler_mapping=TOP_LEVEL_REQUEST_MAPPING,
-                                   subhandler_mappings=[auth_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping, file_subhandler_mapping])
+    routing_map: Final[MappingProxyType[CategoryFlag, PartialisedRequestHandler]] = partialise_request_subhandlers(
+        singleton_registry=server_dependency_registry,
+        top_handler_mapping=TOP_LEVEL_REQUEST_MAPPING,
+        subhandler_mappings=[auth_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping, file_subhandler_mapping])
 
     reference_time: float = os.stat(server_config.certificate_filepath, follow_symlinks=False).st_mtime
     while True:
-        running_server: asyncio.Task = asyncio.create_task(start_server(server_dependency_registry))
+        running_server: asyncio.Task = asyncio.create_task(start_server(dependency_registry=server_dependency_registry, request_handler_map=routing_map))
         while not running_server.done():
             await asyncio.sleep(server_config.rollover_check_poll_interval)
             modification_time: float = os.stat(server_config.certificate_filepath, follow_symlinks=False).st_mtime

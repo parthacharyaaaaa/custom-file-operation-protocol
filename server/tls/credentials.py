@@ -65,7 +65,7 @@ def generate_self_signed_credentials(cert_filepath: Path,
         if not certfile_exists:
             Path.unlink(cert_filepath, missing_ok=True)
         if not keyfile_exists:
-            Path.unlink(keyfile_exists, missing_ok=True)
+            Path.unlink(key_filepath, missing_ok=True)
         raise e
     
     return cert, private_key
@@ -143,8 +143,8 @@ def generate_rollover_token(new_cert: x509.Certificate,
         }
 
 def load_credentials(credentials_directory: Path,
-                     cert_filename: Optional[str] = 'certfile.crt',
-                     key_filename: Optional[str] = 'keyfile.pem') -> tuple[x509.Certificate, ec.EllipticCurvePrivateKey]:
+                     cert_filename: str = 'certfile.crt',
+                     key_filename: str = 'keyfile.pem') -> tuple[x509.Certificate, ec.EllipticCurvePrivateKey]:
     
     '''Load an x.509 certificate and its corresponding EC private key from disk
 
@@ -210,8 +210,8 @@ def rotate_server_certificates(server_config: ServerConfig,
     '''
 
     old_certificate, old_key = load_credentials(credentials_directory=server_config.certificate_filepath.parent,
-                                                cert_filename=server_config.certificate_filepath,
-                                                key_filename=server_config.key_filepath)
+                                                cert_filename=str(server_config.certificate_filepath),
+                                                key_filename=str(server_config.key_filepath))
     
     new_certificate, new_key = generate_self_signed_credentials(cert_filepath=server_config.certificate_filepath,
                                                                 key_filepath=server_config.key_filepath,

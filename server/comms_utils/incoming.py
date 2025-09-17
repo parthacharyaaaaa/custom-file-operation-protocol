@@ -1,11 +1,10 @@
 '''Utils for incoming streams from client to server'''
 import asyncio
-from typing import Any, Literal
+from typing import Any, Optional, TypeVar
 from types import MappingProxyType
 
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent, BasePermissionComponent, BaseInfoComponent
 from models.flags import CategoryFlag
-from models.typing import ProtocolComponent
 
 import server.errors as exc
 
@@ -13,6 +12,8 @@ from pydantic import BaseModel, ValidationError
 import orjson
 
 __all__ = ('CATEGORY_MODEL_MAP', 'serialize_json', 'parse_body', 'process_component')
+
+T = TypeVar('T', BaseHeaderComponent, BaseAuthComponent, BaseFileComponent, BasePermissionComponent, BaseInfoComponent)
 
 CATEGORY_MODEL_MAP: MappingProxyType[int, type[BaseModel]] = MappingProxyType({CategoryFlag.AUTH: BaseAuthComponent,
                                                                                CategoryFlag.FILE_OP: BaseFileComponent,
@@ -47,20 +48,22 @@ async def parse_body(header: BaseHeaderComponent, body: bytes) -> BaseModel:
         ValueError: If the header's category is unsupported.
     '''
 
-    component_cls: type[BaseModel] = CATEGORY_MODEL_MAP.get(header.category)
+    component_cls: Optional[type[BaseModel]] = CATEGORY_MODEL_MAP.get(header.category)
     if not component_cls:
         raise ValueError('Unsupported category')
     
     body_mapping: dict[str, Any] = await serialize_json(body)
     return component_cls.model_validate(body_mapping)
 
-async def process_component(n_bytes: int, reader: asyncio.StreamReader, component_type: Literal['header', 'auth', 'file', 'permission', 'info'], timeout: float) -> ProtocolComponent:
+async def process_component(n_bytes: int,
+                            reader: asyncio.StreamReader,
+                            component_type: type[T], timeout: float) -> T:
     '''Read and process a specific request component from a stream.
 
     Args:
         n_bytes (int): Number of bytes to read from the stream for this component.
         reader (asyncio.StreamReader): Stream reader to read the component from.
-        component_type (Literal['header','auth','file','permission','info']): Type of component being processed.
+        component_type (ProtocolComponent): Type of component being processed.
         timeout (float): Maximum time in seconds to wait for the component to be read.
 
     Returns:
@@ -70,21 +73,9 @@ async def process_component(n_bytes: int, reader: asyncio.StreamReader, componen
         SlowStreamRate: If the stream is too slow or times out.
         InvalidHeaderSemantic: If the component cannot be parsed or fails validation.
     '''
-
-    model: ProtocolComponent = None
-    if component_type == 'header':
-        model = BaseHeaderComponent
-    elif component_type == 'auth':
-        model = BaseAuthComponent
-    elif component_type == 'file':
-        model = BaseFileComponent
-    elif component_type == 'permission':
-        model = BasePermissionComponent
-    elif component_type == 'info':
-        model = BaseInfoComponent
     try:
         raw_component: bytes = await asyncio.wait_for(reader.readexactly(n_bytes), timeout)
-        return model.model_validate_json(raw_component)
+        return component_type.model_validate_json(raw_component)
     
     except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError) as e:
         if isinstance(e, asyncio.IncompleteReadError) and e.partial == b'':

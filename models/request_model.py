@@ -1,12 +1,14 @@
 '''Module for defining schema of incoming requests'''
 from pathlib import Path
-from typing import Annotated, Optional, Literal, Union
+from typing import Annotated, Optional, Literal, Union, TYPE_CHECKING
 
 from models.constants import REQUEST_CONSTANTS
 from models.flags import CategoryFlag, PermissionFlags, AuthFlags, FileFlags, InfoFlags
 from models.cursor_flag import CURSOR_BITS_CHECK
 
 from pydantic import BaseModel, Field, model_validator, IPvAnyAddress, field_serializer, field_validator
+
+if TYPE_CHECKING: assert REQUEST_CONSTANTS
 
 class BaseAuthComponent(BaseModel):
     identity: Annotated[str, Field(min_length=REQUEST_CONSTANTS.auth.username_range[0], max_length=REQUEST_CONSTANTS.auth.username_range[1], pattern=REQUEST_CONSTANTS.auth.username_regex)]
@@ -37,11 +39,11 @@ class BaseFileComponent(BaseModel):
 
     # Sequencing logic
     cursor_position: Optional[int] = Field(default=None, ge=0)
-    chunk_size: Optional[int] = Field(default=None, ge=1, le=REQUEST_CONSTANTS.file.chunk_max_size)  # For read operations. Must be at least 1 byte if specified
+    chunk_size: int = Field(default=REQUEST_CONSTANTS.file.chunk_max_size, ge=1, le=REQUEST_CONSTANTS.file.chunk_max_size)  # For read operations. Must be at least 1 byte if specified
     write_data: Optional[bytes] = Field(default=None, min_length=1, max_length=REQUEST_CONSTANTS.file.chunk_max_size)  # For write operations, must be at least 1 byte if specified
 
     # Attributes exclusive to file operations
-    cursor_bitfield: Optional[int] = Field(default=0, ge=0)
+    cursor_bitfield: int = Field(default=0, ge=0)
     end_operation: bool = Field(default=True)
 
     model_config = {
@@ -130,7 +132,3 @@ class BaseHeaderComponent(BaseModel):
     # Message category
     category: CategoryFlag = Field(ge=1)
     subcategory: Union[AuthFlags, PermissionFlags, InfoFlags, FileFlags]
-
-    model_config = {
-        'use_enum_values' : True
-    }

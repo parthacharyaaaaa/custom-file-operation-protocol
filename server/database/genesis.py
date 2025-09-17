@@ -49,7 +49,7 @@ def genesis_main() -> None:
     with open(os.path.join(os.path.dirname(__file__), 'genesis.sql'), 'r') as genesis_script:
         genesis_sql = genesis_script.read()
 
-    connection.execute(query=genesis_sql)
+    connection.execute(query=genesis_sql)   #type: ignore
     connection.commit()
 
     with connection.cursor() as cursor:

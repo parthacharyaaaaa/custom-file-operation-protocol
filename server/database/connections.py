@@ -1,32 +1,46 @@
 import asyncio
 from contextlib import asynccontextmanager
-from typing import Literal, Optional, NoReturn, Protocol, AsyncIterator, TYPE_CHECKING
+from typing import Literal, Optional, NoReturn, overload, Protocol, AsyncIterator, TYPE_CHECKING, Union
 from typing_extensions import Self
-from types import TracebackType
+from types import TracebackType, FunctionType
 from uuid import uuid4
 
 import psycopg as pg
 from psycopg.abc import Query, Params
-from psycopg.rows import TupleRow, Row
+from psycopg.rows import Row, DictRow, TupleRow
 from psycopg.transaction import AsyncTransaction
 
 __all__ = ('SupportsConnection', 'ConnectionPoolManager', 'LeasedConnection', 'ConnectionProxy')
-
 
 class SupportsConnection(Protocol):
     '''Protocol supporting interface to psycopg's connection's methods'''
     def info(self) -> pg.ConnectionInfo: ...
 
-    def cursor(self, *, binary: bool = False, **kwargs) -> pg.AsyncCursor[TupleRow]: ...
+    @overload
+    def cursor(self, *,
+               binary: bool = False,
+               row_factory: None = None,
+               **kwargs) -> pg.AsyncCursor[TupleRow]: pass
+
+    @overload
+    def cursor(self, *,
+               binary: bool = False,
+               row_factory: FunctionType,
+               **kwargs) -> pg.AsyncCursor[DictRow]: pass
+
+    def cursor(self, *,
+               binary: bool = False,
+               row_factory: Optional[FunctionType] = None,
+               **kwargs) -> Union[pg.AsyncCursor[TupleRow], pg.AsyncCursor[DictRow]]: ...
 
     async def execute(self, query: Query, params: Params | None = None, *, prepare: bool | None = None, binary: bool = False) -> pg.AsyncCursor[Row]: ...
    
     async def rollback(self) -> None: ...
-   
+    
     async def cancel_safe(self, *, timeout: float = 30.0) -> None: ...
-   
+    
     async def commit(self) -> None: ...
-   
+    
     @asynccontextmanager    #type: ignore
     async def transaction(self, savepoint_name: str | None = None, force_rollback: bool = False) -> AsyncIterator[AsyncTransaction]: ...
 
@@ -205,7 +219,7 @@ class ConnectionPoolManager:
         max_lease_duration = min(self.lease_duration, (max_lease_duration or self.lease_duration))
 
         requested_connection._lease_duration = max_lease_duration
-        proxy: ConnectionProxy = ConnectionProxy(leased_conn=requested_connection, token=token)
+        proxy: ConnectionProxy = ConnectionProxy(leased_conn=requested_connection, token=token) # type: ignore
         asyncio.create_task(requested_connection.begin_lease_timer())
 
         return proxy

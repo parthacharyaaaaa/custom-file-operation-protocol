@@ -1,13 +1,18 @@
 '''Outgoing messages from server to client'''
 import asyncio
-from typing import Optional, Union
+from typing import Optional, Union, TYPE_CHECKING
 
 from models.response_models import ResponseHeader, ResponseBody
 from models.constants import RESPONSE_CONSTANTS
 
 __all__ = ('send_response',)
 
-async def send_response(writer: asyncio.StreamWriter, header: Union[ResponseHeader, bytes], body: Optional[Union[ResponseBody, bytes]] = None, seperator: Optional[bytes] = b'') -> None:
+if TYPE_CHECKING: assert RESPONSE_CONSTANTS
+
+async def send_response(writer: asyncio.StreamWriter,
+                        header: Union[ResponseHeader, bytes],
+                        body: Optional[Union[ResponseBody, bytes]] = None,
+                        seperator: bytes = b'') -> None:
     '''Send a response over a stream, including header and optional body, with optional separators.
     
     Args:
@@ -19,13 +24,13 @@ async def send_response(writer: asyncio.StreamWriter, header: Union[ResponseHead
     Returns:
         None
     '''
-
-    header_stream: bytes = header if isinstance(header, bytes) else header.as_bytes()
+    
+    header_stream: bytes = header.as_bytes() if isinstance(header, ResponseHeader) else bytes(header)
     # Header is of constant size, given by RESPONSE_CONSTANTS.header.bytesize. Smaller headers will need to be padded
     header_stream += b' ' * (RESPONSE_CONSTANTS.header.bytesize - len(header_stream))
     writer.write(header_stream + seperator)
     if body:
-        body_stream: bytes = body if isinstance(body, bytes) else body.as_bytes()
+        body_stream: bytes = body.as_bytes() if isinstance(body, ResponseBody) else bytes(body)
         writer.write(body_stream + seperator)
     
     await writer.drain()

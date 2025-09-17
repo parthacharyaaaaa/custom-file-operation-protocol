@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Annotated, Any, Final
+from typing import Annotated, Any, Final, Optional
 
 from models.flags import InfoFlags
 
@@ -51,8 +51,8 @@ class RequestConstants(BaseModel):
 class ResponseConstants(BaseModel):
     header: HeaderResponseConstants
 
-REQUEST_CONSTANTS: RequestConstants = None
-RESPONSE_CONSTANTS: ResponseConstants = None
+REQUEST_CONSTANTS: Optional[RequestConstants] = None
+RESPONSE_CONSTANTS: Optional[ResponseConstants] = None
 
 UNAUTHENTICATED_INFO_OPERATIONS: Final[frozenset[InfoFlags]] = frozenset((InfoFlags.HEARTBEAT, InfoFlags.SSL_CREDENTIALS))
 HEADER_ONLY_INFO_OPERATIONS: Final[frozenset[InfoFlags]] = frozenset((InfoFlags.HEARTBEAT, InfoFlags.SSL_CREDENTIALS, InfoFlags.STORAGE_USAGE))

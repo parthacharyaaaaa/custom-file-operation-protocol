@@ -1,6 +1,6 @@
 from pathlib import Path
 from functools import partial
-from typing import Annotated
+from typing import Annotated, TYPE_CHECKING
 from typing_extensions import Self
 
 from models.constants import REQUEST_CONSTANTS
@@ -8,6 +8,8 @@ from models.constants import REQUEST_CONSTANTS
 from pydantic import BaseModel, Field, IPvAnyAddress, model_validator, BeforeValidator
 
 __all__ = ('ServerConfig',)
+
+if TYPE_CHECKING: assert REQUEST_CONSTANTS
 
 def _ensure_minimum_length(arg: str, length: int, alias: str) -> str:
     if len(arg:=arg.strip()) < length:

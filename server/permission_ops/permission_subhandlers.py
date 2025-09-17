@@ -3,7 +3,7 @@ import os
 import time
 from datetime import datetime
 from traceback import format_exception_only
-from typing import Any
+from typing import Any, Optional
 
 from models.flags import PermissionFlags
 from models.permissions import ROLE_MAPPING, RoleTypes, FilePermissions
@@ -40,7 +40,7 @@ async def publicise_file(header_component: BaseHeaderComponent,
                                     FOR UPDATE NOWAIT;''',
                                     (auth_component.identity, permission_component.subject_file,))
                 
-                result: dict[str, bool] = await cursor.fetchone()
+                result: Optional[dict[str, bool]] = await cursor.fetchone()
                 if not result:
                     raise errors.FileNotFound(file=permission_component.subject_file, username=auth_component.identity)
                 if result['public']:   # File already public
@@ -59,11 +59,13 @@ async def publicise_file(header_component: BaseHeaderComponent,
                                         log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
                                                 log_category=db_models.LogType.DATABASE,
                                                 log_details=format_exception_only(e)[0],
-                                                reported_severity=db_models.Seveirty.NON_CRITICAL_FAILURE)))
+                                                reported_severity=db_models.Severity.NON_CRITICAL_FAILURE)))
             
             raise errors.DatabaseFailure('Failed to publicise file')
 
-    return (ResponseHeader.from_server(config=config, version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_PUBLICISE.value, ended_connection=header_component.finish),
+    return (ResponseHeader.from_server(config=config, version=header_component.version,
+                                       code=SuccessFlags.SUCCESSFUL_FILE_PUBLICISE,
+                                       ended_connection=header_component.finish),
             None)
 
 async def hide_file(header_component: BaseHeaderComponent,
@@ -82,7 +84,7 @@ async def hide_file(header_component: BaseHeaderComponent,
                                     FOR UPDATE NOWAIT;''',
                                     (auth_component.identity, permission_component.subject_file,))
                 
-                file_mapping: dict[str, Any] = await cursor.fetchone()
+                file_mapping: Optional[dict[str, Any]] = await cursor.fetchone()
                 if not file_mapping:
                     raise errors.FileNotFound(file=permission_component.subject_file, username=auth_component.identity)
 
@@ -106,13 +108,13 @@ async def hide_file(header_component: BaseHeaderComponent,
                                 log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
                                                 log_category=db_models.LogType.DATABASE,
                                                 log_details=format_exception_only(e)[0],
-                                                reported_severity=db_models.Seveirty.NON_CRITICAL_FAILURE)))
+                                                reported_severity=db_models.Severity.NON_CRITICAL_FAILURE)))
             
             raise errors.DatabaseFailure('Failed to hide file')
 
     return (ResponseHeader.from_server(config=config,
                                        version=header_component.version,
-                                       code=SuccessFlags.SUCCESSFUL_FILE_HIDE.value,
+                                       code=SuccessFlags.SUCCESSFUL_FILE_HIDE,
                                        ended_connection=header_component.finish),
             ResponseBody(contents={'revoked_grantee_info' : revoked_grantees}))
 
@@ -140,12 +142,13 @@ async def grant_permission(header_component: BaseHeaderComponent,
             if not await db_utils.check_file_permission(filename=permission_component.subject_file,
                                                         owner=permission_component.subject_file_owner,
                                                         grantee=auth_component.identity,
-                                                        check_for=allowed_permission.value,
+                                                        check_for=allowed_permission,
                                                         connection_master=connection_master,
                                                         check_until=datetime.fromtimestamp(header_component.sender_timestamp),
                                                         proxy=proxy):
                 raise errors.InsufficientPermissions
             
+            assert(permission_component.subject_user)
             if not await db_utils.get_user(username=permission_component.subject_user,
                                         connection_master=connection_master, proxy=proxy, check_existence=True):
                 raise errors.UserNotFound(f'User {permission_component.subject_user} not found')
@@ -157,24 +160,22 @@ async def grant_permission(header_component: BaseHeaderComponent,
                                     FOR UPDATE NOWAIT;''',
                                     (permission_component.subject_file_owner, permission_component.subject_file, permission_component.subject_user, datetime.now()))
                 
-                permission_mapping: dict[str, str] = await cursor.fetchone()
-                # Extract the grantee's role
-                requested_role: RoleTypes = ROLE_MAPPING[PermissionFlags._value2member_map_[role_bits]]
+                permission_mapping: Optional[dict[str, str]] = await cursor.fetchone()
 
-                granted_until: datetime = None if not permission_component.effect_duration else datetime.fromtimestamp(time.time() + permission_component.effect_duration)
+                granted_until: Optional[datetime] = None if not permission_component.effect_duration else datetime.fromtimestamp(time.time() + permission_component.effect_duration)
                 if permission_mapping:
-                    if requested_role.value == permission_mapping['role']:
-                        raise errors.OperationalConflict(f'User {permission_component.subject_user} already has permission {requested_role} on file {permission_component.subject_file} owned by {permission_component.subject_file_owner}')
+                    if granted_role.value == permission_mapping['role']:
+                        raise errors.OperationalConflict(f'User {permission_component.subject_user} already has permission {granted_role} on file {permission_component.subject_file} owned by {permission_component.subject_file_owner}')
                     
                     # Overriding a role must require new granter to have same or higher permissions than previous granter.
                     # Manager -> manager overrides, including overriding an ex-manager is allowed so no checks needed.
                     # However, if file owner is the granter, then only the owner themselves are allowed   
                     elif (permission_mapping['granted_by'] == permission_component.subject_file_owner) and (auth_component.identity != permission_component.subject_file_owner):
-                        raise errors.InsufficientPermissions(f'Insufficient permission to override role of user {permission_component.subject_user} on file {permission_component.subject_file} owned by {permission_component.subject_file_owner} (role previosuly granted by {permission_component["granted_by"]})')
+                        raise errors.InsufficientPermissions(f'Insufficient permission to override role of user {permission_component.subject_user} on file {permission_component.subject_file} owned by {permission_component.subject_file_owner} (role previosuly granted by {permission_mapping["granted_by"]})')
                     await cursor.execute('''UPDATE file_permissions
                                         SET role = %s, granted_at = %s, granted_by = %s, granted_until = %s,
                                         WHERE file_owner = %s AND filename = %s AND grantee = %s''',
-                                        (requested_role,
+                                        (granted_role,
                                         datetime.now(),
                                         auth_component.identity,
                                         granted_until,
@@ -232,7 +233,7 @@ async def revoke_permission(header_component: BaseHeaderComponent,
                                     permission_component.subject_user,
                                     datetime.now(),))
 
-                permission_mapping: dict[str, str] = await cursor.fetchone()
+                permission_mapping: Optional[dict[str, str]] = await cursor.fetchone()
                 if not permission_mapping:
                     raise errors.OperationalConflict(f'User {permission_component.subject_user} does not have any permission on file {permission_component.subject_file} owned by {permission_component.subject_file_owner}')
                 # Revoking a role also follows same logic as granting one. If the role was granted by the owner, then only the owner is permitted to revoke it.
@@ -244,7 +245,7 @@ async def revoke_permission(header_component: BaseHeaderComponent,
             if not await db_utils.check_file_permission(filename=permission_component.subject_file,
                                                         owner=permission_component.subject_file_owner,
                                                         grantee=auth_component.identity,
-                                                        check_for=check_permission.value,
+                                                        check_for=check_permission,
                                                         connection_master=connection_master,
                                                         check_until=datetime.fromtimestamp(header_component.sender_timestamp),
                                                         proxy=proxy):
@@ -285,7 +286,8 @@ async def transfer_ownership(header_component: BaseHeaderComponent,
     if permission_component.subject_file_owner == permission_component.subject_user:
         raise errors.OperationalConflict('Cannot transfer file ownership to owner themselves, what are you trying to accomplish?')
     
-    new_fname: str = None
+    assert permission_component.subject_user
+    new_fname: Optional[str] = None
     async with await connection_master.request_connection(level=2) as proxy:
         try:
             async with proxy.cursor(row_factory=dict_row) as cursor:
@@ -293,7 +295,7 @@ async def transfer_ownership(header_component: BaseHeaderComponent,
                 if not await db_utils.check_file_permission(filename=permission_component.subject_file,
                                                             owner=auth_component.identity,
                                                             grantee=auth_component.identity,
-                                                            check_for=FilePermissions.MANAGE_SUPER.value,
+                                                            check_for=FilePermissions.MANAGE_SUPER,
                                                             connection_master=connection_master,
                                                             proxy=proxy):
                     # TODO: Log tampered identity claim in auth component
@@ -316,11 +318,10 @@ async def transfer_ownership(header_component: BaseHeaderComponent,
                     asyncio.to_thread(base_ops.transfer_file,
                                     root=config.files_directory, file=permission_component.subject_file,
                                     previous_owner=permission_component.subject_file_owner, new_owner=permission_component.subject_user,
-                                    deleted_cache=deleted_cache,
-                                    read_cache=read_cache, amendment_cache=amendment_cache),
+                                    deleted_cache=deleted_cache),
                     timeout=config.file_transfer_timeout)
                 if not new_fname:   # Failed to transfer file
-                    raise errors.FileConflict(f'Failed to perform file transfer from {permission_component.subject_file_owner} to {permission_component.subject_user}')
+                    raise errors.FileConflict(file=permission_component.subject_file, username=permission_component.subject_user)
                 
                 # It is important to rely on returned filename from transfer_file, because the new owner may have a file with the same name already in their directory. 
                 # In such cases, a new filename is determined by prefixing the file with a UUID. Hence, filename must also be updated
@@ -363,8 +364,7 @@ async def transfer_ownership(header_component: BaseHeaderComponent,
                     asyncio.to_thread(base_ops.transfer_file,
                                     root=config.files_directory, file=new_fname, new_name=permission_component.subject_file,
                                     previous_owner=permission_component.subject_user, new_owner=permission_component.subject_file_owner,
-                                    deleted_cache=deleted_cache,
-                                    read_cache=read_cache, amendment_cache=amendment_cache),
+                                    deleted_cache=deleted_cache),
                     timeout=config.file_transfer_timeout)
                 
             if isinstance(e, pg_exc.LockNotAvailable):

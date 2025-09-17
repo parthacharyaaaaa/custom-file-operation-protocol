@@ -2,7 +2,7 @@ import asyncio
 import os
 from datetime import datetime
 from typing import Any
-from zlib import adler32
+from typing import Final
 
 from models.cursor_flag import CursorFlag
 from models.flags import FileFlags
@@ -42,7 +42,7 @@ async def handle_deletion(header_component: BaseHeaderComponent,
         err_str: str = f'Missing permission to delete file {file_component.subject_file} owned by {file_component.subject_file_owner}'
         asyncio.create_task(
             enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                        log=db_models.db_models.ActivityLog(logged_by=db_models.db_models.LogAuthor.FILE_HANDLER,
+                        log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
                                                   log_category=db_models.LogType.PERMISSION,
                                                   log_details=err_str,
                                                   reported_severity=db_models.Severity.TRACE,
@@ -51,9 +51,9 @@ async def handle_deletion(header_component: BaseHeaderComponent,
         raise errors.InsufficientPermissions(err_str)
     
     # Request validated. No need to acquire lock since owner's deletion request is more important than any concurrent file amendment locks
-    file: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
+    file: Final[str] = os.path.join(file_component.subject_file_owner, file_component.subject_file)
 
-    file_deleted: bool = await base_ops.delete_file(config.files_directory, file, deleted_cache, read_cache, amendment_cache)
+    file_deleted: bool = await base_ops.delete_file(config.files_directory, file, deleted_cache)
     if not file_deleted:
         err_str: str = f'Failed to delete file {file_component.subject_file}'
         asyncio.create_task(
@@ -67,7 +67,7 @@ async def handle_deletion(header_component: BaseHeaderComponent,
         raise errors.InsufficientPermissions(err_str)
     
     # Update database to delete all file info pertaining to this file
-    file_locks[file] = None
+    file_locks.pop(file, None)
     revoked_info: list[dict[str, Any]] = []
     async with await connection_master.request_connection(level=3) as proxy:
         async with proxy.cursor(row_factory=dict_row) as cursor:
@@ -94,7 +94,10 @@ async def handle_deletion(header_component: BaseHeaderComponent,
                                     log_category=db_models.LogType.REQUEST,
                                     user_concerned=auth_component.identity)))
     
-    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_DELETION.value, ended_connection=header_component.finish, config=config),
+    return (ResponseHeader.from_server(version=header_component.version,
+                                       code=SuccessFlags.SUCCESSFUL_FILE_DELETION,
+                                       ended_connection=header_component.finish,
+                                       config=config),
             ResponseBody(contents={'revoked_info' : revoked_info, 'deletion_time' : deletion_time.isoformat()}))
 
 async def handle_amendment(header_component: BaseHeaderComponent,
@@ -107,18 +110,22 @@ async def handle_amendment(header_component: BaseHeaderComponent,
                            delete_cache: GlobalDeleteCacheType,
                            amendment_cache: GlobalAmendCacheType,
                            storage_cache: StorageCache) -> tuple[ResponseHeader, ResponseBody]:
+    if not file_component.write_data:
+        raise errors.InvalidFileData("Missing write data for file amendment")
+    
     async with await connection_master.request_connection(1) as proxy:
         if not await db_utils.check_file_existence(filename=file_component.subject_file,
                                                    owner=file_component.subject_file_owner,
+                                                   connection_master=connection_master,
                                                    proxy=proxy):
-            raise errors.FileNotFound(f'No file named {file_component.subject_file} owned by {file_component.subject_file_owner} found')
+            raise errors.FileNotFound(file=file_component.subject_file, username=file_component.subject_file_owner)
         
         if not await db_utils.check_file_permission(filename=file_component.subject_file,
                                                     owner=file_component.subject_file_owner,
                                                     grantee=auth_component.identity,
                                                     connection_master=connection_master,
                                                     proxy=proxy,
-                                                    check_for=FilePermissions.WRITE.value,
+                                                    check_for=FilePermissions.WRITE,
                                                     check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
             err_str: str = f'User {auth_component.identity} does not have write permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
             asyncio.create_task(
@@ -137,7 +144,7 @@ async def handle_amendment(header_component: BaseHeaderComponent,
                                                  current_file_size=file_size,
                                                  current_storage_used=current_storage_used,
                                                  server_config=config,
-                                                 is_append=header_component.subcategory & FileFlags.APPEND):
+                                                 is_append=bool(header_component.subcategory & FileFlags.APPEND)):
             err_str: str = f'Insufficient storage for amendment on file {file_component.relative_pathlike}, current storage: {current_storage_used}'
             asyncio.create_task(
                 enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
@@ -147,30 +154,27 @@ async def handle_amendment(header_component: BaseHeaderComponent,
                                                     reported_severity=db_models.Severity.TRACE,
                                                     user_concerned=auth_component.identity)))
             
-            raise errors.FileConflict(err_str)
+            raise errors.FileConflict(file=file_component.subject_file, username=file_component.subject_file_owner)
 
-    fpath: os.PathLike[str] = os.path.join(file_component.subject_file_owner, file_component.subject_file)
+    fpath: Final[str] = os.path.join(file_component.subject_file_owner, file_component.subject_file)
     if file_component.subject_file_owner == auth_component.identity:
-        file_locks[fpath] = adler32(auth_component.identity.encode('utf-8'))
+        file_locks[fpath] = auth_component.identity
     else:
         try:
-            await asyncio.wait_for(base_ops.acquire_file_lock(file_locks=file_locks, filename=fpath, requestor=auth_component.identity, ttl=config.file_lock_ttl),
+            await asyncio.wait_for(base_ops.acquire_file_lock(file_locks=file_locks, filename=fpath, requestor=auth_component.identity),
                                 timeout=config.file_contention_timeout)
         except asyncio.TimeoutError:
             raise errors.FileContested(file=file_component.subject_file, username=file_component.subject_file_owner)
-
-    cursor_position: int = None
-    keepalive_accepted: bool = False
 
     if header_component.subcategory & (FileFlags.WRITE | FileFlags.OVERWRITE):
         cursor_position = await base_ops.write_file(root=config.files_directory, fpath=fpath,
                                                     data=file_component.write_data,
                                                     deleted_cache=delete_cache, amendment_cache=amendment_cache,
                                                     cursor_position=file_component.cursor_position or 0,
-                                                    writer_keepalive=file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE,
-                                                    purge_writer=file_component.end_operation or (file_component.cursor_bitfield & CursorFlag.PURGE_CURSOR),
+                                                    writer_keepalive=bool(file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE),
+                                                    purge_writer=file_component.end_operation or bool(file_component.cursor_bitfield & CursorFlag.PURGE_CURSOR),
                                                     identifier=auth_component.identity,
-                                                    trunacate=header_component.subcategory & FileFlags.OVERWRITE)
+                                                    trunacate=bool(header_component.subcategory & FileFlags.OVERWRITE))
         await storage_cache.update_file_size(file_component.subject_file,
                                              diff=(
                                                  (cursor_position - file_size) if (header_component.subcategory & FileFlags.OVERWRITE)
@@ -180,13 +184,13 @@ async def handle_amendment(header_component: BaseHeaderComponent,
         cursor_position = await base_ops.append_file(root=config.files_directory, fpath=fpath,
                                                      data=file_component.write_data,
                                                      deleted_cache=delete_cache, amendment_cache=amendment_cache,
-                                                     append_writer_keepalive=file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE,
-                                                     purge_append_writer=file_component.end_operation or (file_component.cursor_bitfield & CursorFlag.PURGE_CURSOR),
+                                                     append_writer_keepalive=bool(file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE),
+                                                     purge_append_writer=file_component.end_operation or bool(file_component.cursor_bitfield & CursorFlag.PURGE_CURSOR),
                                                      identifier=auth_component.identity)
         await storage_cache.update_file_size(file_component.subject_file_owner,
                                              diff=cursor_position - file_size)
     
-    keepalive_accepted = cache_ops.get_reader(amendment_cache, fpath, auth_component.identity)
+    keepalive_accepted = cache_ops.get_buffer(amendment_cache, fpath, auth_component.identity)
     if not keepalive_accepted:
         file_locks.pop(fpath)
     
@@ -207,7 +211,7 @@ async def handle_read(header_component: BaseHeaderComponent,
                                                 owner=file_component.subject_file_owner,
                                                 grantee=auth_component.identity,
                                                 connection_master=connection_master,
-                                                check_for=FilePermissions.READ.value,
+                                                check_for=FilePermissions.READ,
                                                 check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
         err_str: str = f'User {auth_component.identity} does not have read permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
         asyncio.create_task(
@@ -219,16 +223,17 @@ async def handle_read(header_component: BaseHeaderComponent,
         
         raise errors.InsufficientPermissions(err_str)
     
-    fpath: os.PathLike = os.path.join(file_component.subject_file_owner, file_component.subject_file)
+    fpath: Final[str] = os.path.join(file_component.subject_file_owner, file_component.subject_file)
     read_data, cursor_position, eof_reached = await base_ops.read_file(root=config.files_directory, fpath=fpath,
                                                                        deleted_cache=delete_cache, read_cache=read_cache,
-                                                                       cursor_position=file_component.cursor_position, nbytes=file_component.chunk_size,
-                                                                       reader_keepalive=file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE,
+                                                                       cursor_position=file_component.cursor_position or 0,
+                                                                       nbytes=file_component.chunk_size,
+                                                                       reader_keepalive=bool(file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE),
                                                                        identifier=auth_component.identity)
     
     ongoing_amendment: bool = bool(file_locks.get(fpath))
     if (cursor_killed:=eof_reached and not (file_component.cursor_bitfield & CursorFlag.CURSOR_KEEPALIVE)):
-        cache_ops.remove_reader(read_cache, fpath, auth_component.identity)
+        cache_ops.remove_buffer(read_cache, fpath, auth_component.identity)
 
     return (ResponseHeader.from_server(config=config,
                                        version=header_component.version,
@@ -237,7 +242,7 @@ async def handle_read(header_component: BaseHeaderComponent,
             ResponseBody(contents={'read' : read_data, 'ongoing_amendment' : ongoing_amendment},
                          operation_ended=eof_reached,
                          cursor_position=cursor_position,
-                         keepalive_accepted=not cursor_killed))
+                         cursor_keepalive_accepted=not cursor_killed))
 
 async def handle_creation(header_component: BaseHeaderComponent,
                           auth_component: BaseAuthComponent,
@@ -245,7 +250,7 @@ async def handle_creation(header_component: BaseHeaderComponent,
                           config: server_config.ServerConfig,
                           log_queue: GlobalLogQueueType,
                           connection_master: ConnectionPoolManager,
-                          storage_cache: StorageCache) -> tuple[ResponseHeader, None]:
+                          storage_cache: StorageCache) -> tuple[ResponseHeader, ResponseBody]:
     if file_component.subject_file_owner != auth_component.identity:
         asyncio.create_task(
             enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
@@ -259,6 +264,7 @@ async def handle_creation(header_component: BaseHeaderComponent,
     fpath, epoch = await base_ops.create_file(root=config.files_directory, owner=auth_component.identity, filename=file_component.subject_file)
 
     if fpath:
+        assert epoch
         # Add record for this file
         async with await connection_master.request_connection(level=3) as proxy:
             await proxy.execute('''INSERT INTO files (filename, owner, created_at)
@@ -279,5 +285,10 @@ async def handle_creation(header_component: BaseHeaderComponent,
         
         raise errors.FileConflict(file_component.subject_file, username=auth_component.identity)
     
-    return (ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_FILE_CREATION.value, ended_connection=header_component.finish, config=config),
-            ResponseBody(operation_ended=True, keepalive_accepted=False, contents={'path' : fpath, 'iso_epoch' : datetime.fromtimestamp(epoch).isoformat()}))
+    return (ResponseHeader.from_server(version=header_component.version,
+                                       code=SuccessFlags.SUCCESSFUL_FILE_CREATION,
+                                       ended_connection=header_component.finish,
+                                       config=config),
+            ResponseBody(operation_ended=True,
+                         cursor_keepalive_accepted=False,
+                         contents={'path' : fpath, 'iso_epoch' : datetime.fromtimestamp(epoch).isoformat()}))
