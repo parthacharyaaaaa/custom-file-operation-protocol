@@ -10,5 +10,5 @@ __all__ = ('FileBuffer', 'FileBufferCache')
 
 FileBuffer: TypeAlias = Union[AsyncBufferedReader, AsyncBufferedIOBase]
 
-FileBufferCache: TypeAlias = Union[TTLCache[str, dict[str, AsyncBufferedReader]],
-                                   TTLCache[str, dict[str, AsyncBufferedIOBase]]]
+FileBufferCache: TypeAlias = Union[TTLCache[str, dict[str, AsyncBufferedIOBase]],
+                                    TTLCache[str, dict[str, AsyncBufferedReader]]]
