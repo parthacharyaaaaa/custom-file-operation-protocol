@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 from functools import partial
-from typing import Any, Coroutine, Callable, NewType, Optional, TypeAlias, Union
+from typing import Any, Coroutine, Callable, NewType, Optional, TypeAlias, Union, Literal
 
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 
@@ -38,7 +38,7 @@ _singleton_registry_config_dict: pydantic.ConfigDict = pydantic.ConfigDict(
 class GlobalLogQueueType(asyncio.Queue[db_models.ActivityLog]): pass
 class GlobalReadCacheType(TTLCache[str, dict[str, AsyncBufferedReader]]): pass
 class GlobalAmendCacheType(TTLCache[str, dict[str, AsyncBufferedIOBase]]): pass
-class GlobalDeleteCacheType(TTLCache[str, str]): pass
+class GlobalDeleteCacheType(TTLCache[str, Literal[True]]): pass
 class GlobalFileLockType(TTLCache[str, str]): pass
 
 SubhandlerResponse: TypeAlias = Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]
