@@ -16,32 +16,31 @@ __all__ = ('PermissionSubhandler',
            'RequestSubhandler',
            'RequestHandler')
 
+SubhandlerResponse: TypeAlias = Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]
 class AuthSubhandler(Protocol):
-    def __call__(self, *args,
+    def __call__(self,
                  header_component: BaseHeaderComponent,
                  auth_component: BaseAuthComponent,
-                 **kwargs: Any) -> Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]: ...
+                 *args : Any, **kwargs: Any) -> SubhandlerResponse: ...
 
 class InfoSubhandler(Protocol):
-    def __call__(self, *args, **kwargs: Any) -> Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]: ...
+    def __call__(self, *args, **kwargs: Any) -> SubhandlerResponse: ...
 
 class FileSubhandler(Protocol):
-    def __call__(self, *args,
+    def __call__(self,
                  header_component: BaseHeaderComponent,
                  auth_component: BaseAuthComponent,
                  file_component: BaseFileComponent,
-                 **kwargs: Any) -> Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]: ...
+                 *args : Any, **kwargs: Any) -> SubhandlerResponse: ...
     
 class PermissionSubhandler(Protocol):
-    def __call__(self, *args,
+    def __call__(self,
                  header_component: BaseHeaderComponent,
                  auth_component: BaseAuthComponent,
                  permission_component: BasePermissionComponent,
-                 **kwargs: Any) -> Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]: ...
+                 *args : Any, **kwargs: Any) -> SubhandlerResponse: ...
 
 RequestSubhandler: TypeAlias = Union[AuthSubhandler, InfoSubhandler, FileSubhandler, PermissionSubhandler]
-
-SubhandlerResponse: TypeAlias = Coroutine[Any, Any, tuple[ResponseHeader, Optional[ResponseBody]]]
 
 class RequestHandler(Protocol):
     def __call__(self,
