@@ -46,7 +46,7 @@ async def filter_claims(claimset: Mapping[str, Any], *claims: str, strict: bool 
     
     return matched_claims
 
-async def make_auth_component(username: str, password: str) -> BaseAuthComponent:
+def make_auth_component(username: str, password: str) -> BaseAuthComponent:
     try:
         return BaseAuthComponent(identity=username, password=password)
     except pydantic.ValidationError as v:
