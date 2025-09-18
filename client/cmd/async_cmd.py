@@ -1,9 +1,11 @@
 '''Asynchronous support for Python's cmd.Cmd class'''
 
 import argparse
+import asyncio
 import cmd
 import inspect
 from traceback import format_exc, format_exception_only
+from typing import Any
 
 from client.cmd import cmd_utils
 from client.cmd import errors as cmd_errors
@@ -30,29 +32,24 @@ class AsyncCmd(cmd.Cmd):
 
     def default(self, line):
         self.stdout.write(f'UNKNOWN COMMAND: {line.split()[0]}\n')
-        self.do_help(None)
+        self.do_help('')    # cmd.Cmd.default() checks if arg param is truthy, which we don't want. For some reason, it doesn't accept an optional string, so here we are >:/
 
-    async def postcmd(self, stop, line) -> None:
-        if self.connection_ended:
-            self.writer.close()
-            await self.writer.wait_closed()
-
-            if self.session_master.identity:
-                self.session_master.clear_auth_data()
-            
-            self.prompt = "not connected>"
-            return True
-        
-        return stop
-
-    async def cmdloop(self, intro = None):
+    def cmdloop(self, intro: Any | None = None) -> None:
+        _parent_loop = asyncio.get_running_loop()
+        return _parent_loop.run_until_complete(self.async_cmdloop(intro))
+    
+    def onecmd(self, line) -> bool:
+        _parent_loop = asyncio.get_running_loop()
+        return _parent_loop.run_until_complete(self.async_onecmd(line))
+    
+    async def async_cmdloop(self, intro = None):
         self.preloop()
         if self.use_rawinput and self.completekey:
             try:
                 import readline
-                self.old_completer = readline.get_completer()
-                readline.set_completer(self.complete)
-                readline.parse_and_bind(self.completekey+": complete")
+                self.old_completer = readline.get_completer()   # type: ignore
+                readline.set_completer(self.complete)   # type: ignore
+                readline.parse_and_bind(self.completekey+": complete")  # type: ignore
             except ImportError:
                 pass
         try:
@@ -86,26 +83,26 @@ class AsyncCmd(cmd.Cmd):
             if self.use_rawinput and self.completekey:
                 try:
                     import readline
-                    readline.set_completer(self.old_completer)
+                    readline.set_completer(self.old_completer)  # type: ignore
                 except ImportError:
                     pass
-
-    async def onecmd(self, line):
+    
+    async def async_onecmd(self, line) -> bool:
         cmd, arg, line = self.parseline(line)
         if not line:
             return self.emptyline()
         if cmd is None:
-            return self.default(line)
+            return bool(self.default(line))
         self.lastcmd = line
         if line == 'EOF' :
             self.lastcmd = ''
         if cmd == '':
-            return self.default(line)
+            return bool(self.default(line))
         else:
             try:
                 func = getattr(self, 'do_' + cmd)
             except AttributeError:
-                return self.default(line)
+                return bool(self.default(line))
             
             # Additional logic added here to deal with any asynchronous functions
             try:
@@ -123,4 +120,4 @@ class AsyncCmd(cmd.Cmd):
             except Exception as e:
                 await cmd_utils.display(format_exc())
 
-            
+            return False
