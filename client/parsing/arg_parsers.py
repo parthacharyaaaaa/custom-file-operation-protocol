@@ -1,13 +1,16 @@
 '''Parsers for individual arguments'''
-import os
+
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from client.cmd.commands import QueryTypes, QueryMapper
 
 from models.constants import REQUEST_CONSTANTS
 from models.permissions import RoleTypes
 from models.flags import InfoFlags
+
+if TYPE_CHECKING: assert REQUEST_CONSTANTS
 
 __all__ = (
     "parse_filename",
@@ -36,7 +39,7 @@ def parse_dir(dir: str) -> str:
         raise ValueError('Invalid directory name')
     return dir
 
-def parse_filepath(fpath_arg: str) -> str:
+def parse_filepath(fpath_arg: str) -> Path:
     fpath: Path = Path(fpath_arg)
     if not fpath.is_file():
         raise FileNotFoundError(f'{fpath_arg} not found in local file system')

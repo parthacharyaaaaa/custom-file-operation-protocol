@@ -217,8 +217,8 @@ class ClientWindow(async_cmd.AsyncCmd):
         Write into a file in a remote directory, overwriting previous contents
         If not specified, remote directory is determined based on remote session
         '''
-        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args),
-                                                                                         exclusion_set=ClientWindow.REPLACE_APPEND_EXCLUSION_SET)
+        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args_with_exclusion(shlex.split(args),
+                                                                                                         exclusion_set=ClientWindow.REPLACE_APPEND_EXCLUSION_SET)
         if not parsed_args.write_data:
             raise cmd_errors.CommandException('Missing write data for WRITE operation')
         
@@ -238,8 +238,8 @@ class ClientWindow(async_cmd.AsyncCmd):
         Write into a file in a remote directory, overwriting previous contents
         If not specified, remote directory is determined based on remote session
         '''
-        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args),
-                                                                                         exclusion_set=ClientWindow.PATCH_EXCLUSION_SET)
+        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args_with_exclusion(shlex.split(args),
+                                                                                                        exclusion_set=ClientWindow.PATCH_EXCLUSION_SET)
         if not parsed_args.write_data:
             raise cmd_errors.CommandException('Missing write data for WRITE operation')
         
@@ -259,8 +259,8 @@ class ClientWindow(async_cmd.AsyncCmd):
         APPEND [filename] [directory] [write data] [--chunk-size] [--post-keepalive] [modifiers]
         Append to a file from a remote directory.
         '''
-        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args(shlex.split(args),
-                                                                                         exclusion_set=ClientWindow.REPLACE_APPEND_EXCLUSION_SET)
+        parsed_args: argparse.Namespace = command_parsers.file_command_parser.parse_args_with_exclusion(shlex.split(args),
+                                                                                                        exclusion_set=ClientWindow.REPLACE_APPEND_EXCLUSION_SET)
         if not parsed_args.write_data:
             raise cmd_errors.CommandException('Missing write data for APPEND operation')
         

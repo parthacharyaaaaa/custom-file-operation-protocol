@@ -1,12 +1,14 @@
 '''Parsers for client shell's commands'''
 import argparse
-from typing import Final
+from typing import Final, TYPE_CHECKING
 
 from client.parsing.explicit_argument_parser import ExplicitArgumentParser
 from client.cmd.commands import GeneralModifierCommands, AuthModifierCommands, FileModifierCommands, PermissionModifierCommands
 from client.parsing import arg_parsers
 
 from models.constants import REQUEST_CONSTANTS
+
+if TYPE_CHECKING: assert REQUEST_CONSTANTS
 
 __all__ = ('generic_modifier_parser', 'file_command_parser', 'permission_command_parser', 'auth_command_parser')
 

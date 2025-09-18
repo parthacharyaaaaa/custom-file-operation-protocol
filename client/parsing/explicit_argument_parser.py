@@ -2,7 +2,7 @@
 import argparse
 import sys
 import warnings
-from typing import Optional, Final
+from typing import Optional, Final, Union
 
 __all__ = ('ExplicitArgumentParser',)
 
@@ -45,7 +45,7 @@ class ExplicitArgumentParser(argparse.ArgumentParser):
             delattr(namespace, argparse._UNRECOGNIZED_ARGS_ATTR)
         return namespace, args
     
-    def parse_args(self, args=None, namespace=None, exclusion_set: Optional[set[str]] = None):
+    def parse_args_with_exclusion(self, args=None, namespace=None, exclusion_set: Optional[Union[set[str], frozenset[str]]] = None):
         '''Parse args (yep)
         
         Raises:
@@ -58,9 +58,10 @@ class ExplicitArgumentParser(argparse.ArgumentParser):
             raise argparse.ArgumentError(None, f'unrecognized arguments: {", ".join(argv)}')
         
         if exclusion_set:
-            display_strings: tuple[str] = tuple(ExplicitArgumentParser.exclusion_message.format(arg=excluded_arg)
-                                                for excluded_arg in 
-                                                exclusion_set.intersection(set(key for key, value in args.__dict__.items() if value is not None)))
+            display_strings: tuple[str, ...] = tuple(ExplicitArgumentParser.exclusion_message.format(arg=excluded_arg)
+                                                     for excluded_arg in 
+                                                     exclusion_set.intersection(set(key
+                                                                                    for key, value in args.__dict__.items() if value is not None)))
             if display_strings:
                 print(*display_strings, sep='\n')
         return args
