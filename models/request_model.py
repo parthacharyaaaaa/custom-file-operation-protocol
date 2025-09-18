@@ -22,7 +22,7 @@ class BaseAuthComponent(BaseModel):
                                    default=None)
     refresh_digest: Optional[bytes] = Field(min_length=REQUEST_CONSTANTS.auth.digest_length,
                                             max_length=REQUEST_CONSTANTS.auth.digest_length,
-                                            frozen=True, default=None)
+                                            default=None)
 
     @model_validator(mode='after')
     def auth_semantic_check(self) -> 'BaseAuthComponent':
