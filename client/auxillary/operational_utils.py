@@ -1,6 +1,6 @@
 '''Auxillary functions for client operations'''
 import time
-from typing import Any, Optional, Union, Mapping
+from typing import Any, Union, Mapping
 
 from client.auxillary.typing import SupportsBuffer
 from client.cmd import cmd_utils, errors as cmd_errors
@@ -21,8 +21,8 @@ def cast_as_memoryview(arg: Union[str, SupportsBuffer]):
 
 def make_header_component(client_config: ClientConfig, session_manager: SessionManager,
                           category: CategoryFlag, subcategory: Union[AuthFlags, PermissionFlags, FileFlags] ,
-                          auth_size: Optional[int] = 0,
-                          body_size: Optional[int] = 0,
+                          auth_size: int = 0,
+                          body_size: int = 0,
                           finish: bool = False) -> BaseHeaderComponent:
     '''Abstraction over BaseHeaderComponent's constructor'''
     return BaseHeaderComponent(version=client_config.version,
