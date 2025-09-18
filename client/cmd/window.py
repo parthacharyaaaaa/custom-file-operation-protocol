@@ -5,7 +5,7 @@ import argparse
 import functools
 import mmap
 import shlex
-from typing import Any, Callable, Final
+from typing import Any, Callable, Final, Optional
 
 import aiofiles
 
@@ -48,11 +48,12 @@ class ClientWindow(async_cmd.AsyncCmd):
         super().__init__(completekey, stdin, stdout)
     
     # Decorators
+    @staticmethod
     def require_auth_state(state: bool):
         def outer_wrapper(method: Callable[..., Any]) -> Callable[..., Any]:
             @functools.wraps(method)
             def inner_wrapper(*args, **kwargs):
-                session_master: session_manager.SessionManager = getattr(args[0], 'session_master', None)
+                session_master: Optional[session_manager.SessionManager] = getattr(args[0], 'session_master', None)
                 if not (session_master and bool(session_master.identity) == state):
                     raise cmd_errors.InvalidAuthenticationState
                 
