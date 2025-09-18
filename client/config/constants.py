@@ -1,10 +1,13 @@
 '''Client-assosciated constant models and values'''
 
-from typing import Annotated, Union
-from pydantic import BaseModel, Field, field_validator
+from typing import Annotated, Union, TYPE_CHECKING
+from pathlib import Path
+
 from models.constants import REQUEST_CONSTANTS
 
-from pathlib import Path
+from pydantic import BaseModel, Field, field_validator
+
+if TYPE_CHECKING: assert REQUEST_CONSTANTS
 
 __all__ = ('ClientConfig',)
 
