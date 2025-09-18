@@ -47,6 +47,23 @@ class ClientWindow(async_cmd.AsyncCmd):
         self.prompt = f'{host}:{port}>'
         super().__init__(completekey, stdin, stdout)
     
+    def postcmd(self, stop, line) -> bool:
+        _parent_loop = asyncio.get_running_loop()
+        return _parent_loop.run_until_complete(self.async_postcmd(stop, line))
+
+    async def async_postcmd(self, stop, line) -> bool:
+        if self.connection_ended:
+            self.writer.close()
+            await self.writer.wait_closed()
+
+            if self.session_master.identity:
+                self.session_master.clear_auth_data()
+            
+            self.prompt = "not connected>"
+            return True
+        
+        return stop
+
     # Decorators
     @staticmethod
     def require_auth_state(state: bool):
