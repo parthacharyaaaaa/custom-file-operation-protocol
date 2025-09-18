@@ -36,7 +36,7 @@ async def main() -> None:
 
 
     try:
-        await client_cmd_window.cmdloop()
+        client_cmd_window.cmdloop()
     except KeyboardInterrupt:
         writer.close()
         await writer.wait_closed()

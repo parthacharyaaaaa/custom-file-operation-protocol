@@ -3,8 +3,9 @@
 import asyncio
 import json
 import ssl
+from ipaddress import IPv4Address, IPv6Address
 from pathlib import Path
-from typing import Any, Final, Optional, Union
+from typing import Any, Final, Optional
 
 from client import tls_sentinel
 from client.config.constants import ClientConfig
@@ -21,8 +22,9 @@ from cryptography.exceptions import InvalidSignature
 
 from models.response_codes import SuccessFlags
 
-import pytomlpp
+from pydantic.networks import IPvAnyAddress
 
+import pytomlpp
 
 __all__ = ('init_session_manager',
            'init_client_configurations',
@@ -45,13 +47,13 @@ def init_cmd_window(host: str, port: int,
                     client_config: ClientConfig, session_manager: SessionManager) -> ClientWindow:
     return ClientWindow(host, port, reader, writer, client_config, session_manager)
 
-async def create_server_connection(host: str, port: int, fingerprints_path: Path, ssl_context: ssl.SSLContext, client_config: ClientConfig, ssl_handshake_timeout: Optional[float] = None, blind_trust: bool = False) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
-    process_identity: Final[str] = f'{host}:{port}'
+async def create_server_connection(host: IPvAnyAddress, port: int, fingerprints_path: Path, ssl_context: ssl.SSLContext, client_config: ClientConfig, ssl_handshake_timeout: Optional[float] = None, blind_trust: bool = False) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    process_identity: Final[str] = f'{str(host)}:{port}'
     fingerprints_mapping: dict[str, str] = {}
     if fingerprints_path.is_file() and (fingerprint_data := fingerprints_path.read_text(encoding='utf-8')):
         fingerprints_mapping = json.loads(fingerprint_data)
     
-    reader, writer = await asyncio.open_connection(host=host, port=port,
+    reader, writer = await asyncio.open_connection(host=str(host), port=port,
                                                    ssl=ssl_context,
                                                    ssl_handshake_timeout=ssl_handshake_timeout)
 
@@ -72,7 +74,7 @@ async def create_server_connection(host: str, port: int, fingerprints_path: Path
     
     try:
         last_fingerprint: Final[str] = fingerprints_mapping[process_identity]
-        rollover_data: Final[dict[str, dict[str, Union[str, float]]]] = await tls_sentinel.get_rollover_data(reader, writer, client_config, host, port)
+        rollover_data: Final[dict[str, dict[str, Any]]] = await tls_sentinel.get_rollover_data(reader, writer, client_config, host, port)
         if not rollover_data:
             raise Exception
         
