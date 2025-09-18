@@ -8,11 +8,11 @@ from typing import Final
 __all__ = ('AuthCommands', 'FileCommands', 'PermissionCommands', 'QueryTypes', 'QueryMapper', 'FileModifierCommands', 'GeneralModifierCommands', 'AuthModifierCommands', 'PermissionModifierCommands')
 
 class AuthCommands(Enum):
-    AUTH: str = 'AUTH'
-    UNEW: str = 'UNEW'
-    UDEL: str = 'UDEL'
-    STERM: str = 'STERM'
-    SREF: str = 'SREF'
+    AUTH    = 'AUTH'
+    UNEW    = 'UNEW'
+    UDEL    = 'UDEL'
+    STERM   = 'STERM'
+    SREF    = 'SREF'
 
 class FileCommands(Enum):
     CREATE      = 'create'
@@ -24,11 +24,11 @@ class FileCommands(Enum):
     REPLACE     = 'replace'
 
 class PermissionCommands(Enum):
-    GRANT: str = 'GRANT'
-    REVOKE: str = 'REVOKE'
-    PUBLICISE: str = 'PUBLICISE'
-    HIDE: str = 'HIDE'
-    TRANSFER: str = 'TRANSFER'
+    GRANT       = 'GRANT'
+    REVOKE      = 'REVOKE'
+    PUBLICISE   = 'PUBLICISE'
+    HIDE        = 'HIDE'
+    TRANSFER    = 'TRANSFER'
 
 class QueryTypes(Enum):
     FILE_METADATA           = 'file'
@@ -57,10 +57,10 @@ class FileModifierCommands(Enum):
 
 
 class GeneralModifierCommands(Enum):
-    END_CONNECTION: str = 'BYE'
+    END_CONNECTION = 'BYE'
 
 class AuthModifierCommands(Enum):
-    DISPLAY_CREDENTIALS: str = 'DC'
+    DISPLAY_CREDENTIALS = 'DC'
 
 class PermissionModifierCommands(Enum):
-    GRANT_DURATION: str = 'GD'
+    GRANT_DURATION = 'GD'
