@@ -1,12 +1,14 @@
 '''Module containing logic for handling outgoing data'''
 
 import asyncio
-from typing import Optional, Union, Literal, Final
+from typing import Optional, Union, Literal, Final, TYPE_CHECKING
 
 from models.constants import REQUEST_CONSTANTS
 from models.request_model import BaseHeaderComponent, BaseAuthComponent, BaseFileComponent, BasePermissionComponent
 
 STREAM_LOCK: Final[asyncio.Lock] = asyncio.Lock()
+
+if TYPE_CHECKING: assert REQUEST_CONSTANTS
 
 async def send_request(writer: asyncio.StreamWriter,
                        header_component: BaseHeaderComponent,

@@ -1,9 +1,11 @@
 '''Module containing logic for handling incoming data'''
 
 import asyncio
-from typing import Optional, Literal, Final
+from typing import Optional, Literal, Final, TYPE_CHECKING
 from models.response_models import ResponseHeader, ResponseBody
 from models.constants import RESPONSE_CONSTANTS
+
+if TYPE_CHECKING: assert RESPONSE_CONSTANTS
 
 READ_LOCK: Final[asyncio.Lock] = asyncio.Lock()
 
@@ -13,7 +15,7 @@ async def process_response(reader: asyncio.StreamReader, writer: asyncio.StreamW
     try:
         raw_header: bytes = await asyncio.wait_for(reader.readexactly(RESPONSE_CONSTANTS.header.bytesize), timeout)
         response_header: ResponseHeader = ResponseHeader.model_validate_json(raw_header)
-        response_body: ResponseBody = None
+        response_body: Optional[ResponseBody] = None
         if response_header.body_size:
             raw_body = await asyncio.wait_for(reader.readexactly(response_header.body_size), timeout)
             response_body = ResponseBody.model_validate_json(raw_body)
