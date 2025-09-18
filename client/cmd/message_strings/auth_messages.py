@@ -26,7 +26,7 @@ __all__ = (
 
 
 def invalid_user_data(exception: Optional[ValidationError] = None) -> str:
-    return ':'.join(['Invalid user data', format_exception_only[exception][0] if exception else ''])
+    return ':'.join(['Invalid user data', format_exception_only(exception)[0] if exception else ''])
 
 def failed_auth_operation(operation: AuthFlags, code: str) -> str:
     return '\n'.join([f'Code {code}: Failed auth operation',
@@ -39,7 +39,7 @@ def successful_user_creation(remote_user: str, epoch: Optional[float] = None) ->
     return f'Created remote user {remote_user}, at: {epoch or "N/A"}'
 
 def successful_user_deletion(remote_user: str, deleted_count: int, deleted_files: Optional[Sequence[str]] = None) -> str:
-    deletion_info: str = "/n".join(deleted_files) if deleted_files else None
+    deletion_info: Optional[str] = "/n".join(deleted_files) if deleted_files else None
     return f'Deleted remote user {remote_user}, deleted files: {deleted_count}. Files: {deletion_info}'
 
 def successful_authorization(remote_user: str, code: str = SuccessFlags.SUCCESSFUL_AUTHENTICATION.value) -> str:
