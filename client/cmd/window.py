@@ -5,7 +5,7 @@ import argparse
 import functools
 import mmap
 import shlex
-from typing import Any, Callable, Final, Optional
+from typing import Any, Callable, Final, Literal, Optional
 
 import aiofiles
 
@@ -97,7 +97,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         Start a remote session on the host machine.
         This is the recommended way of starting a remote session, as it avoids writing password to shell history'''
         parsed_args: argparse.Namespace = command_parsers.auth_command_parser.parse_args(args.split())
-        auth_component: BaseAuthComponent = await operational_utils.make_auth_component(parsed_args.username, parsed_args.password)
+        auth_component: BaseAuthComponent = operational_utils.make_auth_component(parsed_args.username, parsed_args.password)
         
         self.end_connection = parsed_args.bye
         await auth_operations.authorize(reader=self.reader, writer=self.writer,
@@ -126,7 +126,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         Create a new remote user. This does not create a remote session
         '''
         parsed_args: argparse.Namespace = command_parsers.auth_command_parser.parse_args(args.split())
-        auth_component: BaseAuthComponent = await operational_utils.make_auth_component(username=parsed_args.username, password=parsed_args.password)
+        auth_component: BaseAuthComponent = operational_utils.make_auth_component(username=parsed_args.username, password=parsed_args.password)
         display_credentials, self.end_connection = parsed_args.dc, parsed_args.bye
 
         await auth_operations.create_remote_user(reader=self.reader, writer=self.writer,
@@ -170,6 +170,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         Create a new file in the remote directory.
         Filename must include file extension
         '''
+        assert self.session_master.identity
         parsed_args: argparse.Namespace = command_parsers.filedir_parser.parse_args(shlex.split(args))
         file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=self.session_master.identity)
         self.end_connection = parsed_args.bye
@@ -186,6 +187,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         Delete a file from a remote directory.
         Filename must include file extension
         '''
+        assert self.session_master.identity
         parsed_args: argparse.Namespace = command_parsers.filedir_parser.parse_args(shlex.split(args))
         file_component: BaseFileComponent = BaseFileComponent(subject_file=parsed_args.file, subject_file_owner=self.session_master.identity)
         self.end_connection = parsed_args.bye
@@ -383,6 +385,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         TRANSFER [filename] [directory] [user] [modifiers]
         Transfer ownership of a file to another user.
         '''
+        assert self.session_master.identity
         parsed_args: argparse.Namespace = command_parsers.permission_command_parser.parse_args(shlex.split(args))
         if not parsed_args.user:
             raise ValueError('User needs to be specified')
@@ -402,6 +405,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         Publicise a given file and grant every remote user read access, without overriding any previosuly granted permissions.
         This operation can only be performed on the files in the user's own directory
         '''
+        assert self.session_master.identity
         parsed_args: argparse.Namespace = command_parsers.filedir_parser.parse_args(shlex.split(args))
         permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=parsed_args.file, subject_file_owner=self.session_master.identity)
         self.end_connection = parsed_args.bye
@@ -415,6 +419,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         '''
         HIDE [filename] [modifiers]
         '''
+        assert self.session_master.identity
         parsed_args: argparse.Namespace = command_parsers.filedir_parser.parse_args(shlex.split(args))
         permission_component: BasePermissionComponent = BasePermissionComponent(subject_file=parsed_args.file, subject_file_owner=self.session_master.identity)
         self.end_connection = parsed_args.bye
@@ -438,7 +443,7 @@ class ClientWindow(async_cmd.AsyncCmd):
                                               resource=parsed_args.resource_name,
                                               end_connection=parsed_args.bye)
 
-    async def do_bye(self, args: str) -> None:
+    async def do_bye(self, args: str) -> Literal[True]:
         '''
         BYE
         Disconnect from the remote server, and purge current session if available
