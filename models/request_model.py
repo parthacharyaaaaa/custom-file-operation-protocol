@@ -11,10 +11,18 @@ from pydantic import BaseModel, Field, model_validator, IPvAnyAddress, field_ser
 if TYPE_CHECKING: assert REQUEST_CONSTANTS
 
 class BaseAuthComponent(BaseModel):
-    identity: Annotated[str, Field(min_length=REQUEST_CONSTANTS.auth.username_range[0], max_length=REQUEST_CONSTANTS.auth.username_range[1], pattern=REQUEST_CONSTANTS.auth.username_regex)]
-    password: Annotated[Optional[str], Field(min_length=REQUEST_CONSTANTS.auth.password_range[0], max_length=REQUEST_CONSTANTS.auth.password_range[1], default=None)]
-    token: Annotated[Optional[bytes], Field(min_length=REQUEST_CONSTANTS.auth.token_length, max_length=REQUEST_CONSTANTS.auth.token_length, default=None)]
-    refresh_digest: Annotated[Optional[bytes], Field(min_length=REQUEST_CONSTANTS.auth.digest_length, max_length=REQUEST_CONSTANTS.auth.digest_length, frozen=True, default=None)]
+    identity: str =  Field(min_length=REQUEST_CONSTANTS.auth.username_range[0],
+                           max_length=REQUEST_CONSTANTS.auth.username_range[1],
+                           pattern=REQUEST_CONSTANTS.auth.username_regex)
+    password: Optional[str] = Field(min_length=REQUEST_CONSTANTS.auth.password_range[0],
+                                    max_length=REQUEST_CONSTANTS.auth.password_range[1],
+                                    default=None)
+    token: Optional[bytes] = Field(min_length=REQUEST_CONSTANTS.auth.token_length,
+                                   max_length=REQUEST_CONSTANTS.auth.token_length,
+                                   default=None)
+    refresh_digest: Optional[bytes] = Field(min_length=REQUEST_CONSTANTS.auth.digest_length,
+                                            max_length=REQUEST_CONSTANTS.auth.digest_length,
+                                            frozen=True, default=None)
 
     @model_validator(mode='after')
     def auth_semantic_check(self) -> 'BaseAuthComponent':
@@ -111,7 +119,7 @@ class BasePermissionComponent(BaseModel):
         return bool(permission_bits & (PermissionFlags.TRANSFER.value | PermissionFlags.MANAGER.value))
 
 class BaseInfoComponent(BaseModel):
-    subject_resource: Annotated[Optional[str], Field(default=None)]
+    subject_resource: Optional[str] = Field(default=None)
 
 
 class BaseHeaderComponent(BaseModel):
