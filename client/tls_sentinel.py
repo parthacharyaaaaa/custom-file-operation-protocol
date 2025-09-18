@@ -12,6 +12,8 @@ from models.request_model import BaseHeaderComponent
 from models.flags import CategoryFlag, InfoFlags
 from models.response_codes import SuccessFlags
 
+from pydantic.networks import IPvAnyAddress
+
 __all__ = ('make_client_ssl_context', 'generate_certificate_fingerprint')
 
 def generate_certificate_fingerprint(certificate: bytes) -> str:
@@ -28,7 +30,7 @@ def make_client_ssl_context(ciphers: str) -> ssl.SSLContext:
 
 async def get_rollover_data(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                             client_config: ClientConfig,
-                            host: str, port: int) -> dict[str, Any]:
+                            host: IPvAnyAddress, port: int) -> dict[str, Any]:
     header_component: Final[BaseHeaderComponent] = BaseHeaderComponent(version=client_config.version,
                                                                        auth_size=0, body_size=0,
                                                                        sender_hostname=host, sender_port=port, sender_timestamp=time.time(),
@@ -37,8 +39,11 @@ async def get_rollover_data(reader: asyncio.StreamReader, writer: asyncio.Stream
     await send_request(writer, header_component=header_component)
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
 
-    if response_header.code != SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value:
+    if response_header.code != SuccessFlags.SUCCESSFUL_QUERY_ANSWER:
         raise ConnectionError(f'Failed to fetch SSL credentials from server running at {host}:{port}')
+    
+    if not (response_body and response_body.contents and isinstance(response_body.contents.get('rollover_data'), dict)):
+        raise ValueError(f'Invalid response format from server ({str(host)}:{port}) ssl reconciliation endpoint')
     
     return response_body.contents['rollover_data']
 
