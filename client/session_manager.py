@@ -72,3 +72,6 @@ class SessionManager(metaclass=SingletonMetaclass):
         self._session_metadata = None
         self._auth_component = None
         self._identity = None
+
+    def check_authentication_integrity(self) -> bool:
+        return all((self._session_metadata, self._identity, self._auth_component))
