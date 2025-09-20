@@ -1,6 +1,6 @@
 '''Auxillary functions for client operations'''
 import time
-from typing import Any, Union, Mapping
+from typing import Any, Union, Mapping, TypeVar
 
 from client.auxillary.typing import SupportsBuffer
 from client.cmd import cmd_utils, errors as cmd_errors
@@ -8,19 +8,21 @@ from client.cmd.message_strings import general_messages
 from client.config.constants import ClientConfig
 from client.session_manager import SessionManager
 
-from models.flags import CategoryFlag, AuthFlags, PermissionFlags, FileFlags
+from models.flags import CategoryFlag, AuthFlags, PermissionFlags, FileFlags, InfoFlags
 from models.request_model import BaseHeaderComponent, BaseAuthComponent
 
 import pydantic
 
 __all__ = ('cast_as_memoryview', 'make_header_component', 'filter_claims', 'make_auth_component')
 
+T = TypeVar('T')
+
 def cast_as_memoryview(arg: Union[str, SupportsBuffer]):
     if isinstance(arg, str): return memoryview(arg.encode(encoding='utf-8'))
     return memoryview(arg)
 
 def make_header_component(client_config: ClientConfig, session_manager: SessionManager,
-                          category: CategoryFlag, subcategory: Union[AuthFlags, PermissionFlags, FileFlags] ,
+                          category: CategoryFlag, subcategory: Union[AuthFlags, PermissionFlags, FileFlags, InfoFlags] ,
                           auth_size: int = 0,
                           body_size: int = 0,
                           finish: bool = False) -> BaseHeaderComponent:
@@ -35,7 +37,7 @@ def make_header_component(client_config: ClientConfig, session_manager: SessionM
                                category=category,
                                subcategory=subcategory)
 
-async def filter_claims(claimset: Mapping[str, Any], *claims: str, strict: bool = False, default: Any = None) -> list[Any]:
+async def filter_claims(claimset: Mapping[str, T], *claims: str, strict: bool = False, default: Any = None) -> list[T]:
     '''Check a given mapping for claims and return the claims found in the same order in which they were passed'''
     matched_claims: list[Any] = [claimset.get(claim, default) for claim in claims]
     if (len(matched_claims) < len(claims)):
