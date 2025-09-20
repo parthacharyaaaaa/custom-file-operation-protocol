@@ -19,7 +19,9 @@ async def send_heartbeat(reader: asyncio.StreamReader, writer: asyncio.StreamWri
                          client_config: client_constants.ClientConfig, session_master: session_manager.SessionManager,
                          end_connection: bool = False) -> None:
     
-    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_master, finish=end_connection, category=CategoryFlag.INFO, subcategory=InfoFlags.HEARTBEAT)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_master,
+                                                                                    finish=end_connection,
+                                                                                    category=CategoryFlag.INFO, subcategory=InfoFlags.HEARTBEAT)
 
     await outgoing.send_request(writer, header_component)
 
@@ -50,5 +52,5 @@ async def send_info_query(reader: asyncio.StreamReader, writer: asyncio.StreamWr
         return
     
     await cmd_utils.display(cmd_utils.format_dict(response_body.contents)
-                            if response_body.contents
+                            if (response_body and response_body.contents)
                             else f'No available information for operation {extracted_subcategory._name_} on resource {resource}')
