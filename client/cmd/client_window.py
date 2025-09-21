@@ -47,11 +47,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         self.prompt = f'{host}:{port}>'
         super().__init__(completekey, stdin, stdout)
     
-    def postcmd(self, stop, line) -> bool:
-        _parent_loop = asyncio.get_running_loop()
-        return _parent_loop.run_until_complete(self.async_postcmd(stop, line))
-
-    async def async_postcmd(self, stop, line) -> bool:
+    async def postcmd(self, stop, line) -> bool:    # type: ignore
         if self.connection_ended:
             self.writer.close()
             await self.writer.wait_closed()
@@ -127,12 +123,12 @@ class ClientWindow(async_cmd.AsyncCmd):
         '''
         parsed_args: argparse.Namespace = command_parsers.auth_command_parser.parse_args(args.split())
         auth_component: BaseAuthComponent = operational_utils.make_auth_component(username=parsed_args.username, password=parsed_args.password)
-        display_credentials, self.end_connection = parsed_args.dc, parsed_args.bye
+        self.end_connection = parsed_args.bye
 
         await auth_operations.create_remote_user(reader=self.reader, writer=self.writer,
                                                  auth_component=auth_component,
                                                  client_config=self.client_config, session_manager=self.session_master,
-                                                 display_credentials=display_credentials, end_connection=self.end_connection)
+                                                end_connection=self.end_connection)
     
     async def do_udel(self, args: str) -> None:
         '''

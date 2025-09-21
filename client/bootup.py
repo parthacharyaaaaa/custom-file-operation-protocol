@@ -9,7 +9,7 @@ from typing import Any, Final, Optional
 
 from client import tls_sentinel
 from client.config.constants import ClientConfig
-from client.cmd.window import ClientWindow
+from client.cmd.client_window import ClientWindow
 from client.session_manager import SessionManager
 from client.communication import incoming, outgoing
 from client.operations import info_operations

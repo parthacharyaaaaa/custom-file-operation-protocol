@@ -1,11 +1,9 @@
 '''Asynchronous support for Python's cmd.Cmd class'''
 
 import argparse
-import asyncio
 import cmd
 import inspect
 from traceback import format_exc, format_exception_only
-from typing import Any
 
 from client.cmd import cmd_utils
 from client.cmd import errors as cmd_errors
@@ -33,16 +31,8 @@ class AsyncCmd(cmd.Cmd):
     def default(self, line):
         self.stdout.write(f'UNKNOWN COMMAND: {line.split()[0]}\n')
         self.do_help('')    # cmd.Cmd.default() checks if arg param is truthy, which we don't want. For some reason, it doesn't accept an optional string, so here we are >:/
-
-    def cmdloop(self, intro: Any | None = None) -> None:
-        _parent_loop = asyncio.get_running_loop()
-        return _parent_loop.run_until_complete(self.async_cmdloop(intro))
     
-    def onecmd(self, line) -> bool:
-        _parent_loop = asyncio.get_running_loop()
-        return _parent_loop.run_until_complete(self.async_onecmd(line))
-    
-    async def async_cmdloop(self, intro = None):
+    async def cmdloop(self, intro = None) -> None:  # type: ignore
         self.preloop()
         if self.use_rawinput and self.completekey:
             try:
@@ -77,7 +67,10 @@ class AsyncCmd(cmd.Cmd):
                             line = line.rstrip('\r\n')
                 line = self.precmd(line)
                 stop = await self.onecmd(line)
-                await self.postcmd(stop, line)
+                if inspect.iscoroutinefunction(self.postcmd):
+                    await self.postcmd(stop, line)
+                else:
+                    self.postcmd(stop, line)
             self.postloop()
         finally:
             if self.use_rawinput and self.completekey:
@@ -87,7 +80,7 @@ class AsyncCmd(cmd.Cmd):
                 except ImportError:
                     pass
     
-    async def async_onecmd(self, line) -> bool:
+    async def onecmd(self, line) -> bool:   # type: ignore
         cmd, arg, line = self.parseline(line)
         if not line:
             return self.emptyline()

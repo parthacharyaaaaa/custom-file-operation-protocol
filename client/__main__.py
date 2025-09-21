@@ -7,7 +7,7 @@ from typing import Final
 from client import tls_sentinel
 from client.parsing import entrypoint_parser
 from client.bootup import init_client_configurations, init_session_manager, create_server_connection, init_cmd_window
-from client.cmd.window import ClientWindow
+from client.cmd.client_window import ClientWindow
 from client.config.constants import ClientConfig
 from client.operations import auth_operations
 from client.session_manager import SessionManager
@@ -36,7 +36,7 @@ async def main() -> None:
 
 
     try:
-        client_cmd_window.cmdloop()
+        await client_cmd_window.cmdloop()
     except KeyboardInterrupt:
         writer.close()
         await writer.wait_closed()
