@@ -6,7 +6,7 @@ from datetime import datetime
 from secrets import token_hex
 from hmac import compare_digest
 from hashlib import pbkdf2_hmac
-from typing import Optional, Final, TypeAlias, Union
+from typing import Optional, Final, TypeAlias, Union, TYPE_CHECKING
 
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 
@@ -24,6 +24,8 @@ from server.errors import UserAuthenticationError, DatabaseFailure, Banned, Inva
 
 __all__ = ('UserManager',)
 
+if TYPE_CHECKING: assert REQUEST_CONSTANTS
+
 FileBuffer: TypeAlias = Union[AsyncBufferedReader, AsyncBufferedIOBase]
 
 class UserManager(metaclass=SingletonMetaclass):
@@ -35,7 +37,10 @@ class UserManager(metaclass=SingletonMetaclass):
     LOG_ALIAS: Final[LogAuthor] = LogAuthor.USER_MASTER
     LOG_TIMEOUT: Final[float] = 2.0
 
-    __slots__ = ('connection_master', 'session', 'log_queue', 'session_lifespan', 'session_refresh_nbf', 'previous_digests_mapping')
+    __slots__ = ('connection_master',
+                 'session', 'session_lifespan', 'session_refresh_nbf', 
+                 'log_queue', 'previous_digests_mapping',
+                 '__weakref__')
 
     def __init__(self, connection_master: ConnectionPoolManager, log_queue: asyncio.Queue[ActivityLog], session_lifespan: float):
         self.connection_master: Final[ConnectionPoolManager] = connection_master
