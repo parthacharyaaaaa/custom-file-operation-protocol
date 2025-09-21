@@ -5,7 +5,7 @@ import aiofiles
 import math
 import mmap
 from pathlib import Path
-from typing import Optional, Union, Any, Sequence
+from typing import Optional, Union, Any, Sequence, TYPE_CHECKING
 
 from client import session_manager
 from client.auxillary.typing import SupportsBuffer
@@ -20,8 +20,10 @@ from client.operations import info_operations
 from models.constants import REQUEST_CONSTANTS
 from models.cursor_flag import CursorFlag
 from models.flags import CategoryFlag, FileFlags
-from models.response_codes import SuccessFlags
+from models.response_codes import SuccessFlags, ClientErrorFlags, ServerErrorFlags
 from models.request_model import BaseHeaderComponent, BaseFileComponent, BaseAuthComponent
+
+if TYPE_CHECKING: assert REQUEST_CONSTANTS
 
 __all__ = ('replace_remote_file',
            'patch_remote_file',
@@ -64,11 +66,16 @@ async def _send_amendment_chunks(reader: asyncio.StreamReader, writer: asyncio.S
 async def replace_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                               write_data: Union[str, SupportsBuffer],
                               file_component: BaseFileComponent,
-                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
+                              client_config: client_constants.ClientConfig,
+                              session_manager: session_manager.SessionManager,
                               post_op_cursor_keepalive: bool = False, end_connection: bool = False) -> None:
     '''Completely replace the contents of an existing remote file'''
+    if not session_manager.check_authentication_integrity():
+        raise ValueError(f'Cannot reauthorize when session manager holds no credentials')
+    assert session_manager.auth_component
+
     write_view: memoryview = operational_utils.cast_as_memoryview(write_data)
-    view_length = len(write_view)
+    view_length: int = len(write_view)
 
     file_component.chunk_size = min(REQUEST_CONSTANTS.file.max_bytesize, min(view_length, file_component.chunk_size or REQUEST_CONSTANTS.file.chunk_max_size))
     file_component.write_data = write_view[:file_component.chunk_size]
@@ -77,15 +84,20 @@ async def replace_remote_file(reader: asyncio.StreamReader, writer: asyncio.Stre
         file_component.cursor_bitfield |= CursorFlag.POST_OPERATION_CURSOR_KEEPALIVE
 
     # Initial header component would be file overwrite to truncate the previous file
-    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.OVERWRITE)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager,
+                                                                                    CategoryFlag.FILE_OP, FileFlags.OVERWRITE)
     await send_request(writer=writer,
                        header_component=header_component,
                        auth_component=session_manager.auth_component,
                        body_component=file_component)
     
     response_header, response_body = await process_response(reader=reader, writer=writer, timeout=client_config.read_timeout)
-    if response_header.code != SuccessFlags.SUCCESSFUL_AMEND.value:
-        await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.OVERWRITE, response_header.code))
+    if response_header.code != SuccessFlags.SUCCESSFUL_AMEND:
+        assert isinstance(response_header.code, (ClientErrorFlags, ServerErrorFlags))
+        await display(file_messages.failed_file_operation(file_component.subject_file_owner,
+                                                          file_component.subject_file,
+                                                          FileFlags.OVERWRITE,
+                                                          response_header.code))
         return
     
     if not file_component.end_operation:
@@ -100,16 +112,22 @@ async def replace_remote_file(reader: asyncio.StreamReader, writer: asyncio.Stre
                                                     post_op_cursor_keepalive=post_op_cursor_keepalive,
                                                     end_connection=end_connection)
         if not success:
-            await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.APPEND, response_header.code))
+            assert isinstance(response_header.code, (ClientErrorFlags, ServerErrorFlags))
+            await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file,
+                                                              FileFlags.APPEND, response_header.code))
             return
     
-    await display(file_messages.successful_file_amendment(file_component.subject_file_owner, file_component.subject_file, SuccessFlags.SUCCESSFUL_AMEND.value))
+    await display(file_messages.successful_file_amendment(file_component.subject_file_owner, file_component.subject_file, SuccessFlags.SUCCESSFUL_AMEND))
 
 async def patch_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                               write_data: Union[str, SupportsBuffer],
                               file_component: BaseFileComponent,
                               client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                               post_op_cursor_keepalive: bool = False, end_connection: bool = False) -> None:
+    if not session_manager.check_authentication_integrity():
+        raise ValueError(f'Cannot reauthorize when session manager holds no credentials')
+    assert session_manager.auth_component
+
     write_view: memoryview = operational_utils.cast_as_memoryview(write_data)
     view_length = len(write_view)
 
@@ -127,13 +145,17 @@ async def patch_remote_file(reader: asyncio.StreamReader, writer: asyncio.Stream
         await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.WRITE))
         return
     
-    await display(file_messages.successful_file_amendment(file_component.subject_file_owner, file_component.subject_file, SuccessFlags.SUCCESSFUL_AMEND.value))
+    await display(file_messages.successful_file_amendment(file_component.subject_file_owner, file_component.subject_file, SuccessFlags.SUCCESSFUL_AMEND))
 
 async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              write_data: Union[str, SupportsBuffer],
                              file_component: BaseFileComponent, chunk_size: int,
                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                              post_op_cursor_keepalive: bool = False, end_connection: bool = False) -> None:
+    if not session_manager.check_authentication_integrity():
+        raise ValueError(f'Cannot reauthorize when session manager holds no credentials')
+    assert session_manager.auth_component
+
     write_view: memoryview = operational_utils.cast_as_memoryview(write_data)
     view_length: int = len(write_view)
 
@@ -152,20 +174,23 @@ async def append_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
     if not success:
         await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.APPEND))
         return
-    await display(file_messages.successful_file_amendment(file_component.subject_file_owner, file_component.subject_file, SuccessFlags.SUCCESSFUL_AMEND.value))
+    await display(file_messages.successful_file_amendment(file_component.subject_file_owner, file_component.subject_file, SuccessFlags.SUCCESSFUL_AMEND))
 
 async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                            file_component: BaseFileComponent,
                            client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                            read_limit: Optional[int] = None,
-                           chunked_display: bool = True, end_connection: bool = False) -> bytearray:
+                           chunked_display: bool = True, end_connection: bool = False) -> Optional[bytearray]:
     read_data: bytearray = bytearray()
     bytes_read: int = 0
     
     header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.READ)
 
     if not read_limit:
-        read_limit = math.inf
+        read_limit = REQUEST_CONSTANTS.file.chunk_max_size
+    if file_component.cursor_position is None:
+        file_component.cursor_position = 0
+    
     while bytes_read < read_limit:
         file_component.chunk_size = min(read_limit-bytes_read, file_component.chunk_size)
         if file_component.chunk_size+bytes_read >= read_limit:  # End reached
@@ -178,13 +203,18 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
         response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
         # TODO: Add notice/suspension for ongoing amendments
 
-        if response_header.code != SuccessFlags.SUCCESSFUL_READ.value:
-            await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.READ, code=response_header.code))
+        if response_header.code != SuccessFlags.SUCCESSFUL_READ:
+            assert isinstance(response_header.code, (ClientErrorFlags, ServerErrorFlags))
+            await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file,
+                                                              FileFlags.READ, code=response_header.code))
             if not chunked_display:
                 await display(b'bytes read:', read_data or b'None')
             return
+        if not (response_body and response_body.contents):
+            await display(general_messages.malformed_response_body('Missing response body'))
+            return
         
-        remote_read_data: bytes = response_body.contents.get('read')
+        remote_read_data: Optional[bytes] = response_body.contents.get('read')
         if remote_read_data is None:
             await display(general_messages.missing_response_claim('read'))
             return
@@ -195,7 +225,7 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
         if chunked_display:
             await display(remote_read_data)
         else:
-            read_data.append(remote_read_data)
+            read_data.extend(remote_read_data)
         
         if response_body.operation_ended:
             break
@@ -210,7 +240,7 @@ async def read_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
 async def create_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                       file_component: BaseFileComponent,
                       client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
-                      end_connection: bool = False) -> dict[str, Any]:
+                      end_connection: bool = False) -> Optional[dict[str, Any]]:
     header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.CREATE, finish=end_connection)
     await send_request(writer,
                        header_component=header_component,
@@ -218,12 +248,18 @@ async def create_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
                        body_component=file_component)
     
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
-    if response_header.code != SuccessFlags.SUCCESSFUL_FILE_CREATION.value:
+    if response_header.code != SuccessFlags.SUCCESSFUL_FILE_CREATION:
+        assert isinstance(response_header.code, (ClientErrorFlags, ServerErrorFlags))
         await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.CREATE, response_header.code))
         return
     
-    iso_epoch, = await operational_utils.filter_claims(response_body.contents, "iso_epoch", default="N\A")
+    if not (response_body and response_body.contents):
+        await display(general_messages.malformed_response_body('Missing response body and claims'))
+        return 
+    
+    iso_epoch, = await operational_utils.filter_claims(response_body.contents, "iso_epoch", default="N/A")
 
+    assert isinstance(response_header.code, (SuccessFlags))
     await display(file_messages.succesful_file_creation(file_component.subject_file_owner, file_component.subject_file, iso_epoch, response_header.code))
 
 async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
@@ -237,7 +273,12 @@ async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
     if response_header.code != SuccessFlags.SUCCESSFUL_FILE_DELETION:
+        assert isinstance(response_header.code, (ClientErrorFlags, ServerErrorFlags))
         await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.DELETE, response_header.code))
+
+    if not (response_body and response_body.contents):
+        await display(general_messages.malformed_response_body('Missing response body and claims'))
+        return 
 
     revoked_info: list[dict[str, str]] = response_body.contents.get('revoked_grantee_info', [])
     if revoked_info == []:
@@ -249,20 +290,26 @@ async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         await display(general_messages.malformed_response_body("Mismatched data types in response body sent by server"))
         return
     
-    deletion_iso_datetime: str = response_body.contents.get('deletion_time')
+    deletion_iso_datetime: Optional[str] = response_body.contents.get('deletion_time')
     if not deletion_iso_datetime:
         await display(general_messages.malformed_response_body('deletion_time'))
 
     deletion_iso_datetime, = await operational_utils.filter_claims(response_body.contents, "deletion_time")
 
-    await display(file_messages.succesful_file_deletion(file_component.subject_file_owner, file_component.subject_file, revoked_info, deletion_iso_datetime, response_header.code))
+    assert isinstance(response_header.code, SuccessFlags)
+    await display(file_messages.succesful_file_deletion(file_component.subject_file_owner, file_component.subject_file,
+                                                        revoked_info, deletion_iso_datetime, response_header.code))
 
 async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                              local_fpath: Path, remote_filename: Optional[str] = None, chunk_size: Optional[int] = None,
-                             end_connection: bool = False, post_op_cursor_keepalive: bool = True) -> None:    
+                             end_connection: bool = False, post_op_cursor_keepalive: bool = True) -> None:
+    if not session_manager.check_authentication_integrity():
+        raise ValueError('Invalid authentication state')
+    assert session_manager.identity and session_manager.auth_component
+
     if not remote_filename:
-        remote_filename: str = local_fpath.name
+        remote_filename = local_fpath.name
 
     header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.FILE_OP, FileFlags.CREATE)
     file_component: BaseFileComponent = BaseFileComponent(subject_file=remote_filename, subject_file_owner=session_manager.identity)
@@ -272,12 +319,16 @@ async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
                        body_component=file_component)
 
     creation_response_header, creation_response_body = await process_response(reader, writer, client_config.read_timeout)
-    if creation_response_header.code != SuccessFlags.SUCCESSFUL_FILE_CREATION.value:
+    if creation_response_header.code != SuccessFlags.SUCCESSFUL_FILE_CREATION:
+        assert isinstance(creation_response_header.code, (ClientErrorFlags, ServerErrorFlags))
         await display(file_messages.failed_file_operation(session_manager.identity, remote_filename, FileFlags.CREATE, creation_response_header.code))
         return
-    
+    if not (creation_response_body and creation_response_body.contents):
+        await display(general_messages.malformed_response_body('Missing response body and claims'))
+        return
+     
     iso_epoch, = await operational_utils.filter_claims(creation_response_body.contents, "iso_epoch")
-    await display(file_messages.succesful_file_creation(session_manager.identity, remote_filename, iso_epoch or 'N\A'))
+    await display(file_messages.succesful_file_creation(session_manager.identity, remote_filename, iso_epoch or 'N/A'))
 
     file_component.chunk_size = max(REQUEST_CONSTANTS.file.max_bytesize, (chunk_size or -1))
     file_component.cursor_position = 0
@@ -285,9 +336,10 @@ async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
 
     success: bool = False
     async with aiofiles.open(local_fpath, 'rb') as src_file:
+        write_view: Optional[memoryview] = None
         file_mmap: mmap.mmap = mmap.mmap(src_file.fileno(), 0, access=mmap.ACCESS_READ)
         try:
-            write_view: memoryview = memoryview(file_mmap)
+            write_view = memoryview(file_mmap)
             success = await _send_amendment_chunks(reader=reader, writer=writer,
                                                    header_component=header_component,
                                                    auth_component=session_manager.auth_component,
@@ -297,7 +349,8 @@ async def upload_remote_file(reader: asyncio.StreamReader, writer: asyncio.Strea
                                                    post_op_cursor_keepalive=post_op_cursor_keepalive,
                                                    end_connection=end_connection)
         finally:
-            write_view.release()
+            if write_view:
+                write_view.release()
             file_component.write_data = None
             file_mmap.close()
         
