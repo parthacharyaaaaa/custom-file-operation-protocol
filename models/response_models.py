@@ -44,10 +44,6 @@ class ResponseHeader(BaseModel):
     
     # Connection status
     ended_connection: bool = Field(default=False)
-
-    model_config = {
-        'use_enum_values' : True
-    }
     
     @classmethod
     def from_server(cls,
