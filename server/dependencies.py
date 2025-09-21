@@ -55,8 +55,24 @@ SingletonTypes: TypeAlias = Union[
     type[GlobalLogQueueType],
 ]
 
+def _pydantic_slotted_weakref_dataclass(*args, **kwargs):
+    kwargs['slots'] = True
+    def class_creater(cls):
+        cls = pydantic.dataclasses.dataclass(*args, **kwargs)(cls)
+        if not getattr(cls, '__slots__'):
+            raise TypeError(f'Class {cls.__name__} requires pre-defined __slots__ class variable')
+        
+        if '__weakref__' in cls.__slots__:
+            return cls
+        
+        return type(cls.__name__, cls.__bases__, {'__slots__' : (*cls.__slots__, '__weakref__')})
+    return class_creater
+
+class _pydantic_dataclass_slots_helper:
+    __slots__ = '__weakref__',
+
 @pydantic.dataclasses.dataclass(slots=True, config=_singleton_registry_config_dict)
-class ServerSingletonsRegistry(metaclass=SingletonMetaclass):
+class ServerSingletonsRegistry(_pydantic_dataclass_slots_helper, metaclass=SingletonMetaclass):
     # Custom singleton classes are not assigned an explicit NewType 
     # since it is impossible to have a function signature having duplicate type annotations for them
     deletion_cache: TTLCache[str, str]
