@@ -43,15 +43,15 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
                                                         WHERE username = %s;''')
                                                         .format(*(sql.Identifier(slot) for slot in StorageData.__slots__)))
 
-    file_size_retrieval_query: Final[sql.Composed] = (sql.SQL('''SELECT file_size
+    file_size_retrieval_query: Final[sql.SQL] = (sql.SQL('''SELECT file_size
                                                               FROM files
                                                               WHERE owner = %s AND filename = %s;'''))
     
-    storage_flush_query: Final[sql.Composed] = (sql.SQL('''UPDATE users
+    storage_flush_query: Final[sql.SQL] = (sql.SQL('''UPDATE users
                                                         SET file_count = %s, storage_used = %s
                                                         WHERE username = %s;'''))
     
-    file_flush_query: Final[sql.Composed] = (sql.SQL('''UPDATE files
+    file_flush_query: Final[sql.SQL] = (sql.SQL('''UPDATE files
                                                      SET file_size = %s
                                                      WHERE owner = %s AND filename = %s;'''))
     
