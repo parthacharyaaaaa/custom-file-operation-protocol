@@ -58,7 +58,7 @@ async def _send_amendment_chunks(reader: asyncio.StreamReader, writer: asyncio.S
                             body_component=file_component)
 
         response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
-        if response_header.code != SuccessFlags.SUCCESSFUL_AMEND.value:
+        if response_header.code != SuccessFlags.SUCCESSFUL_AMEND:
             return False
         file_component.cursor_position += len(file_component.write_data)
     return True
