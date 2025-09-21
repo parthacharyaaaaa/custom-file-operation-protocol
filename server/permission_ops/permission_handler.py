@@ -44,11 +44,11 @@ async def top_permission_handler(stream_reader: asyncio.StreamReader,
         raise InvalidHeaderSemantic('Headers for permission operations require BOTH auth component and permission (body) component')
 
     try:
-        auth_component: ProtocolComponent = await process_component(n_bytes=header_component.auth_size,
+        auth_component: BaseAuthComponent = await process_component(n_bytes=header_component.auth_size,
                                                                     reader=stream_reader,
                                                                     component_type=BaseAuthComponent,
                                                                     timeout=server_singleton_registry.server_config.read_timeout)
-        assert isinstance(auth_component, BaseAuthComponent) and auth_component.token
+        assert auth_component.token
     except asyncio.TimeoutError:
         raise SlowStreamRate
     except (asyncio.IncompleteReadError, ValidationError, orjson.JSONDecodeError):
@@ -58,17 +58,19 @@ async def top_permission_handler(stream_reader: asyncio.StreamReader,
         raise InvalidAuthSemantic('Permission operations require an auth component with ONLY the following: identity, token, refresh_digest')
     
     await server_singleton_registry.user_manager.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
-    if header_component.subcategory not in PermissionFlags._value2member_map_:
+    try:
+        header_component.subcategory = PermissionFlags(header_component.subcategory)
+    except ValueError:
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.PERMISSION._name_}')
     
     # All checks at the component level passed, read permission component
-    permission_component: ProtocolComponent = await process_component(n_bytes=header_component.body_size,
-                                                                      reader=stream_reader,
-                                                                      component_type=BasePermissionComponent,
-                                                                      timeout=server_singleton_registry.server_config.read_timeout)
-    assert isinstance(permission_component, BasePermissionComponent)
+    permission_component: BasePermissionComponent = await process_component(n_bytes=header_component.body_size,
+                                                                            reader=stream_reader,
+                                                                            component_type=BasePermissionComponent,
+                                                                            timeout=server_singleton_registry.server_config.read_timeout)
+
     # For permission operations, we'll need to mask the role bits 
-    subhandler = subhandler_mapping[PermissionFlags(header_component.subcategory & ~PermissionFlags.ROLE_EXTRACTION_BITMASK)]
+    subhandler: PermissionSubhandler = subhandler_mapping[PermissionFlags(header_component.subcategory & ~PermissionFlags.ROLE_EXTRACTION_BITMASK)]
     
     header, body = await subhandler(header_component=header_component,
                                     auth_component=auth_component,

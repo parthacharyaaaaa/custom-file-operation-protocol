@@ -41,12 +41,13 @@ async def top_auth_handler(stream_reader: asyncio.StreamReader,
                                                                  reader=stream_reader,
                                                                  component_type=BaseAuthComponent,
                                                                  timeout=server_singleton_registry.server_config.read_timeout)
-    if header_component.subcategory not in AuthFlags._value2member_map_:    # R level function name, absolutely vile.
+    try:
+        header_component.subcategory = AuthFlags(header_component.subcategory)
+    except ValueError:
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.AUTH._name_}')
     
     # Delegate actual handling to defined functions/coroutines
-    assert isinstance(header_component.subcategory, AuthFlags)
-    subhandler = subhandler_mapping[header_component.subcategory]
+    subhandler: AuthSubhandler = subhandler_mapping[header_component.subcategory]
 
     header, body = await subhandler(header_component=header_component,
                                     auth_component=auth_component)

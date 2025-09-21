@@ -58,7 +58,9 @@ async def top_file_handler(stream_reader: asyncio.StreamReader,
         raise InvalidAuthSemantic('File operations require an auth component with ONLY the following: identity, token, refresh_digest')
     
     await server_singleton_registry.user_manager.authenticate_session(username=auth_component.identity, token=auth_component.token, raise_on_exc=True)
-    if header_component.subcategory not in FileFlags._value2member_map_:
+    try:
+        header_component.subcategory = FileFlags(header_component.subcategory.value)
+    except Exception:
         raise UnsupportedOperation(f'Unsupported operation for category: {CategoryFlag.FILE_OP._name_}')
     
     # All checks at the component level passed, read and process file component
@@ -66,8 +68,7 @@ async def top_file_handler(stream_reader: asyncio.StreamReader,
                                                                 reader=stream_reader,
                                                                 component_type=BaseFileComponent,
                                                                 timeout=server_singleton_registry.server_config.read_timeout)
-    assert isinstance(file_component, BaseFileComponent) and isinstance(header_component.subcategory, FileFlags)
-
+    
     subhandler: FileSubhandler = subhandler_mapping[header_component.subcategory]
     
     header, body = await subhandler(header_component=header_component,
