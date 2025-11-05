@@ -163,6 +163,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
             raise UserNotFound(f'Attempted to remove file from non-existent user: {username}')
         
         user_storage.storage_used -= file_size
+        user_storage.filecount -= 1
         return user_storage.storage_used
     
     async def _flush_buffer(self, buffer: dict[str, StorageData]) -> None:
