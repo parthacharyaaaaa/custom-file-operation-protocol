@@ -12,7 +12,7 @@ from cachetools import TTLCache
 
 from server import errors
 from server.file_ops.cache_ops import remove_buffer, get_buffer, purge_buffers, rename_buffers
-from server.file_ops.typing import FileBuffer
+from server.file_ops.typing import FileBuffer, FileBufferCache
 
 __all__ = ('acquire_file_lock',
            'preemptive_eof_check',
@@ -158,7 +158,7 @@ async def create_file(root: os.PathLike, owner: str, filename: str) -> tuple[Opt
 
 async def delete_file(root: os.PathLike, fpath: str,
                       deleted_cache: TTLCache[str, Literal[True]],
-                      *caches: TTLCache[str, dict[str, Union[AsyncBufferedIOBase, AsyncBufferedReader]]]) -> bool:
+                      *caches: FileBufferCache) -> bool:
     abs_fpath: Final[str] = os.path.join(root, fpath)
     if fpath in deleted_cache or not os.path.isfile(abs_fpath):
         return False
