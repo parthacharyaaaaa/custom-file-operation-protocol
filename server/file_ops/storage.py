@@ -143,17 +143,27 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
                           username: str,
                           file: str,
                           proxy: Optional[ConnectionProxy] = None,
-                          release_after: bool = False) -> None:
+                          release_after: bool = False) -> int:
         user_storage: Optional[StorageData] = await self.get_storage_data(username, proxy, release_after)
         if not user_storage:
             raise UserNotFound(f'Attempted to remove file from non-existent user: {username}')
-
-        if file in user_storage.file_data:
-            user_storage.storage_used -= user_storage.file_data.pop(file)
-        else:
-            file_size = await self.get_file_size(username, file, proxy, release_after)
-            user_storage.storage_used -= file_size
         
+        file_size: int = user_storage.file_data.pop(file) if file in user_storage.file_data else await self.get_file_size(username, file, proxy, release_after)
+
+        user_storage.storage_used -= file_size
+        user_storage.filecount -= 1
+        return file_size
+    
+    async def reflect_removed_file(self,
+                                   username: str,
+                                   file_size: int,
+                                   proxy: Optional[ConnectionProxy] = None) -> int:
+        user_storage: Optional[StorageData] = await self.get_storage_data(username, proxy, True)
+        if not user_storage:
+            raise UserNotFound(f'Attempted to remove file from non-existent user: {username}')
+        
+        user_storage.storage_used -= file_size
+        return user_storage.storage_used
     
     async def _flush_buffer(self, buffer: dict[str, StorageData]) -> None:
         async with await self.connection_master.request_connection(level=1) as proxy:
