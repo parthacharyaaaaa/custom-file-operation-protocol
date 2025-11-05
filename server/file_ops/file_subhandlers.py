@@ -70,7 +70,7 @@ async def handle_deletion(header_component: BaseHeaderComponent,
                 await cursor.execute('''SELECT * FROM FILE_PERMISSIONS
                                     WHERE file_owner = %s AND filename = %s
                                     FOR UPDATE NOWAIT;''',
-                                    (file_component.subject_file, auth_component.identity))
+                                    (auth_component.identity, file_component.subject_file))
                 revoked_info = await cursor.fetchall()
 
                 await cursor.execute('''DELETE FROM files
