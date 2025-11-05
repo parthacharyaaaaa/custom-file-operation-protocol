@@ -1,6 +1,7 @@
 import asyncio
+from enum import IntEnum
 from contextlib import asynccontextmanager
-from typing import Literal, Optional, NoReturn, overload, Protocol, AsyncIterator, TYPE_CHECKING, Union
+from typing import Optional, NoReturn, overload, Protocol, AsyncIterator, TYPE_CHECKING, Union
 from typing_extensions import Self
 from types import TracebackType, FunctionType
 from uuid import uuid4
@@ -10,7 +11,16 @@ from psycopg.abc import Query, Params
 from psycopg.rows import Row, DictRow, TupleRow
 from psycopg.transaction import AsyncTransaction
 
-__all__ = ('SupportsConnection', 'ConnectionPoolManager', 'LeasedConnection', 'ConnectionProxy')
+__all__ = ('ConnectionPriority',
+           'SupportsConnection',
+           'ConnectionPoolManager',
+           'LeasedConnection',
+           'ConnectionProxy')
+
+class ConnectionPriority(IntEnum):
+    LOW         = 3
+    MODERATE    = 2
+    HIGH        = 1
 
 class SupportsConnection(Protocol):
     '''Protocol supporting interface to psycopg's connection's methods'''
@@ -43,7 +53,6 @@ class SupportsConnection(Protocol):
     
     @asynccontextmanager    #type: ignore
     async def transaction(self, savepoint_name: str | None = None, force_rollback: bool = False) -> AsyncIterator[AsyncTransaction]: ...
-
 
 class ConnectionProxy(SupportsConnection if TYPE_CHECKING else object):
     '''Proxy object for a database connection leased from a ConnectionPoolManager instance'''
@@ -94,7 +103,7 @@ class LeasedConnection:
 
     __slots__ = ('_pgconn', '_manager', '_lease_duration', '_lease_expired', '_in_use', '_priority', '_usage_token')
 
-    def __init__(self, pgconn: pg.AsyncConnection, manager: 'ConnectionPoolManager', lease_duration: float, priority: int, **kwargs):
+    def __init__(self, pgconn: pg.AsyncConnection, manager: 'ConnectionPoolManager', lease_duration: float, priority: ConnectionPriority, **kwargs):
         self._pgconn = pgconn
         self._manager = manager
         self._lease_duration: float = lease_duration
@@ -104,7 +113,7 @@ class LeasedConnection:
         self._usage_token: Optional[str] = None
 
     @classmethod
-    async def connect(cls, conninfo: str, manager: 'ConnectionPoolManager', lease_duration: float, priority: int, **kwargs) -> 'LeasedConnection':
+    async def connect(cls, conninfo: str, manager: 'ConnectionPoolManager', lease_duration: float, priority: ConnectionPriority, **kwargs) -> 'LeasedConnection':
         pgconn = await pg.AsyncConnection.connect(conninfo=conninfo, **kwargs)
         return cls(pgconn, manager, lease_duration, priority)
     
@@ -197,13 +206,13 @@ class ConnectionPoolManager:
 
     async def populate_pools(self, conninfo: str) -> None:
         for _ in range(self._hp_connection_pool.maxsize):
-            await self._hp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, 1, autocommit=True))
+            await self._hp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, ConnectionPriority.HIGH, autocommit=True))
         for _ in range(self._mp_connection_pool.maxsize):
-            await self._mp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, 2, autocommit=True))
+            await self._mp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, ConnectionPriority.MODERATE, autocommit=True))
         for _ in range(self._lp_connection_pool.maxsize):
-            await self._lp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, 3, autocommit=True))
+            await self._lp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, ConnectionPriority.LOW, autocommit=True))
 
-    async def request_connection(self, level: Literal[1,2,3], max_lease_duration: Optional[float] = None) -> ConnectionProxy:
+    async def request_connection(self, level: ConnectionPriority, max_lease_duration: Optional[float] = None) -> ConnectionProxy:
         '''Request a connection from one of the priority pools. If none available, waits.
         Args:
             level (int): Priority of the operation
@@ -211,7 +220,10 @@ class ConnectionPoolManager:
         Returns:
             AsyncConnection object
         '''
-        pool = self._hp_connection_pool if level == 1 else self._mp_connection_pool if level == 2 else self._lp_connection_pool
+        pool = (self._hp_connection_pool if level == ConnectionPriority.HIGH
+                else self._mp_connection_pool if level == ConnectionPriority.MODERATE
+                else self._lp_connection_pool)
+        
         requested_connection: LeasedConnection = await pool.get()
         
         token: str = uuid4().hex
@@ -229,9 +241,9 @@ class ConnectionPoolManager:
             raise ValueError(f'Connection not reclaimable as it does not belong to this instance of {self.__class__.__name__}')
         
         proxy._conn._reset_usage()
-        if proxy._conn.priority == 1:
+        if proxy._conn.priority == ConnectionPriority.HIGH:
             await self._hp_connection_pool.put(proxy._conn)
-        elif proxy._conn.priority == 2:
+        elif proxy._conn.priority == ConnectionPriority.MODERATE:
             await self._mp_connection_pool.put(proxy._conn)
         else:
             await self._lp_connection_pool.put(proxy._conn)

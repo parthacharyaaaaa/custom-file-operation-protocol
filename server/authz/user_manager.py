@@ -18,7 +18,7 @@ from models.singletons import SingletonMetaclass
 
 import psycopg.errors as pg_errors
 
-from server.database.connections import ConnectionProxy, ConnectionPoolManager
+from server.database.connections import ConnectionPriority, ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog, LogAuthor, Severity, LogType
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned, InvalidAuthData, OperationContested
 
@@ -105,7 +105,7 @@ class UserManager(metaclass=SingletonMetaclass):
     async def authorize_session(self, username: str, password: str) -> SessionMetadata:
         username = UserManager.check_username_validity(username)
         
-        async with await self.connection_master.request_connection(level=1) as proxy:
+        async with await self.connection_master.request_connection(level=ConnectionPriority.HIGH) as proxy:
             if await self.check_banned(username, proxy):
                 raise Banned(username)
             
@@ -136,7 +136,7 @@ class UserManager(metaclass=SingletonMetaclass):
     async def create_user(self, username: str, password: str, root: str, make_dir: bool = False) -> None:
         username = UserManager.check_username_validity(username)
         
-        async with await self.connection_master.request_connection(level=1) as proxy:   # Account creation is high-priority
+        async with await self.connection_master.request_connection(level=ConnectionPriority.HIGH) as proxy:   # Account creation is high-priority
             async with proxy.cursor() as cursor:
                 await cursor.execute('''SELECT username FROM users WHERE username = %s''', (username,))
                 res: Optional[tuple[str]] = await cursor.fetchone()
@@ -155,7 +155,7 @@ class UserManager(metaclass=SingletonMetaclass):
     async def delete_user(self, username: str, password: str, *caches) -> None:
         username = UserManager.check_username_validity(username)
 
-        async with await self.connection_master.request_connection(level=3) as proxy:
+        async with await self.connection_master.request_connection(level=ConnectionPriority.MODERATE) as proxy:
             async with proxy.cursor() as cursor:
                 await cursor.execute('''SELECT password_hash, password_salt
                                      FROM users
@@ -182,7 +182,7 @@ class UserManager(metaclass=SingletonMetaclass):
             asyncio.create_task(self.terminate_user_cache(username, *caches))
 
     async def change_password(self, username: str, new_password: str) -> None:
-        async with await self.connection_master.request_connection(level=3) as proxy:
+        async with await self.connection_master.request_connection(level=ConnectionPriority.MODERATE) as proxy:
             try:
                 async with proxy.cursor() as cursor:
                     await cursor.execute('''SELECT password_hash, password_salt
@@ -207,7 +207,7 @@ class UserManager(metaclass=SingletonMetaclass):
                 raise DatabaseFailure('Failed to perform password updation. Please try again')
 
     async def terminate_user_cache(self, identifier: str, *caches: TTLCache[str, dict[str, FileBuffer]]) -> None:
-        async with await self.connection_master.request_connection(level=3) as proxy:
+        async with await self.connection_master.request_connection(level=ConnectionPriority.LOW) as proxy:
             async with proxy.cursor() as cursor:
                 # Fetch all possible files where the user may have cached a file buffer. TODO: Segregate based on user roles (read, write+append) as well to separate cache scanning logic and save time
                 await cursor.execute('''SELECT file_owner, filename
@@ -306,7 +306,7 @@ class UserManager(metaclass=SingletonMetaclass):
     async def check_banned(self, username: str, proxy: Optional[ConnectionProxy] = None, reclaim_on_exc: bool = True, lock_row: bool = False) -> bool:
         new_proxy: bool = proxy is None
         if not proxy:
-            proxy = await self.connection_master.request_connection(level=1)
+            proxy = await self.connection_master.request_connection(level=ConnectionPriority.LOW)
         query: str = '''SELECT username
                         FROM ban_logs
                         WHERE username = %s AND lifted_at IS NOT NULL and lifted_at < %s
@@ -337,7 +337,7 @@ class UserManager(metaclass=SingletonMetaclass):
     async def ban(self, username: str, ban_reason: str, ban_description: Optional[str] = None, *caches: TTLCache[str, dict[str, FileBuffer]]) -> None:
         username = UserManager.check_username_validity(username)
         
-        async with await self.connection_master.request_connection(level=1) as proxy:
+        async with await self.connection_master.request_connection(level=ConnectionPriority.HIGH) as proxy:
             # NOTE: Explicit error-handling here to allow for protocol-specific exceptions to be raised in place of psycopg3's exceptions
             try:
                 if await self.check_banned(username, proxy):
@@ -369,7 +369,7 @@ class UserManager(metaclass=SingletonMetaclass):
     async def unban(self, username: str) -> None:
         username = UserManager.check_username_validity(username)
         
-        async with await self.connection_master.request_connection(level=1) as proxy:
+        async with await self.connection_master.request_connection(level=ConnectionPriority.MODERATE) as proxy:
             if not await self.check_banned(username, proxy, lock_row=True):
                 await self.enqueue_activity(ActivityLog(user_concerned=username,
                                                         reported_severity=Severity.NON_CRITICAL_FAILURE,

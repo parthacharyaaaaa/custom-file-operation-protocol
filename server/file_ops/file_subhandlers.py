@@ -16,7 +16,7 @@ from models.permissions import RoleTypes, FilePermissions
 from psycopg.rows import dict_row
 
 from server.config import server_config
-from server.database.connections import ConnectionPoolManager
+from server.database.connections import ConnectionPoolManager, ConnectionPriority
 from server.database import models as db_models, utils as db_utils
 from server.file_ops import base_operations as base_ops
 from server.file_ops import cache_ops
@@ -57,7 +57,7 @@ async def handle_deletion(header_component: BaseHeaderComponent,
     file_locks[file] = auth_component.identity  # Overwrite any active amendment locks with the owner's lock
     revoked_info: list[dict[str, Any]] = []
     
-    async with await connection_master.request_connection(level=3) as proxy:
+    async with await connection_master.request_connection(level=ConnectionPriority.MODERATE) as proxy:
         file_size: int = await storage_cache.get_file_size(auth_component.identity, file_component.subject_file, proxy, release_after=False)   # Prefetch file size
         async with proxy.cursor(row_factory=dict_row) as cursor:
             try:
@@ -126,7 +126,7 @@ async def handle_amendment(header_component: BaseHeaderComponent,
     if not file_component.write_data:
         raise errors.InvalidFileData("Missing write data for file amendment")
     
-    async with await connection_master.request_connection(1) as proxy:
+    async with await connection_master.request_connection(ConnectionPriority.MODERATE) as proxy:
         if not await db_utils.check_file_existence(filename=file_component.subject_file,
                                                    owner=file_component.subject_file_owner,
                                                    connection_master=connection_master,
@@ -282,7 +282,7 @@ async def handle_creation(header_component: BaseHeaderComponent,
     if fpath:
         assert epoch
         # Add record for this file
-        async with await connection_master.request_connection(level=3) as proxy:
+        async with await connection_master.request_connection(level=ConnectionPriority.MODERATE) as proxy:
             try:
                 await proxy.execute('''INSERT INTO files (filename, owner, created_at)
                                     VALUES (%s, %s, %s);''',

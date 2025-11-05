@@ -17,7 +17,7 @@ from psycopg.rows import dict_row
 from server import errors
 from server import logging
 from server.config import server_config
-from server.database.connections import ConnectionPoolManager
+from server.database.connections import ConnectionPoolManager, ConnectionPriority
 from server.database import models as db_models, utils as db_utils
 from server.dependencies import GlobalLogQueueType, GlobalDeleteCacheType, GlobalReadCacheType, GlobalAmendCacheType
 from server.file_ops import base_operations as base_ops
@@ -31,7 +31,7 @@ async def publicise_file(header_component: BaseHeaderComponent,
                          config: server_config.ServerConfig,
                          log_queue: GlobalLogQueueType,
                          connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
-    async with await connection_master.request_connection(level=2) as proxy:
+    async with await connection_master.request_connection(level=ConnectionPriority.LOW) as proxy:
         try:
             async with proxy.cursor(row_factory=dict_row) as cursor:
                 await cursor.execute('''SELECT public
@@ -74,7 +74,7 @@ async def hide_file(header_component: BaseHeaderComponent,
                     config: server_config.ServerConfig,
                     log_queue: GlobalLogQueueType,
                     connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, ResponseBody]:
-    async with await connection_master.request_connection(level=2) as proxy:
+    async with await connection_master.request_connection(level=ConnectionPriority.MODERATE) as proxy:
         try:
             async with proxy.cursor(row_factory = dict_row) as cursor:
                 # Only owner is allowed to publicise/hide files
@@ -137,7 +137,7 @@ async def grant_permission(header_component: BaseHeaderComponent,
     if (role_bits & PermissionFlags.MANAGER): # If request is to grant manager role to a user, then only the owner of this file is allowed
         allowed_permission = FilePermissions.MANAGE_SUPER
     
-    async with await connection_master.request_connection(level=2) as proxy:
+    async with await connection_master.request_connection(level=ConnectionPriority.MODERATE) as proxy:
         try:
             if not await db_utils.check_file_permission(filename=permission_component.subject_file,
                                                         owner=permission_component.subject_file_owner,
@@ -220,7 +220,7 @@ async def revoke_permission(header_component: BaseHeaderComponent,
                             config: server_config.ServerConfig,
                             log_queue: GlobalLogQueueType,
                             connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, ResponseBody]:
-    async with await connection_master.request_connection(level=2) as proxy:
+    async with await connection_master.request_connection(level=ConnectionPriority.MODERATE) as proxy:
         try:
             # If request is to revoke a user's manager role, then only the owner of this file is allowed
             async with proxy.cursor(row_factory=dict_row) as cursor:
@@ -288,7 +288,7 @@ async def transfer_ownership(header_component: BaseHeaderComponent,
     
     assert permission_component.subject_user
     new_fname: Optional[str] = None
-    async with await connection_master.request_connection(level=2) as proxy:
+    async with await connection_master.request_connection(level=ConnectionPriority.MODERATE) as proxy:
         try:
             async with proxy.cursor(row_factory=dict_row) as cursor:
                 # Auth component can easily be tampered to reflect same username as file owner, check against database

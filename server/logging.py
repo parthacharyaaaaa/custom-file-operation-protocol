@@ -2,7 +2,7 @@ import asyncio
 from typing import Optional, Final
 from traceback import format_exception_only
 
-from server.database.connections import ConnectionProxy, ConnectionPoolManager
+from server.database.connections import ConnectionPriority, ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog, Severity
 
 from psycopg import sql
@@ -35,7 +35,7 @@ async def flush_logs(connection_master: ConnectionPoolManager, queue: asyncio.Qu
             if not log_entries:
                 continue
         
-        proxy: ConnectionProxy = await connection_master.request_connection(level=3)
+        proxy: ConnectionProxy = await connection_master.request_connection(level=ConnectionPriority.LOW)
         try:
             async with proxy.cursor() as cursor:
                 await cursor.executemany(LOG_INSERTION_SQL,

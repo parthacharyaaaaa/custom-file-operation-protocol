@@ -8,7 +8,7 @@ from models.permissions import FilePermissions
 from psycopg.rows import dict_row
 from psycopg import sql
 
-from server.database.connections import ConnectionPoolManager, ConnectionProxy
+from server.database.connections import ConnectionPoolManager, ConnectionPriority, ConnectionProxy
 
 __all__ = ('check_file_permission', 'get_user')
 
@@ -16,7 +16,7 @@ async def check_file_permission(filename: str, owner: str, grantee: str,
                                 check_for: FilePermissions,
                                 connection_master: ConnectionPoolManager,
                                 proxy: Optional[ConnectionProxy] = None,
-                                level: Literal[1,2,3] = 1,
+                                level: ConnectionPriority = ConnectionPriority.LOW,
                                 check_until: Optional[datetime] = None) -> bool:
     '''Check whether a grantee has a specific permission on a file.
 
@@ -57,7 +57,7 @@ async def get_user(username: str,
                    connection_master: ConnectionPoolManager, proxy: Optional[ConnectionProxy] = None,
                    reclaim_after: bool = False,
                    lock_record: bool = False,
-                   level: Literal[1,2,3] = 1,
+                   level: ConnectionPriority = ConnectionPriority.LOW,
                    check_existence: bool = False) -> Optional[dict[str, Any]]:
     '''Retrieve user information from the database.
 
@@ -97,7 +97,7 @@ async def check_file_existence(filename: str,
                                connection_master: ConnectionPoolManager,
                                proxy: Optional[ConnectionProxy] = None,
                                reclaim_after: bool = False,
-                               level: Literal[1,2,3] = 1) -> bool:
+                               level: ConnectionPriority = ConnectionPriority.LOW) -> bool:
     '''Check whether a file exists in the database.
 
     Args:

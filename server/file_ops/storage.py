@@ -3,7 +3,7 @@ import asyncio
 from collections import OrderedDict
 from typing import Optional, Final
 
-from server.database.connections import ConnectionPoolManager, ConnectionProxy
+from server.database.connections import ConnectionPoolManager, ConnectionPriority, ConnectionProxy
 from server.errors import UserNotFound, FileNotFound
 
 from models.singletons import SingletonMetaclass
@@ -76,7 +76,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
         
         if not proxy:
             release_after = True
-            proxy = await self.connection_master.request_connection(level=1)
+            proxy = await self.connection_master.request_connection(level=ConnectionPriority.LOW)
         
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute(StorageCache.storage_fetch_query, (username,))
@@ -122,7 +122,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
             return file_data
         
         if not proxy:
-            proxy = await self.connection_master.request_connection(level=1)
+            proxy = await self.connection_master.request_connection(level=ConnectionPriority.LOW)
             release_after = True
         async with proxy.cursor() as cursor:
             if not storage_data:
@@ -167,7 +167,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
         return user_storage.storage_used
     
     async def _flush_buffer(self, buffer: dict[str, StorageData]) -> None:
-        async with await self.connection_master.request_connection(level=1) as proxy:
+        async with await self.connection_master.request_connection(level=ConnectionPriority.LOW) as proxy:
             async with proxy.cursor() as cursor:
                 await cursor.executemany(StorageCache.storage_flush_query,
                                          ((user_storage_data.filecount, user_storage_data.storage_used, username)

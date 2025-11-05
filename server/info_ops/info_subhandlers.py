@@ -15,7 +15,7 @@ from psycopg import sql
 
 from server import errors
 from server.config.server_config import ServerConfig
-from server.database.connections import ConnectionPoolManager
+from server.database.connections import ConnectionPoolManager, ConnectionPriority
 from server.database import models as db_models, utils as db_utils
 from server.info_ops.utils import derive_file_identity, get_local_filedata, get_local_storage_data
 from server.errors import UserNotFound
@@ -54,7 +54,7 @@ async def handle_permission_query(header_component: BaseHeaderComponent,
         raise errors.InvalidBodyValues(f'Missing resource name')
     
     owner, filename = derive_file_identity(info_component.subject_resource)
-    async with await connection_master.request_connection(1) as proxy:
+    async with await connection_master.request_connection(ConnectionPriority.MODERATE) as proxy:
         if not await db_utils.check_file_permission(filename=filename, owner=owner, grantee=auth_component.identity,
                                                     check_for=db_models.FilePermissions.MANAGE_RW,
                                                     connection_master=connection_master, proxy=proxy):
@@ -77,7 +77,7 @@ async def handle_filedata_query(header_component: BaseHeaderComponent,
         raise errors.InvalidBodyValues(f'Missing resource name')
     
     owner, filename = derive_file_identity(info_component.subject_resource)
-    async with await connection_master.request_connection(1) as proxy:
+    async with await connection_master.request_connection(ConnectionPriority.MODERATE) as proxy:
         if not await db_utils.check_file_permission(filename=filename, owner=owner, grantee=auth_component.identity,
                                                      check_for=db_models.FilePermissions.MANAGE_RW,
                                                      connection_master=connection_master, proxy=proxy):
@@ -99,7 +99,7 @@ async def handle_user_query(header_component: BaseHeaderComponent,
                             auth_component: BaseAuthComponent,
                             connection_master: ConnectionPoolManager,
                             server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
-    async with await connection_master.request_connection(1) as proxy:
+    async with await connection_master.request_connection(ConnectionPriority.MODERATE) as proxy:
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute('''SELECT username, created_at
                                     FROM users
