@@ -104,7 +104,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
                                 file: str,
                                 diff: int = 1,
                                 proxy: Optional[ConnectionProxy] = None,
-                                release_after: bool = False) -> None:
+                                release_after: bool = False) -> int:
         if await self.get_storage_data(username, proxy, release_after):
             self[username].filecount += diff
             self[username].file_data.setdefault(file, 0)

@@ -250,6 +250,7 @@ async def handle_creation(header_component: BaseHeaderComponent,
                           config: server_config.ServerConfig,
                           log_queue: GlobalLogQueueType,
                           connection_master: ConnectionPoolManager,
+                          deletion_cache: GlobalDeleteCacheType,
                           storage_cache: StorageCache) -> tuple[ResponseHeader, ResponseBody]:
     if file_component.subject_file_owner != auth_component.identity:
         asyncio.create_task(
@@ -260,6 +261,8 @@ async def handle_creation(header_component: BaseHeaderComponent,
                                                   reported_severity=db_models.Severity.TRACE)))
         
         raise errors.InvalidFileData(f'As user {auth_component.identity}, you only have permission to create new files in your own directory and not /{file_component.subject_file_owner}')
+    if (await storage_cache.get_storage_data(auth_component.identity)).filecount >= config.user_max_files:
+        raise errors.FileOperationForbidden(filecount_exceeded=True)
     
     fpath, epoch = await base_ops.create_file(root=config.files_directory, owner=auth_component.identity, filename=file_component.subject_file)
 
@@ -274,7 +277,14 @@ async def handle_creation(header_component: BaseHeaderComponent,
                                 VALUES (%s, %s, %s, %s, %s, %s);''',
                                 (auth_component.identity, file_component.subject_file, auth_component.identity,
                                 RoleTypes.OWNER.value, auth_component.identity, datetime.fromtimestamp(header_component.sender_timestamp),))
-            await storage_cache.update_file_count(auth_component.identity, file_component.subject_file, proxy=proxy)
+            await proxy.commit()
+
+            new_filecount: int = await storage_cache.update_file_count(auth_component.identity, file_component.subject_file, proxy=proxy)
+            if new_filecount > config.user_max_files:
+                await base_ops.delete_file(root=config.files_directory, fpath=fpath, deleted_cache=deletion_cache)
+                raise errors.FileOperationForbidden(filecount_exceeded=True)
+            
+            await proxy.commit()
     else:
         asyncio.create_task(enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
                                         log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
