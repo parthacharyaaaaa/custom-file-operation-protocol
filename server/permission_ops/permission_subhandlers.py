@@ -298,7 +298,13 @@ async def transfer_ownership(header_component: BaseHeaderComponent,
                                                             check_for=FilePermissions.MANAGE_SUPER,
                                                             connection_master=connection_master,
                                                             proxy=proxy):
-                    # TODO: Log tampered identity claim in auth component
+                    
+                    asyncio.create_task(
+                        logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
+                        log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                  log_category=db_models.LogType.PERMISSION,
+                                                  log_details=f'Tampered identity {auth_component.identity} from {header_component.sender_hostname}:{header_component.sender_port}',
+                                                  reported_severity=db_models.Severity.TRACE)))
                     raise errors.InsufficientPermissions(f'Only file owner is permitted to transfer ownership of file {permission_component.subject_file}')
                 
                 # Check user existence
