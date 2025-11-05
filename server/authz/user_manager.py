@@ -209,7 +209,7 @@ class UserManager(metaclass=SingletonMetaclass):
     async def terminate_user_cache(self, identifier: str, *caches: TTLCache[str, dict[str, FileBuffer]]) -> None:
         async with await self.connection_master.request_connection(level=ConnectionPriority.LOW) as proxy:
             async with proxy.cursor() as cursor:
-                # Fetch all possible files where the user may have cached a file buffer. TODO: Segregate based on user roles (read, write+append) as well to separate cache scanning logic and save time
+                # Fetch all possible files where the user may have cached a file buffer.
                 await cursor.execute('''SELECT file_owner, filename
                                      FROM file_permissions
                                      WHERE grantee = %s
