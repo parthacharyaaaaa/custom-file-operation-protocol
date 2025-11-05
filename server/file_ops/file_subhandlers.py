@@ -4,6 +4,8 @@ from datetime import datetime
 from typing import Any
 from typing import Final
 
+import psycopg
+
 from models.cursor_flag import CursorFlag
 from models.flags import FileFlags
 from models.response_models import ResponseHeader, ResponseBody
@@ -52,47 +54,62 @@ async def handle_deletion(header_component: BaseHeaderComponent,
     
     # Request validated. No need to acquire lock since owner's deletion request is more important than any concurrent file amendment locks
     file: Final[str] = os.path.join(file_component.subject_file_owner, file_component.subject_file)
-
-    file_deleted: bool = await base_ops.delete_file(config.files_directory, file, deleted_cache)
-    if not file_deleted:
-        err_str: str = f'Failed to delete file {file_component.subject_file}'
-        asyncio.create_task(
-            enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                        log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
-                                                  log_category=db_models.LogType.INTERNAL,
-                                                  log_details=err_str,
-                                                  reported_severity=db_models.Severity.NON_CRITICAL_FAILURE,
-                                                  user_concerned=auth_component.identity)))
-        
-        raise errors.InsufficientPermissions(err_str)
-    
-    # Update database to delete all file info pertaining to this file
-    file_locks.pop(file, None)
+    file_locks[file] = auth_component.identity  # Overwrite any active amendment locks with the owner's lock
     revoked_info: list[dict[str, Any]] = []
-    async with await connection_master.request_connection(level=3) as proxy:
-        async with proxy.cursor(row_factory=dict_row) as cursor:
-            await cursor.execute('''SELECT * FROM FILE_PERMISSIONS
-                                 WHERE file_owner = %s AND filename = %s;''',
-                                 (file_component.subject_file, auth_component.identity,))
-            revoked_info = await cursor.fetchall()
-
-            await cursor.execute('''DELETE FROM files
-                                 WHERE filename = %s AND owner = %s;''',
-                                 (file_component.subject_file, auth_component.identity,))
-        
-        await storage_cache.remove_file(username=auth_component.identity,
-                                        file=file_component.subject_file,
-                                        proxy=proxy)
-        await proxy.commit()
     
+    async with await connection_master.request_connection(level=3) as proxy:
+        file_size: int = await storage_cache.get_file_size(auth_component.identity, file_component.subject_file, proxy, release_after=False)   # Prefetch file size
+        async with proxy.cursor(row_factory=dict_row) as cursor:
+            try:
+                await cursor.execute('''SELECT * FROM files
+                                     WHERE filename = %s AND owner = %s
+                                     FOR UPDATE NOWAIT;''',
+                                     (file_component.subject_file, auth_component.identity))
+                await cursor.fetchall() # Flush selection from buffer
+
+                await cursor.execute('''SELECT * FROM FILE_PERMISSIONS
+                                    WHERE file_owner = %s AND filename = %s
+                                    FOR UPDATE NOWAIT;''',
+                                    (file_component.subject_file, auth_component.identity))
+                revoked_info = await cursor.fetchall()
+
+                await cursor.execute('''DELETE FROM files
+                                     WHERE filename = %s AND owner = %s;''',
+                                    (file_component.subject_file, auth_component.identity,))
+                
+                file_deleted: bool = await base_ops.delete_file(config.files_directory, file,
+                                                                deleted_cache, read_cache, amendment_cache) 
+                if not file_deleted:
+                    err_str: str = f'Failed to delete file {file_component.subject_file}'
+                    asyncio.create_task(
+                        enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
+                                    log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                              log_category=db_models.LogType.INTERNAL,
+                                                              log_details=err_str,
+                                                              reported_severity=db_models.Severity.NON_CRITICAL_FAILURE,
+                                                              user_concerned=auth_component.identity)))
+                    
+                    raise errors.InsufficientPermissions(err_str)
+                
+                await proxy.commit()
+                await storage_cache.reflect_removed_file(auth_component.identity, file_size, proxy)
+            except psycopg.errors.Error as exception:
+                import traceback
+                print(exception.__class__)
+                print(traceback.format_exc())
+                raise errors.DatabaseFailure(f"Failed to delete file {file}")
+
+    file_locks.pop(file)
+    
+    print(await storage_cache.get_storage_data(auth_component.identity))
     deletion_time: datetime = datetime.now()
     asyncio.create_task(
         enqueue_log(queue=log_queue, waiting_period=config.log_waiting_period,
                     log=db_models.ActivityLog(occurance_time=deletion_time,
-                                    reported_severity=db_models.Severity.INFO,
-                                    logged_by=db_models.LogAuthor.FILE_HANDLER,
-                                    log_category=db_models.LogType.REQUEST,
-                                    user_concerned=auth_component.identity)))
+                                              reported_severity=db_models.Severity.INFO,
+                                              logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                              log_category=db_models.LogType.REQUEST,
+                                              user_concerned=auth_component.identity)))
     
     return (ResponseHeader.from_server(version=header_component.version,
                                        code=SuccessFlags.SUCCESSFUL_FILE_DELETION,
