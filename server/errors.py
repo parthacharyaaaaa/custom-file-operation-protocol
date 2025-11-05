@@ -4,7 +4,25 @@ from typing import Optional
 from models.flags import CategoryFlag
 from models.response_codes import ClientErrorFlags, ServerErrorFlags
 
-__all__ = ('ProtocolException', 'SlowStreamRate', 'InvalidHeaderSemantic', 'InvalidHeaderValues', 'InvalidAuthSemantic', 'InvalidAuthData', 'InvalidFileData', 'UnsupportedOperation', 'UserAuthenticationError', 'UserNotFound', 'InsufficientPermissions', 'OperationalConflict', 'OperationContested', 'Banned', 'FileNotFound', 'FileConflict', 'FileContested', 'InternalServerError', 'DatabaseFailure')
+__all__ = ('ProtocolException',
+           'SlowStreamRate',
+           'InvalidHeaderSemantic',
+           'InvalidHeaderValues',
+           'InvalidAuthSemantic',
+           'InvalidAuthData',
+           'InvalidFileData',
+           'UnsupportedOperation',
+           'UserAuthenticationError',
+           'UserNotFound',
+           'InsufficientPermissions',
+           'OperationalConflict',
+           'OperationContested',
+           'Banned',
+           'FileNotFound',
+           'FileConflict',
+           'FileContested',
+           'InternalServerError',
+           'DatabaseFailure')
 
 class ProtocolException(ABC, Exception):
     '''Abstract base exception class for all protocol specific exceptions. Contains all the bare minimum data required to construct and send a response to an erroneous request'''
@@ -98,6 +116,15 @@ class FileConflict(ProtocolException):
     def __init__(self, file: str, username: str, description: Optional[str] = None):
         super().__init__(description or Banned.description)
         self.description.format(file=file, username=username)
+
+class FileOperationForbidden(ProtocolException):
+    code: str = ClientErrorFlags.FILE_OPERATION_FORBIDDEN.value
+    description: str = "File operation forbidden"
+
+    def __init__(self, filecount_exceeded: bool):
+        super().__init__()
+        self.description = ". ".join((self.description,
+                                      "Filecount exceeded" if filecount_exceeded else "Maximum storage reached"))
 
 class OperationContested(ProtocolException):
     code: str = ClientErrorFlags.OPERATION_CONTESTED.value

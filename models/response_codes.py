@@ -62,6 +62,7 @@ class ClientErrorFlags(Enum):
     FILE_CONTESTED = "2:fcnt"
     FILE_CONFLICT = "2:cnf"
     FILE_JUST_DELETED = "2:df"
+    FILE_OPERATION_FORBIDDEN = "2:fof"
 
     # Permissions
     INSUFFICIENT_PERMISSIONS = "2:perm"
