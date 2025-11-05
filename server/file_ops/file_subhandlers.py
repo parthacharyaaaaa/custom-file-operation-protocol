@@ -94,14 +94,10 @@ async def handle_deletion(header_component: BaseHeaderComponent,
                 await proxy.commit()
                 await storage_cache.reflect_removed_file(auth_component.identity, file_size, proxy)
             except psycopg.errors.Error as exception:
-                import traceback
-                print(exception.__class__)
-                print(traceback.format_exc())
                 raise errors.DatabaseFailure(f"Failed to delete file {file}")
 
     file_locks.pop(file)
     
-    print(await storage_cache.get_storage_data(auth_component.identity))
     deletion_time: datetime = datetime.now()
     asyncio.create_task(
         enqueue_log(queue=log_queue, waiting_period=config.log_waiting_period,
