@@ -287,21 +287,25 @@ async def handle_creation(header_component: BaseHeaderComponent,
         assert epoch
         # Add record for this file
         async with await connection_master.request_connection(level=3) as proxy:
-            await proxy.execute('''INSERT INTO files (filename, owner, created_at)
-                                VALUES (%s, %s, %s);''',
-                                (file_component.subject_file, auth_component.identity, datetime.fromtimestamp(epoch), ))
-            await proxy.execute('''INSERT INTO file_permissions (file_owner, filename, grantee, role, granted_by, granted_at)
-                                VALUES (%s, %s, %s, %s, %s, %s);''',
-                                (auth_component.identity, file_component.subject_file, auth_component.identity,
-                                RoleTypes.OWNER.value, auth_component.identity, datetime.fromtimestamp(header_component.sender_timestamp),))
-            await proxy.commit()
+            try:
+                await proxy.execute('''INSERT INTO files (filename, owner, created_at)
+                                    VALUES (%s, %s, %s);''',
+                                    (file_component.subject_file, auth_component.identity, datetime.fromtimestamp(epoch), ))
+                await proxy.execute('''INSERT INTO file_permissions (file_owner, filename, grantee, role, granted_by, granted_at)
+                                    VALUES (%s, %s, %s, %s, %s, %s);''',
+                                    (auth_component.identity, file_component.subject_file, auth_component.identity,
+                                    RoleTypes.OWNER.value, auth_component.identity, datetime.fromtimestamp(header_component.sender_timestamp),))
+                await proxy.commit()
 
-            new_filecount: int = await storage_cache.update_file_count(auth_component.identity, file_component.subject_file, proxy=proxy)
-            if new_filecount > config.user_max_files:
-                await base_ops.delete_file(root=config.files_directory, fpath=fpath, deleted_cache=deletion_cache)
-                raise errors.FileOperationForbidden(filecount_exceeded=True)
-            
-            await proxy.commit()
+                new_filecount: int = await storage_cache.update_file_count(auth_component.identity, file_component.subject_file, proxy=proxy)
+                if new_filecount > config.user_max_files:
+                    await base_ops.delete_file(root=config.files_directory, fpath=fpath, deleted_cache=deletion_cache)
+                    raise errors.FileOperationForbidden(filecount_exceeded=True)
+                
+                await proxy.commit()
+            except psycopg.errors.Error:
+                await base_ops.delete_file(config.files_directory, file_component.subject_file, deletion_cache)
+                raise errors.DatabaseFailure(f"Failed to register new file {file_component.subject_file}")
     else:
         asyncio.create_task(enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
                                         log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
