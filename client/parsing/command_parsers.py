@@ -12,7 +12,8 @@ if TYPE_CHECKING: assert REQUEST_CONSTANTS
 
 __all__ = ('generic_modifier_parser', 'file_command_parser', 'permission_command_parser', 'auth_command_parser')
 
-generic_modifier_parser: Final[ExplicitArgumentParser] = ExplicitArgumentParser(prog='modifier_commands')
+generic_modifier_parser: Final[ExplicitArgumentParser] = ExplicitArgumentParser(prog='modifier_commands',
+                                                                                add_help=False)
 for modifier in GeneralModifierCommands:
     generic_modifier_parser.add_argument(f'-{modifier.value.lower()}', help=None, action='store_true')
 
