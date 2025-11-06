@@ -51,7 +51,6 @@ async def callback(dependency_registry: ServerSingletonsRegistry,
             
             await send_response(writer=writer, header=response_header, body=body_stream)
             if response_header.ended_connection:
-                writer.write_eof()
                 await writer.drain()
                 writer.close()
                 await writer.wait_closed()
@@ -84,7 +83,6 @@ async def callback(dependency_registry: ServerSingletonsRegistry,
                 
             await send_response(writer=writer, header=response)
             if connection_end:
-                writer.write_eof()
                 await writer.drain()
                 writer.close()
                 await writer.wait_closed()
