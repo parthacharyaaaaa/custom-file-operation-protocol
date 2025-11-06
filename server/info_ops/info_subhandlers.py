@@ -78,6 +78,9 @@ async def handle_filedata_query(header_component: BaseHeaderComponent,
     
     owner, filename = derive_file_identity(info_component.subject_resource)
     async with await connection_master.request_connection(ConnectionPriority.MODERATE) as proxy:
+        if not await db_utils.check_file_existence(filename=filename, owner=owner, connection_master=connection_master, proxy=proxy):
+            raise errors.FileNotFound(filename, owner)
+        
         if not await db_utils.check_file_permission(filename=filename, owner=owner, grantee=auth_component.identity,
                                                      check_for=db_models.FilePermissions.MANAGE_RW,
                                                      connection_master=connection_master, proxy=proxy):
