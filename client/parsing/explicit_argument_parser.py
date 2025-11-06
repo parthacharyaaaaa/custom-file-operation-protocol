@@ -10,7 +10,7 @@ class ExplicitArgumentParser(argparse.ArgumentParser):
     '''Wrapper over argparse.ArgumentParser to allow parsing errors to raise exceptions to be handled explicitly'''
     exclusion_message: Final[str] = 'Note: Argument "{arg}" accepted but not used for this operation.'
 
-    def parse_known_args(self, args=None, namespace=None):
+    def parse_known_args(self, args=None, namespace=None):  # type: ignore[PylancereportIncompatibleMethodOverride]
         if args is None:
             # args default to the system args
             args = sys.argv[1:]
@@ -73,3 +73,10 @@ class ExplicitArgumentParser(argparse.ArgumentParser):
                 warnings.warn(f'Argument parser {self} has no attribute: {attr_name}')
                 continue
             setattr(target_action, attr_name, attr_value)
+
+    def error(self, message):       # type: ignore[PylancereportIncompatibleMethodOverride]
+        self.print_usage(sys.stderr)
+
+    def exit(self, status=0, message=None) -> None: # type: ignore[PylancereportIncompatibleMethodOverride]
+        if message:
+            self._print_message(message, sys.stderr)
