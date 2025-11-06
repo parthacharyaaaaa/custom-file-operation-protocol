@@ -12,12 +12,9 @@ __all__ = ('successful_file_hide',
            'successful_ownership_trasnfer',
            'failed_permission_operation')
 
-def successful_file_hide(remote_dir: str, remote_file: str,
-                         revoked_info: Sequence[dict[str, str]], code: Optional[SuccessFlags] = None) -> str:
-    revoked_info_str: str = '\n- '.join(f"{mapping['grantee']} : {mapping['role']}" for mapping in revoked_info)
+def successful_file_hide(remote_dir: str, remote_file: str, code: Optional[SuccessFlags] = None) -> str:
     return (
     f'''{(code or SuccessFlags.SUCCESSFUL_FILE_HIDE).value}: Hid file {remote_dir}/{remote_file}, all remote users with public read access have had their permissions revoked.
-    Revoked data:{revoked_info_str}
     Note that remote users with permissions granted outside of publicity have not been affected'''
     )
 

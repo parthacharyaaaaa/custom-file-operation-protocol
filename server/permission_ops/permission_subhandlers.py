@@ -73,7 +73,7 @@ async def hide_file(header_component: BaseHeaderComponent,
                     permission_component: BasePermissionComponent,
                     config: server_config.ServerConfig,
                     log_queue: GlobalLogQueueType,
-                    connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, ResponseBody]:
+                    connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
     async with await connection_master.request_connection(level=ConnectionPriority.MODERATE) as proxy:
         try:
             async with proxy.cursor(row_factory = dict_row) as cursor:
@@ -89,16 +89,10 @@ async def hide_file(header_component: BaseHeaderComponent,
                     raise errors.FileNotFound(file=permission_component.subject_file, username=auth_component.identity)
 
                 await cursor.execute('''UPDATE files
-                                    SET public = FALSE
-                                    WHERE owner = %s AND filename = %s;''',
+                                     SET public = FALSE
+                                     WHERE owner = %s AND filename = %s;''',
                                     (auth_component.identity, permission_component.subject_file,))
                 
-                await cursor.execute('''DELETE FROM file_permissions
-                                    WHERE file_owner = %s AND filename = %s
-                                    RETURNING grantee, role;''',
-                                    (auth_component.identity, permission_component.subject_file,))
-                
-                revoked_grantees: list[dict[str, str]] = await cursor.fetchall()
             await proxy.commit()
         except pg_exc.LockNotAvailable:
             raise errors.OperationContested
@@ -116,7 +110,7 @@ async def hide_file(header_component: BaseHeaderComponent,
                                        version=header_component.version,
                                        code=SuccessFlags.SUCCESSFUL_FILE_HIDE,
                                        ended_connection=header_component.finish),
-            ResponseBody(contents={'revoked_grantee_info' : revoked_grantees}))
+            None)
 
 async def grant_permission(header_component: BaseHeaderComponent,
                            auth_component: BaseAuthComponent,

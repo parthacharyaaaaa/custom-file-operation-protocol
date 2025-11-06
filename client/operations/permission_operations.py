@@ -143,18 +143,5 @@ async def hide_remote_file(reader: asyncio.StreamReader, writer: asyncio.StreamW
         assert isinstance(response_header.code, (ClientErrorFlags, ServerErrorFlags))
         await display(permission_messages.failed_permission_operation(permission_component.subject_file_owner, permission_component.subject_file, code=response_header.code))
         return
-    
-    if not (response_body and response_body.contents):
-        await display(general_messages.malformed_response_body('Missing response body and claims'))
-        return
-    revoked_info: Optional[list[dict[str, str]]] = response_body.contents.get('revoked_grantee_info')
-    if not revoked_info:
-        await display(general_messages.malformed_response_body('revoked_grantee_info'))
-    
-    # No need to check inner types, anything over a byte stream can be used in f-strings anyways.
-    # Although hinted as a list, any Sequence subclass passes as we only need to iterate over it
-    if not (isinstance(revoked_info, Sequence) and all(isinstance(i, dict) for i in revoked_info)):
-        await display(general_messages.malformed_response_body("Mismatched data types in response body sent by server"))
-        return
 
-    await display(permission_messages.successful_file_hide(permission_component.subject_file_owner, permission_component.subject_file, revoked_info))
+    await display(permission_messages.successful_file_hide(permission_component.subject_file_owner, permission_component.subject_file))
