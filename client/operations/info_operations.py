@@ -26,7 +26,7 @@ async def send_heartbeat(reader: asyncio.StreamReader, writer: asyncio.StreamWri
     await outgoing.send_request(writer, header_component)
 
     response_header, _ = await incoming.process_response(reader, writer, client_config.read_timeout)
-    if response_header.code != SuccessFlags.HEARTBEAT.value:
+    if response_header.code != SuccessFlags.HEARTBEAT:
         await cmd_utils.display('Failed to perform heartbeat')
         return
         # TODO: Add generic message factories
@@ -47,7 +47,7 @@ async def send_info_query(reader: asyncio.StreamReader, writer: asyncio.StreamWr
                                 body_component=info_component)
 
     response_header, response_body = await incoming.process_response(reader, writer, client_config.read_timeout)
-    if response_header.code != SuccessFlags.SUCCESSFUL_QUERY_ANSWER.value:
+    if response_header.code != SuccessFlags.SUCCESSFUL_QUERY_ANSWER:
         await cmd_utils.display(f'{response_header.code}: Failed to perform query operation: {extracted_subcategory._name_}')
         return
     
