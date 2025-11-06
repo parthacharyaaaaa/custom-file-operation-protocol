@@ -5,6 +5,7 @@ import argparse
 import functools
 import mmap
 import shlex
+import sys
 from typing import Any, Callable, Final, Literal, Optional
 
 import aiofiles
@@ -55,9 +56,7 @@ class ClientWindow(async_cmd.AsyncCmd):
 
             if self.session_master.identity:
                 self.session_master.clear_auth_data()
-            
-            self.prompt = "not connected>"
-            return True
+            sys.exit()
         
         return stop
 
