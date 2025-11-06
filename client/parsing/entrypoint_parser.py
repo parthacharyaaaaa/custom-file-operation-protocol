@@ -37,8 +37,4 @@ def parse_args() -> argparse.Namespace:
     if (bool(args.username) ^ bool(args.password)):
         raise ValueError('Partial credentials provided. If authenticating outside of the client shell, both username and password flags must be provided')
     
-    if args.password:
-        warnings.warn('It is not recommended to enter credentials outside of the client shell, instead use the AUTH command within the shell itself',
-                      category=UserWarning)
-    
     return args

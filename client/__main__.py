@@ -29,6 +29,7 @@ async def main() -> None:
     session_manager: Final[SessionManager] = init_session_manager(*writer.get_extra_info('peername'))
 
     if args.password:
+        print('It is not recommended to enter credentials outside of the client shell, instead use the AUTH command within the shell itself')
         auth_component: BaseAuthComponent = BaseAuthComponent(identity=args.username, password=args.password)
         await auth_operations.authorize(reader, writer, auth_component, client_config, session_manager)
 
