@@ -39,6 +39,9 @@ info_command_parser.add_argument('query_type', type=arg_parsers.parse_query_type
 info_command_parser.add_argument('resource_name')
 info_command_parser.add_argument('--verbose', action='store_true')
 
+added_action = next(filter(lambda action : action.dest == 'resource_name', info_command_parser._actions))
+added_action.required = False
+
 # Awful hack alert
 added_action = next(filter(lambda action : action.dest == FileModifierCommands.WRITE_DATA.value, file_command_parser._actions))
 added_action.required = False

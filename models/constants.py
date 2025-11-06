@@ -56,6 +56,7 @@ RESPONSE_CONSTANTS: Optional[ResponseConstants] = None
 
 UNAUTHENTICATED_INFO_OPERATIONS: Final[frozenset[InfoFlags]] = frozenset((InfoFlags.HEARTBEAT, InfoFlags.SSL_CREDENTIALS))
 HEADER_ONLY_INFO_OPERATIONS: Final[frozenset[InfoFlags]] = frozenset((InfoFlags.HEARTBEAT, InfoFlags.SSL_CREDENTIALS, InfoFlags.STORAGE_USAGE))
+NO_RESOURCE_INFO_OPERATIONS: Final[frozenset[InfoFlags]] = frozenset({InfoFlags.STORAGE_USAGE})
 
 def load_constants():
     global REQUEST_CONSTANTS, RESPONSE_CONSTANTS

@@ -11,7 +11,7 @@ import aiofiles
 
 from client import session_manager
 from client.auxillary import operational_utils
-from client.cmd import async_cmd, errors as cmd_errors
+from client.cmd import async_cmd, cmd_utils, errors as cmd_errors
 from client.cmd.commands import FileModifierCommands
 from client.config import constants as client_constants
 from client.operations import auth_operations, file_operations, permission_operations, info_operations
@@ -19,6 +19,7 @@ from client.parsing import command_parsers
 from client.auxillary import operational_utils
 
 from models.flags import InfoFlags
+from models.constants import NO_RESOURCE_INFO_OPERATIONS
 from models.request_model import BaseAuthComponent, BaseFileComponent, BasePermissionComponent
 
 __all__ = ('ClientWindow',)
@@ -429,10 +430,18 @@ class ClientWindow(async_cmd.AsyncCmd):
         QUERY [query type] [resource name] [--verbose] [modifiers]
         '''
         parsed_args: argparse.Namespace = command_parsers.info_command_parser.parse_args(shlex.split(args))
+
+        resource_required: bool = parsed_args.query_type not in NO_RESOURCE_INFO_OPERATIONS
+        if resource_required and not parsed_args.resource_name:
+            await cmd_utils.display(f"Resource name required for this type of query")
+            return
+        if not resource_required and parsed_args.resource_name:
+            await cmd_utils.display(f"Unneded 'resource_name' argument provided: {parsed_args.resource_name}")
+
         if parsed_args.verbose:
             parsed_args.query_type |= InfoFlags.VERBOSE
-
         self.end_connection = parsed_args.bye
+        
         await info_operations.send_info_query(reader=self.reader, writer=self.writer,
                                               client_config=self.client_config, session_master=self.session_master,
                                               subcategory_flags=parsed_args.query_type,
