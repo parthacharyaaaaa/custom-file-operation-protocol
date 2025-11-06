@@ -39,7 +39,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         self.writer: asyncio.StreamWriter = writer
         self.client_config: client_constants.ClientConfig = client_config
         self.session_master: session_manager.SessionManager = session_master
-        self.connection_ended: bool = False
+        self.end_connection: bool = False
 
         # Update file-related argument parsers to include default value of directory as user identity
         command_parsers.filedir_parser.inject_default_argument('directory', default=self.session_master.identity, required=False)
@@ -49,7 +49,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         super().__init__(completekey, stdin, stdout)
     
     async def postcmd(self, stop, line) -> bool:    # type: ignore
-        if self.connection_ended:
+        if self.end_connection:
             self.writer.close()
             await self.writer.wait_closed()
 
