@@ -1,6 +1,6 @@
 '''Module for defining schema of incoming requests'''
 from pathlib import Path
-from typing import Annotated, Optional, Literal, Union, TYPE_CHECKING
+from typing import Optional, Literal, Union, TYPE_CHECKING
 
 from models.constants import REQUEST_CONSTANTS
 from models.flags import CategoryFlag, PermissionFlags, AuthFlags, FileFlags, InfoFlags
@@ -39,6 +39,12 @@ class BaseAuthComponent(BaseModel):
             return True
         
         return False
+    
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}({", ".join(f"{k}={v}" for k,v in self.__dict__.items())})> at {id(self)}'
+    
+    def __str__(self) -> str:
+        return f'<{self.__class__.__name__}({", ".join(f"{k}={v}" for k,v in self.__dict__.items())})>'
     
 class BaseFileComponent(BaseModel):
     # Target file
@@ -85,6 +91,12 @@ class BaseFileComponent(BaseModel):
     @property
     def relative_path(self) -> Path:
         return Path(self.relative_pathlike)
+    
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}({", ".join(f"{k}={v}" for k,v in self.__dict__.items())})> at {id(self)}'
+    
+    def __str__(self) -> str:
+        return f'<{self.__class__.__name__}({", ".join(f"{k}={v}" for k,v in self.__dict__.items())})>'
 
 class BasePermissionComponent(BaseModel):
     # Request subjects
@@ -117,9 +129,21 @@ class BasePermissionComponent(BaseModel):
     def check_higher_role(permission_bits: int) -> bool:
         # managerial and ownership permissions are high level and cannot be given globally at once
         return bool(permission_bits & (PermissionFlags.TRANSFER.value | PermissionFlags.MANAGER.value))
+    
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}({", ".join(f"{k}={v}" for k,v in self.__dict__.items())})> at {id(self)}'
+    
+    def __str__(self) -> str:
+        return f'<{self.__class__.__name__}({", ".join(f"{k}={v}" for k,v in self.__dict__.items())})>'
 
 class BaseInfoComponent(BaseModel):
     subject_resource: Optional[str] = Field(default=None)
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}({", ".join(f"{k}={v}" for k,v in self.__dict__.items())})> at {id(self)}'
+    
+    def __str__(self) -> str:
+        return f'<{self.__class__.__name__}({", ".join(f"{k}={v}" for k,v in self.__dict__.items())})>'
 
 
 class BaseHeaderComponent(BaseModel):
@@ -140,3 +164,9 @@ class BaseHeaderComponent(BaseModel):
     # Message category
     category: CategoryFlag = Field(ge=1)
     subcategory: Union[AuthFlags, PermissionFlags, InfoFlags, FileFlags]
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}({", ".join(f"{k}={v}" for k,v in self.__dict__.items())})> at {id(self)}'
+    
+    def __str__(self) -> str:
+        return f'<{self.__class__.__name__}({", ".join(f"{k}={v}" for k,v in self.__dict__.items())})>'
