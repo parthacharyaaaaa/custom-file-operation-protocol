@@ -1,16 +1,14 @@
 '''Module containing argument parsing logic for client entrypoint'''
 
 import argparse
-import warnings
 from typing import Final
 
-from client.parsing.explicit_argument_parser import ExplicitArgumentParser
 from client.parsing.arg_parsers import parse_host_arg, parse_port_arg, parse_username_arg, parse_password_arg
 
 __all__ = ('ENTRYPOINT_PARSER', 'parse_args')
 
-ENTRYPOINT_PARSER: Final[ExplicitArgumentParser] = ExplicitArgumentParser(prog='client',
-                                                                          description="Client shell")
+ENTRYPOINT_PARSER: Final[argparse.ArgumentParser] = argparse.ArgumentParser(prog='client',
+                                                                            description="Client shell")
 ENTRYPOINT_PARSER.add_argument('host',
                                help='The host machine to connect to',
                                type=parse_host_arg)
