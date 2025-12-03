@@ -436,6 +436,7 @@ class ClientWindow(async_cmd.AsyncCmd):
             return
         if not resource_required and parsed_args.resource_name:
             await cmd_utils.display(f"Unneded 'resource_name' argument provided: {parsed_args.resource_name}")
+            parsed_args.resource_name = None
 
         if parsed_args.verbose:
             parsed_args.query_type |= InfoFlags.VERBOSE
