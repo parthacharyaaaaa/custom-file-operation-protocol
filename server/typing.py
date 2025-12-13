@@ -20,7 +20,7 @@ SubhandlerResponse: TypeAlias = Coroutine[Any, Any, tuple[ResponseHeader, Option
 class AuthSubhandler(Protocol):
     def __call__(self,
                  header_component: BaseHeaderComponent,
-                 auth_component: BaseAuthComponent,
+                 auth_component: Optional[BaseAuthComponent],
                  *args : Any, **kwargs: Any) -> SubhandlerResponse: ...
 
 class InfoSubhandler(Protocol):

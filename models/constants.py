@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Annotated, Any, Final, Optional
 
-from models.flags import InfoFlags
+from models.flags import AuthFlags, InfoFlags
 
 import pytomlpp
 from pydantic import BaseModel, Field
@@ -54,6 +54,7 @@ class ResponseConstants(BaseModel):
 REQUEST_CONSTANTS: Optional[RequestConstants] = None
 RESPONSE_CONSTANTS: Optional[ResponseConstants] = None
 
+UNAUTHENTICATED_AUTH_OPERATIONS: Final[frozenset[AuthFlags]] = frozenset((AuthFlags.LOGOUT,))
 UNAUTHENTICATED_INFO_OPERATIONS: Final[frozenset[InfoFlags]] = frozenset((InfoFlags.HEARTBEAT, InfoFlags.SSL_CREDENTIALS))
 HEADER_ONLY_INFO_OPERATIONS: Final[frozenset[InfoFlags]] = frozenset((InfoFlags.HEARTBEAT, InfoFlags.SSL_CREDENTIALS, InfoFlags.STORAGE_USAGE))
 NO_RESOURCE_INFO_OPERATIONS: Final[frozenset[InfoFlags]] = frozenset({InfoFlags.STORAGE_USAGE})
