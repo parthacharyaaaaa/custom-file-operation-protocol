@@ -275,14 +275,15 @@ async def delete_file(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     if response_header.code != SuccessFlags.SUCCESSFUL_FILE_DELETION:
         assert isinstance(response_header.code, (ClientErrorFlags, ServerErrorFlags))
         await display(file_messages.failed_file_operation(file_component.subject_file_owner, file_component.subject_file, FileFlags.DELETE, response_header.code))
-
+        return
+    
     if not (response_body and response_body.contents):
         await display(general_messages.malformed_response_body('Missing response body and claims'))
         return 
 
-    revoked_info: list[dict[str, str]] = response_body.contents.get('revoked_grantee_info', [])
+    revoked_info: list[dict[str, str]] = response_body.contents.get('revoked_info', [])
     if revoked_info == []:
-        await display(general_messages.malformed_response_body('revoked_grantee_info'))
+        await display(general_messages.malformed_response_body('revoked_info'))
     
     # No need to check inner types, anything over a byte stream can be used in f-strings anyways.
     # Although hinted as a list, any Sequence subclass passes as we only need to iterate over it
