@@ -144,10 +144,12 @@ class UserManager(metaclass=SingletonMetaclass):
                     raise UserAuthenticationError(f'Local user {res[0]} already exists')
                 
                 pw_hash, pw_salt = UserManager.generate_password_hash(password)
-        
-                await cursor.execute('''INSERT INTO users (username, password_hash, password_salt) VALUES (%s, %s, %s)''',
-                                     (username, pw_hash, pw_salt,))
-                await proxy.commit()
+                try:
+                    await cursor.execute('''INSERT INTO users (username, password_hash, password_salt) VALUES (%s, %s, %s)''',
+                                        (username, pw_hash, pw_salt,))
+                    await proxy.commit()
+                except pg_errors.UniqueViolation:
+                    raise UserAuthenticationError(f'Local user {username} already exists')
 
         if make_dir:
             os.makedirs(os.path.join(root, username))
