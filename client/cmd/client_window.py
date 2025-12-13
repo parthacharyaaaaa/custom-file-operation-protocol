@@ -463,3 +463,10 @@ class ClientWindow(async_cmd.AsyncCmd):
         self.end_connection = True
         
         return True
+
+    async def do_clear(self, args: str) -> None:
+        '''
+        CLEAR
+        Clear the terminal
+        '''
+        await cmd_utils.display("\033c", end=b"")
