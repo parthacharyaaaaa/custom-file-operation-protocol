@@ -115,21 +115,28 @@ async def handle_session_termination(header_component: BaseHeaderComponent,
                                      auth_component: BaseAuthComponent,
                                      config: server_config.ServerConfig,
                                      user_manager: user_manager.UserManager) -> tuple[ResponseHeader, ResponseBody]:
-    if not auth_component.auth_logical_check('authentication'):
-        raise InvalidAuthSemantic('Session termination requires only the following fields: identity, token, refresh_digest')
-    assert auth_component.token
-    
-    await user_manager.authenticate_session(username=auth_component.identity, token=auth_component.token)
-    terminated_session: SessionMetadata = await user_manager.terminate_session(username=auth_component.identity, token=auth_component.token)
+    auth_kwargs: dict = {}
+    if auth_component:
+        if not auth_component.auth_logical_check('authentication'):
+            raise InvalidAuthSemantic('Session termination requires only the following fields: identity, token, refresh_digest')
+        assert auth_component.token
+        
+        await user_manager.authenticate_session(username=auth_component.identity, token=auth_component.token)
+        terminated_session: SessionMetadata = await user_manager.terminate_session(username=auth_component.identity, token=auth_component.token)
+        termination_time: float = time.time()
+        auth_kwargs = {'user' : auth_component.identity,
+                       'logout_time' : termination_time,
+                       'last_token' : terminated_session.token,
+                       'session_iterations' : terminated_session.iteration,
+                       'session_lifespan' : terminated_session.lifespan,
+                       'forgone_validity' : terminated_session.valid_until - termination_time}
+        del terminated_session
+    else:
+        auth_kwargs = {'user' : f'<GUEST>', 'logout_time' : time.time()}
 
-    termination_time: float = time.time()
     header: ResponseHeader = ResponseHeader.from_server(version=header_component.version,
                                                         code=SuccessFlags.SUCCESSFUL_SESSION_TERMINATION,
                                                         ended_connection=header_component.finish, config=config)
-    body: ResponseBody = ResponseBody(contents={'time_of_logout' : termination_time,
-                                                'user' : auth_component.identity,
-                                                'last_token' : terminated_session.token,
-                                                'session_iterations' : terminated_session.iteration,
-                                                'session_lifespan' : terminated_session.lifespan,
-                                                'forgone_validity' : terminated_session.valid_until - termination_time})
+    
+    body: ResponseBody = ResponseBody(contents=auth_kwargs)
     return header, body
