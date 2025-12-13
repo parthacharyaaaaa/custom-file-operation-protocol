@@ -39,7 +39,6 @@ info_subhandler_mapping: Final[dict[InfoFlags, InfoSubhandler]] = {
     InfoFlags.HEARTBEAT : info_subhandlers.handle_heartbeat,
     InfoFlags.PERMISSION_METADATA : info_subhandlers.handle_permission_query,
     InfoFlags.FILE_METADATA : info_subhandlers.handle_filedata_query,
-    InfoFlags.USER_METADATA : info_subhandlers.handle_user_query,
     InfoFlags.STORAGE_USAGE : info_subhandlers.handle_storage_query,
     InfoFlags.SSL_CREDENTIALS : info_subhandlers.handle_ssl_query
 }

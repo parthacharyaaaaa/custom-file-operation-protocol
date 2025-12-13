@@ -30,7 +30,6 @@ file_data_selection_query: Final[sql.SQL] = sql.SQL('''SELECT {projection}
 __all__ = ('handle_heartbeat',
            'handle_permission_query',
            'handle_filedata_query',
-           'handle_user_query',
            'handle_storage_query',
            'handle_ssl_query')
 
@@ -98,39 +97,17 @@ async def handle_filedata_query(header_component: BaseHeaderComponent,
             return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER, ended_connection=header_component.finish),
                     ResponseBody(contents=file_data))
 
-async def handle_user_query(header_component: BaseHeaderComponent,
-                            auth_component: BaseAuthComponent,
-                            connection_master: ConnectionPoolManager,
-                            server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
-    async with await connection_master.request_connection(ConnectionPriority.MODERATE) as proxy:
-        async with proxy.cursor(row_factory=dict_row) as cursor:
-            await cursor.execute('''SELECT username, created_at
-                                    FROM users
-                                    WHERE username = %s;''',
-                                    (auth_component.identity,))
-            user_data: Optional[dict[str, Any]] = await cursor.fetchone()
-            if not user_data:
-                raise UserNotFound(f'User {auth_component.identity} not found')
-            if header_component.subcategory & InfoFlags.VERBOSE:
-                await cursor.execute('''SELECT file_owner, filename, role, granted_at, granted_by, granted_until
-                                        FROM file_permissions
-                                        WHERE grantee = %s;''',
-                                        (auth_component.identity,))
-                user_data |= {'files' : {f"{res.pop('file_owner')}/{res.pop('filename')}" : res
-                                                    for res in
-                                                    await cursor.fetchall()}}
-                
-
-            return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER, ended_connection=header_component.finish),
-                    ResponseBody(contents=user_data))
-
 async def handle_storage_query(header_component: BaseHeaderComponent,
                                auth_component: BaseAuthComponent,
                                server_config: ServerConfig) -> tuple[ResponseHeader, ResponseBody]:
-    scan_task: asyncio.Task = asyncio.create_task(asyncio.to_thread(get_local_storage_data, root=server_config.files_directory, user=auth_component.identity))
+    scan_task: asyncio.Task = asyncio.create_task(asyncio.to_thread(get_local_storage_data,
+                                                                    root=server_config.files_directory,
+                                                                    user=auth_component.identity))
     storage_data: dict[str, Any] = await asyncio.wait_for(scan_task, 10)
+
     storage_data.update({'storage_left' : server_config.user_max_storage - storage_data['storage_used'],
                          'files_left' : server_config.user_max_files - storage_data['files_made']})
+    
     return (ResponseHeader.from_server(server_config, SuccessFlags.SUCCESSFUL_QUERY_ANSWER, ended_connection=header_component.finish),
             ResponseBody(contents=storage_data))
 
