@@ -35,7 +35,7 @@ async def top_auth_handler(stream_reader: asyncio.StreamReader,
         InvalidAuthSemantic: If the auth component fails validation or is malformed.
         UnsupportedOperation: If the requested permission subcategory is not supported.
     '''
-    if header_component.subcategory in UNAUTHENTICATED_AUTH_OPERATIONS:
+    if header_component.subcategory in UNAUTHENTICATED_AUTH_OPERATIONS and header_component.auth_size == 0:
         auth_component: Optional[BaseAuthComponent] = None
     else:
         if header_component.auth_size == 0:

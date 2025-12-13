@@ -131,8 +131,6 @@ class UserManager(metaclass=SingletonMetaclass):
         auth_data: SessionMetadata = SessionMetadata(UserManager.generate_session_token(), UserManager.generate_session_refresh_digest(), lifespan=self.session_lifespan)
         self.session[username] = auth_data
 
-        print(self.session)
-
         return auth_data
         
     async def create_user(self, username: str, password: str, root: str, make_dir: bool = False) -> None:
