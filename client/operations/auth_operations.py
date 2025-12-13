@@ -138,27 +138,32 @@ async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 async def end_remote_session(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
                              display_credentials: bool = False, end_connection: bool = False) -> None:
-    if not session_manager.check_authentication_integrity():
-        raise ValueError(f'Cannot reauthorize when session manager holds no credentials')
-    assert session_manager.session_metadata and session_manager.identity
 
-    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config, session_manager, CategoryFlag.AUTH, AuthFlags.LOGOUT, finish=end_connection)
+    header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config,
+                                                                                    session_manager,
+                                                                                    CategoryFlag.AUTH, AuthFlags.LOGOUT,
+                                                                                    finish=end_connection)
+    peer_info: tuple[str, int] = writer.get_extra_info('peername')
     await send_request(writer=writer,
                        header_component=header_component,
                        auth_component=session_manager.auth_component)
-    response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
     
+    response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
+
     if response_header.code != SuccessFlags.SUCCESSFUL_SESSION_TERMINATION:
         await display(auth_messages.failed_auth_operation(AuthFlags.LOGOUT, response_header.code))
         return
     
-    remote_user: str = session_manager.identity
-    session_manager.clear_auth_data()
+    identity: str = f"<GUEST@{peer_info[0]}:{peer_info[1]}>"
+    if session_manager.identity:
+        identity = session_manager.identity
+        session_manager.clear_auth_data()
+    
     if not (response_body and response_body.contents):
-        await display(auth_messages.successful_logout(remote_user=remote_user))
+        await display(auth_messages.successful_logout(remote_user=identity))
         return
-    await display(auth_messages.successful_logout(remote_user=remote_user, **(response_body.contents if display_credentials else {})))
-
+    await display(auth_messages.successful_logout(remote_user=identity, **(response_body.contents if display_credentials else {})))
+    
 async def change_password(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                           new_password: str,
                           client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager) -> None:
