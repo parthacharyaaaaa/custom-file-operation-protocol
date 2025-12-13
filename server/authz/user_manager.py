@@ -99,8 +99,8 @@ class UserManager(metaclass=SingletonMetaclass):
                                                     log_details=f'Failed in digest comparison: {e.__class__.__name__}',
                                                     user_concerned=username,
                                                     log_category=LogType.USER))
-            if raise_on_exc:
-                raise UserAuthenticationError('Invalid authentication token. Please login again')
+        if raise_on_exc:
+            raise UserAuthenticationError('Invalid authentication token. Please login again')
 
     async def authorize_session(self, username: str, password: str) -> SessionMetadata:
         username = UserManager.check_username_validity(username)
@@ -130,6 +130,8 @@ class UserManager(metaclass=SingletonMetaclass):
         # Set new session
         auth_data: SessionMetadata = SessionMetadata(UserManager.generate_session_token(), UserManager.generate_session_refresh_digest(), lifespan=self.session_lifespan)
         self.session[username] = auth_data
+
+        print(self.session)
 
         return auth_data
         
