@@ -53,7 +53,7 @@ class ClientWindow(async_cmd.AsyncCmd):
         if self.end_connection:
             await auth_operations.end_remote_session(reader=self.reader, writer=self.writer,
                                                      client_config=self.client_config, session_manager=self.session_master,
-                                                     display_credentials=False, end_connection=self.end_connection)
+                                                     end_connection=self.end_connection)
             self.writer.close()
             await self.writer.wait_closed()
 
@@ -114,10 +114,12 @@ class ClientWindow(async_cmd.AsyncCmd):
         Terminate an established remote session
         '''
         parsed_args: argparse.Namespace = command_parsers.generic_modifier_parser.parse_args(args.split())
-        display_credentials, self.end_connection = parsed_args.dc, parsed_args.bye
-        await auth_operations.end_remote_session(reader=self.reader, writer=self.writer,
-                                                 client_config=self.client_config, session_manager=self.session_master,
-                                                 display_credentials=display_credentials, end_connection=self.end_connection)
+        if parsed_args.bye:
+            self.end_connection = True
+        else:
+            await auth_operations.end_remote_session(reader=self.reader, writer=self.writer,
+                                                     client_config=self.client_config, session_manager=self.session_master,
+                                                     end_connection=False)
     
     async def do_unew(self, args: str) -> None:
         '''
@@ -157,10 +159,12 @@ class ClientWindow(async_cmd.AsyncCmd):
         Refresh an established remote session
         '''
         parsed_args: argparse.Namespace = command_parsers.generic_modifier_parser.parse_args(args.split())
-        display_credentials, self.end_connection = parsed_args.dc, parsed_args.bye
-        await auth_operations.end_remote_session(reader=self.reader, writer=self.writer,
-                                                 client_config=self.client_config, session_manager=self.session_master,
-                                                 display_credentials=display_credentials, end_connection=self.end_connection)
+        if parsed_args.bye:
+            await cmd_utils.display("Cannot refresh session and end connection at the same time")
+            return
+                
+        await auth_operations.reauthorize(reader=self.reader, writer=self.writer,
+                                          client_config=self.client_config, session_manager=self.session_master)
 
     @require_auth_state(state=True)
     async def do_create(self, args: str) -> None:
