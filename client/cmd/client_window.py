@@ -51,6 +51,9 @@ class ClientWindow(async_cmd.AsyncCmd):
     
     async def postcmd(self, stop, line) -> bool:    # type: ignore
         if self.end_connection:
+            await auth_operations.end_remote_session(reader=self.reader, writer=self.writer,
+                                                     client_config=self.client_config, session_manager=self.session_master,
+                                                     display_credentials=False, end_connection=self.end_connection)
             self.writer.close()
             await self.writer.wait_closed()
 
@@ -453,15 +456,9 @@ class ClientWindow(async_cmd.AsyncCmd):
         BYE
         Disconnect from the remote server, and purge current session if available
         '''
-        for arg in shlex.split(args):
-            print('Invalid arg: ', arg)
-        
-        if self.session_master.identity:
-            await auth_operations.end_remote_session(reader=self.reader, writer=self.writer,
-                                                client_config=self.client_config, session_manager=self.session_master,
-                                                display_credentials=False, end_connection=self.end_connection)
+        if args:
+            await cmd_utils.display("Invalid Arguments:", ", ".join(shlex.split(args)))
         self.end_connection = True
-        
         return True
 
     async def do_clear(self, args: str) -> None:
