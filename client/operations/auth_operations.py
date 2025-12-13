@@ -137,8 +137,7 @@ async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 
 async def end_remote_session(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                              client_config: client_constants.ClientConfig, session_manager: session_manager.SessionManager,
-                             display_credentials: bool = False, end_connection: bool = False) -> None:
-
+                             end_connection: bool = False) -> None:
     header_component: BaseHeaderComponent = operational_utils.make_header_component(client_config,
                                                                                     session_manager,
                                                                                     CategoryFlag.AUTH, AuthFlags.LOGOUT,
@@ -162,7 +161,7 @@ async def end_remote_session(reader: asyncio.StreamReader, writer: asyncio.Strea
     if not (response_body and response_body.contents):
         await display(auth_messages.successful_logout(remote_user=identity))
         return
-    await display(auth_messages.successful_logout(remote_user=identity, **(response_body.contents if display_credentials else {})))
+    await display(auth_messages.successful_logout(remote_user=identity, **response_body.contents))
     
 async def change_password(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                           new_password: str,
