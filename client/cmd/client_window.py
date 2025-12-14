@@ -336,7 +336,7 @@ class ClientWindow(async_cmd.AsyncCmd):
                                                               subject_file_owner=parsed_args.remote_directory,
                                                               chunk_size=parsed_args.chunk_size)
 
-        async with aiofiles.open(parsed_args.local_fpath, 'rb') as file_reader:
+        async with aiofiles.open(parsed_args.local_filepath, 'rb') as file_reader:
             file_mmap: mmap.mmap = mmap.mmap(file_reader.fileno(), 0, access=mmap.ACCESS_READ)
             try:
                 await file_operations.replace_remote_file(reader=self.reader, writer=self.writer,
