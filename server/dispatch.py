@@ -48,7 +48,7 @@ permission_subhandler_mapping: Final[dict[PermissionFlags, PermissionSubhandler]
     PermissionFlags.REVOKE : permission_subhandlers.revoke_permission,
     PermissionFlags.HIDE : permission_subhandlers.hide_file,
     PermissionFlags.PUBLICISE : permission_subhandlers.publicise_file,
-    PermissionFlags.TRANSFER : permission_subhandlers.publicise_file
+    PermissionFlags.TRANSFER : permission_subhandlers.transfer_ownership
 }
 
 # Write, append, and overwrite share the same handler
