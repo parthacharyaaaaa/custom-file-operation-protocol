@@ -1,4 +1,5 @@
 import asyncio
+import math
 import os
 import re
 import time
@@ -48,7 +49,7 @@ class UserManager(metaclass=SingletonMetaclass):
         self.log_queue: Final[asyncio.Queue[ActivityLog]] = log_queue
         self.session_lifespan: float = session_lifespan
         self.session_refresh_nbf: float = session_lifespan // 2
-        self.previous_digests_mapping: Final[TTLCache[str, list[bytes]]] = TTLCache(0, self.session_lifespan)
+        self.previous_digests_mapping: Final[TTLCache[str, list[bytes]]] = TTLCache(math.inf, self.session_lifespan)
 
         asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
     
@@ -260,12 +261,9 @@ class UserManager(metaclass=SingletonMetaclass):
         
         # session exists, token matches, and refresh attempt is mature. Proceed to check refresh digest
         try:
-            # Check expired digests, if match then treat as replay attack
-            previous_digests: Optional[list[bytes]] = self.previous_digests_mapping.get(username)
-            if not previous_digests:
-                raise UserAuthenticationError('Failed session refresh. Please authenticate again')
-
-            if any(compare_digest(previous_digest, digest) for previous_digest in previous_digests):
+            # Check expired digests (if any), if match then treat as replay attack
+            previous_digests: list[bytes] = self.previous_digests_mapping.get(username, [])
+            if previous_digests and any(compare_digest(previous_digest, digest) for previous_digest in previous_digests):
                 self.session.pop(username, None)
                 self.previous_digests_mapping.pop(username, None)
                 asyncio.create_task(self.terminate_user_cache(username))
