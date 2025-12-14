@@ -110,7 +110,8 @@ async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     assert session_manager.session_metadata and session_manager.identity
     
     await send_request(writer=writer,
-                       header_component=operational_utils.make_header_component(client_config, session_manager, CategoryFlag.AUTH, AuthFlags.REFRESH))
+                       header_component=operational_utils.make_header_component(client_config, session_manager, CategoryFlag.AUTH, AuthFlags.REFRESH),
+                       auth_component=session_manager.auth_component)
     response_header, response_body = await process_response(reader, writer, client_config.read_timeout)
 
     if response_header.code != SuccessFlags.SUCCESSFUL_SESSION_REFRESH:
