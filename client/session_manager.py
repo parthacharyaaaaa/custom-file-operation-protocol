@@ -63,9 +63,9 @@ class SessionManager(metaclass=SingletonMetaclass):
         self._auth_component = BaseAuthComponent(identity=identity, token=token, refresh_digest=refresh_digest)
 
     @requires_authentication
-    def update_authentication_component(self, digest: bytes) -> None:
+    def reauthorize(self, new_digest: bytes) -> None:
         assert self._auth_component and self._session_metadata  # through requires_authentication decorator
-        self._session_metadata.update_digest(new_digest=digest)
+        self._session_metadata.update_digest(new_digest=new_digest)
         self._auth_component.refresh_digest = self._session_metadata._refresh_digest
 
     def clear_auth_data(self) -> None:
