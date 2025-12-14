@@ -1,6 +1,6 @@
 '''Database utilities'''
 
-from typing import Any, Optional, Literal
+from typing import Any, Optional
 from datetime import datetime
 
 from models.permissions import FilePermissions
@@ -10,7 +10,10 @@ from psycopg import sql
 
 from server.database.connections import ConnectionPoolManager, ConnectionPriority, ConnectionProxy
 
-__all__ = ('check_file_permission', 'get_user')
+__all__ = ('check_file_permission',
+           'get_user',
+           'get_file_data',
+           'check_file_existence')
 
 async def check_file_permission(filename: str, owner: str, grantee: str,
                                 check_for: FilePermissions,
@@ -87,6 +90,39 @@ async def get_user(username: str,
     try:
         async with proxy.cursor(row_factory=dict_row) as cursor:
             await cursor.execute(query)
+            return await cursor.fetchone()
+    finally:
+        if reclaim_after:
+            await connection_master.reclaim_connection(proxy)
+
+async def get_file_data(filename: str,
+                        owner: str,
+                        connection_master: ConnectionPoolManager,
+                        proxy: Optional[ConnectionProxy] = None,
+                        reclaim_after: bool = False,
+                        level: ConnectionPriority = ConnectionPriority.LOW) -> Optional[dict[str, Any]]:
+    '''Get file data from the database
+
+    Args:
+        filename (str): Name of the file to check.
+        connection_master (ConnectionPoolManager): Manager to obtain database connections.
+        proxy (Optional[ConnectionProxy]): Optional existing database connection to use. If None, a connection will be requested.
+        reclaim_after (bool): Whether to return the connection to the pool after use, defaults to False.
+        level (ConnectionPriority): Permission level for the connection, defaults to ConnectionPriority.LOW.
+
+    Returns:
+        Optional(dict[str, Any]): File data.
+    '''
+
+    if not proxy:
+        reclaim_after = True
+        proxy = await connection_master.request_connection(level)
+    try:
+        async with proxy.cursor(row_factory=dict_row) as cursor:
+            await cursor.execute('''SELECT file_size, created_at, public
+                                 FROM files
+                                 WHERE owner = %s AND filename = %s;''',
+                                 (owner, filename))
             return await cursor.fetchone()
     finally:
         if reclaim_after:
