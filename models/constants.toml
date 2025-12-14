@@ -13,7 +13,7 @@ username_regex = '^[\w](?:[\w\-]*[\w])?$'
 username_range = [4, 64]
 password_range = [8, 256]
 digest_length = 128
-token_length = 512
+token_length = 128
 
 [components.request.permission]
 max_bytesize = 256
