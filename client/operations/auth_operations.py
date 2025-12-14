@@ -126,9 +126,8 @@ async def reauthorize(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         await display(auth_messages.failed_auth_operation(AuthFlags.REFRESH, ServerErrorFlags.INTERNAL_SERVER_ERROR))
         return
     
-    session_manager.session_metadata.update_digest(new_digest=new_digest)
-
-    if iteration != session_manager.session_metadata.iteration + 1:
+    session_manager.reauthorize(new_digest)
+    if iteration != session_manager.session_metadata.iteration:
         await display(auth_messages.session_iteration_mismatch(session_manager.session_metadata.iteration, iteration))
         session_manager.session_metadata._iteration = iteration
 
