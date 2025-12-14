@@ -87,6 +87,8 @@ async def hide_file(header_component: BaseHeaderComponent,
                 file_mapping: Optional[dict[str, Any]] = await cursor.fetchone()
                 if not file_mapping:
                     raise errors.FileNotFound(file=permission_component.subject_file, username=auth_component.identity)
+                if not file_mapping['public']:
+                    raise errors.FileConflict(file=permission_component.subject_file, username=auth_component.identity)
 
                 await cursor.execute('''UPDATE files
                                      SET public = FALSE
