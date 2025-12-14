@@ -1,7 +1,7 @@
 import asyncio
 import os
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 from typing import Final
 
 import psycopg
@@ -220,21 +220,31 @@ async def handle_read(header_component: BaseHeaderComponent,
                       delete_cache: GlobalDeleteCacheType,
                       read_cache: GlobalReadCacheType) -> tuple[ResponseHeader, ResponseBody]:    
     # Check permissions
-    if not await db_utils.check_file_permission(filename=file_component.subject_file,
-                                                owner=file_component.subject_file_owner,
-                                                grantee=auth_component.identity,
-                                                connection_master=connection_master,
-                                                check_for=FilePermissions.READ,
-                                                check_until=datetime.fromtimestamp(header_component.sender_timestamp)):
-        err_str: str = f'User {auth_component.identity} does not have read permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
-        asyncio.create_task(
-            enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                        log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
-                                                  log_category=db_models.LogType.PERMISSION,log_details=err_str,
-                                                  reported_severity=db_models.Severity.TRACE,
-                                                  user_concerned=auth_component.identity)))
+    async with await connection_master.request_connection(level=ConnectionPriority.MODERATE) as proxy:
+        file_data: Optional[dict[str, Any]] = await db_utils.get_file_data(filename=file_component.subject_file,
+                                                                           owner=file_component.subject_file_owner,
+                                                                           connection_master=connection_master, proxy=proxy)
+        if not file_data:
+            raise errors.FileNotFound(file_component.subject_file, file_component.subject_file_owner)
         
-        raise errors.InsufficientPermissions(err_str)
+        # !Public files will need to be checked for corresponding roles to match with requesting user
+        if (not file_data['public']
+            and not await db_utils.check_file_permission(filename=file_component.subject_file,
+                                                         owner=file_component.subject_file_owner,
+                                                         grantee=auth_component.identity,
+                                                         connection_master=connection_master,
+                                                         proxy=proxy,
+                                                         check_for=FilePermissions.READ,
+                                                         check_until=datetime.fromtimestamp(header_component.sender_timestamp))):
+            err_str: str = f'User {auth_component.identity} does not have read permission on file {file_component.subject_file} owned by {file_component.subject_file_owner}'
+            asyncio.create_task(
+                enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
+                            log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                    log_category=db_models.LogType.PERMISSION,log_details=err_str,
+                                                    reported_severity=db_models.Severity.TRACE,
+                                                    user_concerned=auth_component.identity)))
+            
+            raise errors.InsufficientPermissions(err_str)
     
     fpath: Final[str] = os.path.join(file_component.subject_file_owner, file_component.subject_file)
     read_data, cursor_position, eof_reached = await base_ops.read_file(root=config.files_directory, fpath=fpath,
