@@ -188,7 +188,7 @@ async def handle_amendment(header_component: BaseHeaderComponent,
                                                     purge_writer=file_component.end_operation or bool(file_component.cursor_bitfield & CursorFlag.PURGE_CURSOR),
                                                     identifier=auth_component.identity,
                                                     trunacate=bool(header_component.subcategory & FileFlags.OVERWRITE))
-        await storage_cache.update_file_size(file_component.subject_file,
+        await storage_cache.update_file_size(file_component.subject_file_owner,
                                              diff=(
                                                  (cursor_position - file_size) if (header_component.subcategory & FileFlags.OVERWRITE)
                                                  else max(0, cursor_position - file_size)
