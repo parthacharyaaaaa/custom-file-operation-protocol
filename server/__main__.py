@@ -20,6 +20,7 @@ from server.bootup import (create_server_config, create_connection_master,
 
 from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
+from server.datastructures import EventProxy
 from server.dependencies import ServerSingletonsRegistry
 from server.dispatch import (TOP_LEVEL_REQUEST_MAPPING, auth_subhandler_mapping,
                              file_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping)
@@ -30,7 +31,9 @@ from server.typing import PartialisedRequestHandler
 
 async def main() -> None:
     # Initialize all global singletons
-    SHUTDOWN_EVENT: Final[asyncio.Event] = asyncio.Event()
+    shutdown_event: Final[asyncio.Event] = asyncio.Event()
+    event_proxy: Final[EventProxy] = EventProxy(shutdown_event)
+
     server_config: Final[ServerConfig] = create_server_config()
     connection_master: Final[ConnectionPoolManager] = await create_connection_master(conninfo=make_conninfo(user=os.environ['PG_USERNAME'],
                                                                                                             password=os.environ['PG_PASSWORD'],
@@ -60,7 +63,7 @@ async def main() -> None:
                                                                                            file_locks=file_lock,
                                                                                            storage_cache=storage_cache)
 
-    start_logger(log_queue=log_queue, config=server_config, connection_master=connection_master, shutdown_event=SHUTDOWN_EVENT)
+    start_logger(log_queue=log_queue, config=server_config, connection_master=connection_master)
 
     # Initially generate certificates if not present
     if not (server_config.key_filepath.is_file() and server_config.certificate_filepath.is_file()):
