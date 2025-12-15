@@ -180,14 +180,18 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
                                           for username, user_storage_data in buffer.items()
                                           for file, size in user_storage_data.file_data.items()))
             await proxy.commit()
-        buffer.clear()
     
     async def background_storage_sync(self) -> None:
         current_buffer: dict[str, StorageData] = {}
-        while True:
+        while not self.shutdown_event.is_set():
             while self and len(current_buffer) <= self.flush_batch_size:
-                popped_item: tuple[str, StorageData] =  self.popitem(last=False)
-                current_buffer[popped_item[0]] = popped_item[1]
-            
+                storage_item, storage_data =  self.popitem(last=False)
+                current_buffer[storage_item] = storage_data
+                
             await self._flush_buffer(current_buffer)
+            current_buffer.clear()
             await asyncio.sleep(self.disk_flush_interval)
+        
+        # Shutdown event triggered, pass entire remaining items as buffer to be written to disk
+        await self._flush_buffer(self.copy())
+        self.clear()
