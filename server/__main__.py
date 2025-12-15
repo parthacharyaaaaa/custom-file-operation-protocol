@@ -63,7 +63,7 @@ async def main() -> None:
                                                                                            file_locks=file_lock,
                                                                                            storage_cache=storage_cache)
 
-    start_logger(log_queue=log_queue, config=server_config, connection_master=connection_master)
+    start_logger(log_queue=log_queue, config=server_config, connection_master=connection_master, shutdown_event=event_proxy)
 
     # Initially generate certificates if not present
     if not (server_config.key_filepath.is_file() and server_config.certificate_filepath.is_file()):
