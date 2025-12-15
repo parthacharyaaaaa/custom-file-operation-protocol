@@ -19,7 +19,9 @@ def main() -> None:
     except BaseException:
         SHUTDOWN_EVENT.set()
         try:
+            print("Beginning system exit...")
             loop.run_until_complete(system_exit())
+            print("Ended system exit...")
         except Exception:
             pass
 

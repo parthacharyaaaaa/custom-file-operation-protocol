@@ -47,7 +47,8 @@ async def serve() -> None:
                                                                                                             host=os.environ['PG_HOST'],
                                                                                                             port=os.environ['PG_PORT'],
                                                                                                             dbname=os.environ['PG_DBNAME']),
-                                                                                    config=server_config)
+                                                                                    config=server_config,
+                                                                                    shutdown_event=shutdown_event_proxy)
     
     log_queue: Final[asyncio.Queue[ActivityLog]] = create_log_queue(server_config)
     
