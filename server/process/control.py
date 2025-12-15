@@ -1,7 +1,7 @@
 import asyncio
 import os
 from types import MappingProxyType
-from typing import Final
+from typing import Final, Optional
 
 from cachetools import TTLCache
 
@@ -87,25 +87,21 @@ async def serve() -> None:
         subhandler_mappings=[auth_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping, file_subhandler_mapping])
 
     reference_time: float = os.stat(server_config.certificate_filepath, follow_symlinks=False).st_mtime
+    # Outer loop to check for SHUTDOWN_EVENT
     while not SHUTDOWN_EVENT.is_set():
         server_task: asyncio.Task = asyncio.create_task(start_server(dependency_registry=server_dependency_registry,
                                                                      request_handler_map=routing_map))
-        while not server_task.done() and not SHUTDOWN_EVENT.is_set():
+        # Inner loop to restart server in case of certificate updation
+        while not(server_task.done() or SHUTDOWN_EVENT.is_set()):
             await asyncio.sleep(server_config.rollover_check_poll_interval)
-
             modification_time: float = os.stat(server_config.certificate_filepath, follow_symlinks=False).st_mtime
             if modification_time != reference_time:
                 # Close current listener socket, and break out of server_task loop to restart server with new credentials
                 reference_time = modification_time
                 server_task.cancel()
-                try:
-                    await server_task
-                except asyncio.CancelledError:
-                    pass
                 break
-        if SHUTDOWN_EVENT.is_set() and not server_task.done():
+        
+        # Loop exit, check for shutdown condition and end task if true
+        if SHUTDOWN_EVENT.is_set():
             server_task.cancel()
-            try:
-                await server_task
-            except asyncio.CancelledError:
-                pass
+            return
