@@ -19,6 +19,7 @@ from server.authz.user_manager import UserManager
 from server.callback import callback
 from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
+from server.datastructures import EventProxy
 from server.dependencies import ServerSingletonsRegistry
 from server.dispatch import auth_subhandler_mapping, file_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping
 from server.file_ops.storage import StorageCache
@@ -64,10 +65,14 @@ async def create_connection_master(conninfo: str, config: ServerConfig) -> Conne
     await connection_master.populate_pools(conninfo)
     return connection_master
 
-def create_user_master(connection_master: ConnectionPoolManager, config: ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog]) -> UserManager:
+def create_user_master(connection_master: ConnectionPoolManager,
+                       config: ServerConfig,
+                       log_queue: asyncio.Queue[db_models.ActivityLog],
+                       shutdown_event: EventProxy) -> UserManager:
     return UserManager(connection_master=connection_master,
                        log_queue=log_queue,
-                       session_lifespan=config.session_lifespan)
+                       session_lifespan=config.session_lifespan,
+                       shutdown_event=shutdown_event)
 
 def create_file_lock(config: ServerConfig) -> TTLCache[str, bytes]:
     return TTLCache(maxsize=inf, ttl=config.file_lock_ttl)
@@ -85,15 +90,26 @@ def create_caches(config: ServerConfig) -> tuple[TTLCache[str, dict[str, AsyncBu
 def create_log_queue(config: ServerConfig) -> asyncio.Queue[db_models.ActivityLog]:
     return asyncio.Queue(config.log_queue_size)
 
-def create_storage_cache(connection_master: ConnectionPoolManager, server_config: ServerConfig) -> StorageCache:
-    return StorageCache(connection_master, server_config.disk_flush_interval, server_config.disk_flush_batch_size)
+def create_storage_cache(connection_master: ConnectionPoolManager,
+                         server_config: ServerConfig,
+                         shutdown_event: EventProxy,
+                         cleanup_event: asyncio.Event) -> StorageCache:
+    return StorageCache(connection_master, server_config.disk_flush_interval, server_config.disk_flush_batch_size,
+                        shutdown_event, cleanup_event)
 
-def start_logger(log_queue: asyncio.Queue[db_models.ActivityLog], config: ServerConfig, connection_master: ConnectionPoolManager) -> None:
-    asyncio.create_task(logging.flush_logs(connection_master=connection_master,
-                                           queue=log_queue,
-                                           batch_size=config.log_batch_size,
-                                           waiting_period=config.log_waiting_period,
-                                           flush_interval=config.log_interval))
+def start_logger(log_queue: asyncio.Queue[db_models.ActivityLog],
+                 config: ServerConfig,
+                 connection_master: ConnectionPoolManager,
+                 shutdown_event: EventProxy,
+                 cleanup_event: asyncio.Event) -> asyncio.Task:
+    logger: Final[asyncio.Task] = asyncio.create_task(logging.flush_logs(connection_master=connection_master,
+                                                                         queue=log_queue,
+                                                                         shutdown_event=shutdown_event,
+                                                                         cleanup_event=cleanup_event,
+                                                                         batch_size=config.log_batch_size,
+                                                                         waiting_period=config.log_waiting_period,
+                                                                         flush_interval=config.log_interval))
+    return logger
 
 def partialise_request_subhandlers(singleton_registry: ServerSingletonsRegistry,
                                    top_handler_mapping: dict[CategoryFlag, RequestHandler],

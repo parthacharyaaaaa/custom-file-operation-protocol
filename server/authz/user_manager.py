@@ -21,6 +21,7 @@ import psycopg.errors as pg_errors
 
 from server.database.connections import ConnectionPriority, ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog, LogAuthor, Severity, LogType
+from server.datastructures import EventProxy
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned, InvalidAuthData, OperationContested
 
 __all__ = ('UserManager',)
@@ -40,16 +41,21 @@ class UserManager(metaclass=SingletonMetaclass):
 
     __slots__ = ('connection_master',
                  'session', 'session_lifespan', 'session_refresh_nbf', 
-                 'log_queue', 'previous_digests_mapping',
+                 'log_queue', 'previous_digests_mapping', 'shutdown_event',
                  '__weakref__')
 
-    def __init__(self, connection_master: ConnectionPoolManager, log_queue: asyncio.Queue[ActivityLog], session_lifespan: float):
+    def __init__(self,
+                 connection_master: ConnectionPoolManager,
+                 log_queue: asyncio.Queue[ActivityLog],
+                 session_lifespan: float,
+                 shutdown_event: EventProxy):
         self.connection_master: Final[ConnectionPoolManager] = connection_master
         self.session: Final[dict[str, SessionMetadata]] = {}
         self.log_queue: Final[asyncio.Queue[ActivityLog]] = log_queue
         self.session_lifespan: float = session_lifespan
         self.session_refresh_nbf: float = session_lifespan // 2
         self.previous_digests_mapping: Final[TTLCache[str, list[bytes]]] = TTLCache(math.inf, self.session_lifespan)
+        self.shutdown_event = shutdown_event
 
         asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
     
@@ -385,7 +391,7 @@ class UserManager(metaclass=SingletonMetaclass):
 
     async def expire_sessions(self) -> None:
         sleep_duration: float = self.session_lifespan // 3
-        while True:
+        while not self.shutdown_event.is_set():
             reference_threshold: float = time.time()
             hitlist: list[str] = []
             for username, auth_data in self.session.items():
@@ -395,6 +401,10 @@ class UserManager(metaclass=SingletonMetaclass):
                 self.session.pop(user, None)
                 self.previous_digests_mapping.pop(user, None)
             await asyncio.sleep(sleep_duration)
+
+        # Shutdown sequence triggered
+        self.session.clear()
+        self.previous_digests_mapping.clear()
 
     async def enqueue_activity(self, log: ActivityLog) -> None:
         log.logged_by = UserManager.LOG_ALIAS
