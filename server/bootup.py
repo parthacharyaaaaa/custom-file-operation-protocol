@@ -65,10 +65,14 @@ async def create_connection_master(conninfo: str, config: ServerConfig) -> Conne
     await connection_master.populate_pools(conninfo)
     return connection_master
 
-def create_user_master(connection_master: ConnectionPoolManager, config: ServerConfig, log_queue: asyncio.Queue[db_models.ActivityLog]) -> UserManager:
+def create_user_master(connection_master: ConnectionPoolManager,
+                       config: ServerConfig,
+                       log_queue: asyncio.Queue[db_models.ActivityLog],
+                       shutdown_event: EventProxy) -> UserManager:
     return UserManager(connection_master=connection_master,
                        log_queue=log_queue,
-                       session_lifespan=config.session_lifespan)
+                       session_lifespan=config.session_lifespan,
+                       shutdown_event=shutdown_event)
 
 def create_file_lock(config: ServerConfig) -> TTLCache[str, bytes]:
     return TTLCache(maxsize=inf, ttl=config.file_lock_ttl)
