@@ -111,4 +111,4 @@ async def flush_logs(connection_master: ConnectionPoolManager,
                                   ConnectionPriority.HIGH,
                                   retries,
                                   waiting_period // 2)
-        cleanup_event.set()
+    cleanup_event.set()
