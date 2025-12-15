@@ -4,6 +4,7 @@ from traceback import format_exception_only
 
 from server.database.connections import ConnectionPriority, ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog, Severity
+from server.datastructures import EventProxy
 
 from psycopg import sql
 
@@ -25,9 +26,13 @@ async def enqueue_log(log: ActivityLog, queue: asyncio.Queue[ActivityLog], waiti
     except asyncio.TimeoutError:
         return
     
-async def flush_logs(connection_master: ConnectionPoolManager, queue: asyncio.Queue[ActivityLog], batch_size: int, waiting_period: float, flush_interval: float) -> None:
+async def flush_logs(connection_master: ConnectionPoolManager,
+                     queue: asyncio.Queue[ActivityLog],
+                     shutdown_event: EventProxy,
+                     batch_size: int,
+                     waiting_period: float, flush_interval: float) -> None:
     log_entries: list[ActivityLog] = []
-    while True:
+    while not shutdown_event.is_set():
         try:
             for _ in range(batch_size):
                 log_entries.append((await asyncio.wait_for(queue.get(), timeout=waiting_period)))  # Fetch only ActivityLog object in tuple at 0 index

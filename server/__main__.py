@@ -30,6 +30,7 @@ from server.typing import PartialisedRequestHandler
 
 async def main() -> None:
     # Initialize all global singletons
+    SHUTDOWN_EVENT: Final[asyncio.Event] = asyncio.Event()
     server_config: Final[ServerConfig] = create_server_config()
     connection_master: Final[ConnectionPoolManager] = await create_connection_master(conninfo=make_conninfo(user=os.environ['PG_USERNAME'],
                                                                                                             password=os.environ['PG_PASSWORD'],
@@ -59,7 +60,7 @@ async def main() -> None:
                                                                                            file_locks=file_lock,
                                                                                            storage_cache=storage_cache)
 
-    start_logger(log_queue=log_queue, config=server_config, connection_master=connection_master)
+    start_logger(log_queue=log_queue, config=server_config, connection_master=connection_master, shutdown_event=SHUTDOWN_EVENT)
 
     # Initially generate certificates if not present
     if not (server_config.key_filepath.is_file() and server_config.certificate_filepath.is_file()):
