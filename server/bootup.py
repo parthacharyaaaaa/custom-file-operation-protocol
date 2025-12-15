@@ -86,8 +86,10 @@ def create_caches(config: ServerConfig) -> tuple[TTLCache[str, dict[str, AsyncBu
 def create_log_queue(config: ServerConfig) -> asyncio.Queue[db_models.ActivityLog]:
     return asyncio.Queue(config.log_queue_size)
 
-def create_storage_cache(connection_master: ConnectionPoolManager, server_config: ServerConfig) -> StorageCache:
-    return StorageCache(connection_master, server_config.disk_flush_interval, server_config.disk_flush_batch_size)
+def create_storage_cache(connection_master: ConnectionPoolManager,
+                         server_config: ServerConfig,
+                         shutdown_event: EventProxy) -> StorageCache:
+    return StorageCache(connection_master, server_config.disk_flush_interval, server_config.disk_flush_batch_size, shutdown_event)
 
 def start_logger(log_queue: asyncio.Queue[db_models.ActivityLog],
                  config: ServerConfig,

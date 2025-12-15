@@ -51,7 +51,7 @@ async def main() -> None:
     file_lock: Final[TTLCache[str, bytes]] = create_file_lock(config=server_config)
    
     read_cache, amendment_cache, deletion_cache = create_caches(config=server_config)
-    storage_cache = create_storage_cache(connection_master, server_config)
+    storage_cache = create_storage_cache(connection_master, server_config, event_proxy)
 
     server_dependency_registry: Final[ServerSingletonsRegistry] = ServerSingletonsRegistry(server_config=server_config,
                                                                                            user_manager=user_master,

@@ -4,6 +4,7 @@ from collections import OrderedDict
 from typing import Optional, Final
 
 from server.database.connections import ConnectionPoolManager, ConnectionPriority, ConnectionProxy
+from server.datastructures import EventProxy
 from server.errors import UserNotFound, FileNotFound
 
 from models.singletons import SingletonMetaclass
@@ -36,7 +37,7 @@ class StorageData:
         return self.filecount, self.storage_used
 
 class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
-    __slots__ = ('connection_master', 'disk_flush_interval', 'flush_batch_size')
+    __slots__ = ('connection_master', 'disk_flush_interval', 'flush_batch_size', 'shutdown_event')
     
     storage_fetch_query: Final[sql.Composed] = (sql.SQL('''SELECT file_count AS {}, storage_used AS {} 
                                                         FROM users
@@ -58,10 +59,12 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
     def __init__(self,
                  connection_master: ConnectionPoolManager,
                  disk_flush_interval: float,
-                 flush_batch_size: int):
+                 flush_batch_size: int,
+                 shutdown_event: EventProxy):
         self.connection_master = connection_master
         self.disk_flush_interval = disk_flush_interval
         self.flush_batch_size = flush_batch_size
+        self.shutdown_event = shutdown_event
         super().__init__()
 
         asyncio.create_task(self.background_storage_sync())
