@@ -82,6 +82,7 @@ async def _flush_with_retries(connection_master: ConnectionPoolManager,
 async def flush_logs(connection_master: ConnectionPoolManager,
                      queue: asyncio.Queue[ActivityLog],
                      shutdown_event: EventProxy,
+                     cleanup_event: asyncio.Event,
                      batch_size: int,
                      waiting_period: float, flush_interval: float,
                      retries: int = 3) -> None:
@@ -110,3 +111,4 @@ async def flush_logs(connection_master: ConnectionPoolManager,
                                   ConnectionPriority.HIGH,
                                   retries,
                                   waiting_period // 2)
+        cleanup_event.set()

@@ -37,7 +37,7 @@ class StorageData:
         return self.filecount, self.storage_used
 
 class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
-    __slots__ = ('connection_master', 'disk_flush_interval', 'flush_batch_size', 'shutdown_event')
+    __slots__ = ('connection_master', 'disk_flush_interval', 'flush_batch_size', 'shutdown_event', 'cleanup_event')
     
     storage_fetch_query: Final[sql.Composed] = (sql.SQL('''SELECT file_count AS {}, storage_used AS {} 
                                                         FROM users
@@ -60,11 +60,13 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
                  connection_master: ConnectionPoolManager,
                  disk_flush_interval: float,
                  flush_batch_size: int,
-                 shutdown_event: EventProxy):
+                 shutdown_event: EventProxy,
+                 cleanup_event: asyncio.Event):
         self.connection_master = connection_master
         self.disk_flush_interval = disk_flush_interval
         self.flush_batch_size = flush_batch_size
         self.shutdown_event = shutdown_event
+        self.cleanup_event = cleanup_event
         super().__init__()
 
         asyncio.create_task(self.background_storage_sync())
@@ -193,5 +195,7 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
             await asyncio.sleep(self.disk_flush_interval)
         
         # Shutdown event triggered, pass entire remaining items as buffer to be written to disk
-        await self._flush_buffer(self.copy())
-        self.clear()
+        if self:
+            await self._flush_buffer(self.copy())
+            self.clear()
+        self.cleanup_event.set()

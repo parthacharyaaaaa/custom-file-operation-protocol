@@ -88,16 +88,20 @@ def create_log_queue(config: ServerConfig) -> asyncio.Queue[db_models.ActivityLo
 
 def create_storage_cache(connection_master: ConnectionPoolManager,
                          server_config: ServerConfig,
-                         shutdown_event: EventProxy) -> StorageCache:
-    return StorageCache(connection_master, server_config.disk_flush_interval, server_config.disk_flush_batch_size, shutdown_event)
+                         shutdown_event: EventProxy,
+                         cleanup_event: asyncio.Event) -> StorageCache:
+    return StorageCache(connection_master, server_config.disk_flush_interval, server_config.disk_flush_batch_size,
+                        shutdown_event, cleanup_event)
 
 def start_logger(log_queue: asyncio.Queue[db_models.ActivityLog],
                  config: ServerConfig,
                  connection_master: ConnectionPoolManager,
-                 shutdown_event: EventProxy) -> asyncio.Task:
+                 shutdown_event: EventProxy,
+                 cleanup_event: asyncio.Event) -> asyncio.Task:
     logger: Final[asyncio.Task] = asyncio.create_task(logging.flush_logs(connection_master=connection_master,
                                                                          queue=log_queue,
                                                                          shutdown_event=shutdown_event,
+                                                                         cleanup_event=cleanup_event,
                                                                          batch_size=config.log_batch_size,
                                                                          waiting_period=config.log_waiting_period,
                                                                          flush_interval=config.log_interval))
