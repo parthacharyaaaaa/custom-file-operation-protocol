@@ -43,7 +43,7 @@ class UserManager(metaclass=SingletonMetaclass):
 
     __slots__ = ('connection_master',
                  'session', 'session_lifespan', 'session_refresh_nbf', 
-                 '_logger', 'previous_digests_mapping', '_session_expiry_task',
+                 '_logger', 'previous_digests_mapping',
                  '_shutdown_event', '_cleanup_event', '_shutdown_poll_time',
                  '__weakref__')
 
@@ -64,8 +64,9 @@ class UserManager(metaclass=SingletonMetaclass):
         self._cleanup_event: Final[ExclusiveEventProxy] = ExclusiveEventProxy(cleanup_event, weakref.ref(self))
         self._shutdown_poll_time: float = shutdown_poll_time
 
-        self._session_expiry_task: Final[asyncio.Task] = asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
-    
+        session_expiry_task: asyncio.Task = asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
+        asyncio.create_task(self.shutdown_watchdog(session_expiry_task))
+
     @staticmethod
     def generate_password_hash(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
         password = password.strip()
@@ -396,12 +397,12 @@ class UserManager(metaclass=SingletonMetaclass):
                                      (datetime.now(), username,))
             await proxy.commit()
 
-    async def shutdown_watchdog(self) -> None:
+    async def shutdown_watchdog(self, session_trim_task: asyncio.Task[None]) -> None:
         while not self._shutdown_event.is_set():
             await asyncio.sleep(self._shutdown_poll_time)
 
         # Shutdown event triggered
-        self._session_expiry_task.cancel()
+        session_trim_task.cancel()
         self.session.clear()
         self.previous_digests_mapping.clear()
         self._cleanup_event.set(self)
