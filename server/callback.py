@@ -61,12 +61,10 @@ async def callback(dependency_registry: ServerSingletonsRegistry,
             is_caught: bool = isinstance(e, errors.ProtocolException)
             if not is_caught:
                 asyncio.create_task(
-                    logging.enqueue_log(waiting_period=dependency_registry.server_config.log_waiting_period,
-                                        queue=dependency_registry.log_queue,
-                                        log=db_models.ActivityLog(reported_severity=db_models.Severity.CRITICAL_FAILURE,
-                                                                  log_category=db_models.LogType.INTERNAL,
-                                                                  logged_by=db_models.LogAuthor.EXCEPTION_FALLBACK,
-                                                                  log_details=format_exception_only(e)[0])))
+                    dependency_registry.logger.enqueue_log(db_models.ActivityLog(reported_severity=db_models.Severity.CRITICAL_FAILURE,
+                                                                                 log_category=db_models.LogType.INTERNAL,
+                                                                                 logged_by=db_models.LogAuthor.EXCEPTION_FALLBACK,
+                                                                                 log_details=format_exception_only(e)[0])))
             
             if isinstance(e, errors.SlowStreamRate) and not header_component:   # Failure to read header component past socket_connection_timeout
                 writer.close()
