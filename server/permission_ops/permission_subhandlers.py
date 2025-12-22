@@ -15,12 +15,12 @@ import psycopg.errors as pg_exc
 from psycopg.rows import dict_row
 
 from server import errors
-from server import logging
 from server.config import server_config
 from server.database.connections import ConnectionPoolManager, ConnectionPriority
 from server.database import models as db_models, utils as db_utils
-from server.dependencies import GlobalLogQueueType, GlobalDeleteCacheType, GlobalReadCacheType, GlobalAmendCacheType
+from server.dependencies import GlobalDeleteCacheType, GlobalReadCacheType, GlobalAmendCacheType
 from server.file_ops import base_operations as base_ops
+from server.logging import Logger
 
 __all__ = ('publicise_file', 'hide_file', 'grant_permission',
            'revoke_permission', 'transfer_ownership')
@@ -29,7 +29,7 @@ async def publicise_file(header_component: BaseHeaderComponent,
                          auth_component: BaseAuthComponent,
                          permission_component: BasePermissionComponent,
                          config: server_config.ServerConfig,
-                         log_queue: GlobalLogQueueType,
+                         logger: Logger,
                          connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
     async with await connection_master.request_connection(level=ConnectionPriority.LOW) as proxy:
         try:
@@ -54,12 +54,11 @@ async def publicise_file(header_component: BaseHeaderComponent,
         except pg_exc.LockNotAvailable:
             raise errors.OperationContested
         except pg_exc.Error as e:
-            asyncio.create_task(
-                    logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                                        log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
-                                                log_category=db_models.LogType.DATABASE,
-                                                log_details=format_exception_only(e)[0],
-                                                reported_severity=db_models.Severity.NON_CRITICAL_FAILURE)))
+            asyncio.create_task(logger.enqueue_log(db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                                         log_category=db_models.LogType.DATABASE,
+                                                                         log_details=format_exception_only(e)[0],
+                                                                         reported_severity=db_models.Severity.NON_CRITICAL_FAILURE,
+                                                                         user_concerned=auth_component.identity)))
             
             raise errors.DatabaseFailure('Failed to publicise file')
 
@@ -72,7 +71,7 @@ async def hide_file(header_component: BaseHeaderComponent,
                     auth_component: BaseAuthComponent,
                     permission_component: BasePermissionComponent,
                     config: server_config.ServerConfig,
-                    log_queue: GlobalLogQueueType,
+                    logger: Logger,
                     connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
     async with await connection_master.request_connection(level=ConnectionPriority.MODERATE) as proxy:
         try:
@@ -99,13 +98,10 @@ async def hide_file(header_component: BaseHeaderComponent,
         except pg_exc.LockNotAvailable:
             raise errors.OperationContested
         except pg_exc.Error as e:
-            asyncio.create_task(
-                    logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                                log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
-                                                log_category=db_models.LogType.DATABASE,
-                                                log_details=format_exception_only(e)[0],
-                                                reported_severity=db_models.Severity.NON_CRITICAL_FAILURE)))
-            
+            asyncio.create_task(logger.enqueue_log(db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                                         log_category=db_models.LogType.DATABASE,
+                                                                         log_details=format_exception_only(e)[0],
+                                                                         reported_severity=db_models.Severity.NON_CRITICAL_FAILURE)))
             raise errors.DatabaseFailure('Failed to hide file')
 
     return (ResponseHeader.from_server(config=config,
@@ -118,7 +114,7 @@ async def grant_permission(header_component: BaseHeaderComponent,
                            auth_component: BaseAuthComponent,
                            permission_component: BasePermissionComponent,
                            config: server_config.ServerConfig,
-                           log_queue: GlobalLogQueueType,
+                           logger: Logger,
                            connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, None]:
     allowed_permission: FilePermissions = FilePermissions.MANAGE_RW
     
@@ -198,13 +194,10 @@ async def grant_permission(header_component: BaseHeaderComponent,
         except pg_exc.LockNotAvailable:
             raise errors.OperationContested
         except pg_exc.Error as e:
-            asyncio.create_task(
-                    logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                                        log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
-                                                                log_category=db_models.LogType.DATABASE,
-                                                                log_details=format_exception_only(e)[0],
-                                                                reported_severity=db_models.Severity.NON_CRITICAL_FAILURE)))
-            
+            asyncio.create_task(logger.enqueue_log(db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                                         log_category=db_models.LogType.DATABASE,
+                                                                         log_details=format_exception_only(e)[0],
+                                                                         reported_severity=db_models.Severity.NON_CRITICAL_FAILURE)))
             raise errors.DatabaseFailure('Failed to grant permission')
     
     return (ResponseHeader.from_server(config=config, version=header_component.version, code=SuccessFlags.SUCCESSFUL_GRANT, ended_connection=header_component.finish),
@@ -214,7 +207,7 @@ async def revoke_permission(header_component: BaseHeaderComponent,
                             auth_component: BaseAuthComponent,
                             permission_component: BasePermissionComponent,
                             config: server_config.ServerConfig,
-                            log_queue: GlobalLogQueueType,
+                            logger: Logger,
                             connection_master: ConnectionPoolManager) -> tuple[ResponseHeader, ResponseBody]:
     async with await connection_master.request_connection(level=ConnectionPriority.MODERATE) as proxy:
         try:
@@ -259,20 +252,17 @@ async def revoke_permission(header_component: BaseHeaderComponent,
         except pg_exc.LockNotAvailable:
             raise errors.OperationContested
         except pg_exc.Error as e:
-            asyncio.create_task(
-                logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                                    log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
-                                                            log_category=db_models.LogType.DATABASE,
-                                                            log_details=format_exception_only(e)[0],
-                                                            reported_severity=db_models.Severity.NON_CRITICAL_FAILURE)))
-            
+            asyncio.create_task(logger.enqueue_log(db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                                         log_category=db_models.LogType.DATABASE,
+                                                                         log_details=format_exception_only(e)[0],
+                                                                         reported_severity=db_models.Severity.NON_CRITICAL_FAILURE)))            
             raise errors.DatabaseFailure('Failed to revoke permission')
 
 async def transfer_ownership(header_component: BaseHeaderComponent,
                              auth_component: BaseAuthComponent,
                              permission_component: BasePermissionComponent,
                              config: server_config.ServerConfig,
-                             log_queue: GlobalLogQueueType,
+                             logger: Logger,
                              connection_master: ConnectionPoolManager,
                              deleted_cache: GlobalDeleteCacheType,
                              read_cache: GlobalReadCacheType,
@@ -294,13 +284,11 @@ async def transfer_ownership(header_component: BaseHeaderComponent,
                                                             check_for=FilePermissions.MANAGE_SUPER,
                                                             connection_master=connection_master,
                                                             proxy=proxy):
-                    
-                    asyncio.create_task(
-                        logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                        log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
-                                                  log_category=db_models.LogType.PERMISSION,
-                                                  log_details=f'Tampered identity {auth_component.identity} from {header_component.sender_hostname}:{header_component.sender_port}',
-                                                  reported_severity=db_models.Severity.TRACE)))
+                    err_str: str = f'Tampered identity {auth_component.identity} from {header_component.sender_hostname}:{header_component.sender_port}'
+                    asyncio.create_task(logger.enqueue_log(db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                                                 log_category=db_models.LogType.PERMISSION,
+                                                                                 log_details=err_str,
+                                                                                 reported_severity=db_models.Severity.TRACE)))
                     raise errors.InsufficientPermissions(f'Only file owner is permitted to transfer ownership of file {permission_component.subject_file}')
                 
                 # Check user existence
@@ -372,12 +360,9 @@ async def transfer_ownership(header_component: BaseHeaderComponent,
             if isinstance(e, pg_exc.LockNotAvailable):
                 raise errors.OperationContested
             elif isinstance(e, pg_exc.Error):
-                asyncio.create_task(
-                    logging.enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                                log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
-                                                log_category=db_models.LogType.DATABASE,
-                                                log_details=format_exception_only(e)[0],
-                                                reported_severity=db_models.Severity.NON_CRITICAL_FAILURE)))
-                
+                asyncio.create_task(logger.enqueue_log(db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                                             log_category=db_models.LogType.DATABASE,
+                                                                             log_details=format_exception_only(e)[0],
+                                                                             reported_severity=db_models.Severity.NON_CRITICAL_FAILURE)))
                 raise errors.DatabaseFailure(f'Failed to transfer ownership of file {permission_component.subject_file} to {permission_component.subject_user}')
             raise e

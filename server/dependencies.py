@@ -15,11 +15,11 @@ from server.config.server_config import ServerConfig
 from server.database import models as db_models
 from server.database.connections import ConnectionPoolManager
 from server.file_ops.storage import StorageCache
+from server.logging import Logger
 
 import pydantic
 
-__all__ = ('GlobalLogQueueType',
-           'GlobalReadCacheType',
+__all__ = ('GlobalReadCacheType',
            'GlobalAmendCacheType',
            'GlobalDeleteCacheType',
            'GlobalFileLockType',
@@ -35,7 +35,6 @@ _singleton_registry_config_dict: pydantic.ConfigDict = pydantic.ConfigDict(
 
 
 # NewType annotations for global singletons with data types that can be repeated in a function signature
-class GlobalLogQueueType(asyncio.Queue[db_models.ActivityLog]): pass
 class GlobalReadCacheType(TTLCache[str, dict[str, AsyncBufferedReader]]): pass
 class GlobalAmendCacheType(TTLCache[str, dict[str, AsyncBufferedIOBase]]): pass
 class GlobalDeleteCacheType(TTLCache[str, Literal[True]]): pass
@@ -48,11 +47,11 @@ SingletonTypes: TypeAlias = Union[
     type[UserManager],
     type[ConnectionPoolManager],
     type[StorageCache],
+    type[Logger],
     type[GlobalAmendCacheType],
     type[GlobalDeleteCacheType],
     type[GlobalReadCacheType],
     type[GlobalFileLockType],
-    type[GlobalLogQueueType],
 ]
 
 def _pydantic_slotted_weakref_dataclass(*args, **kwargs):
@@ -82,7 +81,7 @@ class ServerSingletonsRegistry(_pydantic_dataclass_slots_helper, metaclass=Singl
     connection_pool_manager: ConnectionPoolManager = pydantic.Field(frozen=True)
     storage_cache: StorageCache = pydantic.Field(frozen=True)
 
-    log_queue: asyncio.Queue[db_models.ActivityLog] = pydantic.Field(frozen=True)
+    logger: Logger = pydantic.Field(frozen=True)
     reader_cache: TTLCache[str, dict[str, AsyncBufferedReader]] = pydantic.Field(frozen=True)
     amendment_cache: TTLCache[str, dict[str, AsyncBufferedIOBase]] = pydantic.Field(frozen=True)
 
@@ -93,7 +92,7 @@ class ServerSingletonsRegistry(_pydantic_dataclass_slots_helper, metaclass=Singl
             ServerConfig : self.server_config,
             UserManager : self.user_manager,
             ConnectionPoolManager : self.connection_pool_manager,
-            GlobalLogQueueType : self.log_queue,
+            Logger : self.logger,
             GlobalReadCacheType : self.reader_cache,
             GlobalAmendCacheType : self.amendment_cache,
             GlobalDeleteCacheType : self.deletion_cache,
