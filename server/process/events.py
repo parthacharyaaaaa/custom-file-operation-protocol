@@ -58,5 +58,5 @@ class ExclusiveEventProxy(EventProxy):
 
     def clear(self, caller: Any) -> None:
         if (identity:=id(caller)) != self._holder:
-            raise ValueError(f"Holder at <f{identity}> does not have permission to set event")
+            raise ValueError(f"Holder at <f{identity}> does not have permission to clear event")
         self._event.clear()
