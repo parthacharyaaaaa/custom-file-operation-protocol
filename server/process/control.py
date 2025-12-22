@@ -22,7 +22,8 @@ from server.dispatch import (TOP_LEVEL_REQUEST_MAPPING, auth_subhandler_mapping,
                              file_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping)
 
 from server.logging import ActivityLog
-from server.process.events import SHUTDOWN_EVENT, CACHE_CLEANUP_EVENT, LOG_CLEANUP_EVENT, CLEANUP_WAITING_PERIOD, EventProxy
+from server.process.events import (SHUTDOWN_EVENT, CACHE_CLEANUP_EVENT, LOG_CLEANUP_EVENT,
+                                   CLEANUP_WAITING_PERIOD, CONNECTION_POOL_CLEANUP_EVENT, EventProxy)
 from server.tls import credentials
 from server.typing import PartialisedRequestHandler
 
@@ -47,7 +48,8 @@ async def serve() -> None:
                                                                                                             port=os.environ['PG_PORT'],
                                                                                                             dbname=os.environ['PG_DBNAME']),
                                                                                     config=server_config,
-                                                                                    shutdown_event=shutdown_event_proxy)
+                                                                                    shutdown_event=shutdown_event_proxy,
+                                                                                    cleanup_event=CONNECTION_POOL_CLEANUP_EVENT)
     
     log_queue: Final[asyncio.Queue[ActivityLog]] = create_log_queue(server_config)
     
