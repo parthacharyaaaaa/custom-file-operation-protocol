@@ -61,7 +61,7 @@ class UserManager(metaclass=SingletonMetaclass):
         self.session_refresh_nbf: float = session_lifespan // 2
         self.previous_digests_mapping: Final[TTLCache[str, list[bytes]]] = TTLCache(math.inf, self.session_lifespan)
         self._shutdown_event: Final[EventProxy] = shutdown_event
-        self._cleanup_event: Final[ExclusiveEventProxy] = ExclusiveEventProxy(cleanup_event, weakref.ref(id(self)))
+        self._cleanup_event: Final[ExclusiveEventProxy] = ExclusiveEventProxy(cleanup_event, weakref.ref(self))
         self._shutdown_poll_time: float = shutdown_poll_time
 
         self._session_expiry_task: Final[asyncio.Task] = asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
