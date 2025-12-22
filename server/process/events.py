@@ -52,7 +52,7 @@ class ExclusiveEventProxy(EventProxy):
         super().__init__(event)
 
     def set(self, caller: Any) -> None:
-        if (identity:=id(caller)) != self._holder:
+        if (identity:=id(caller)) != id(self._holder()):
             raise ValueError(f"Holder at <f{identity}> does not have permission to set event")
         self._event.set()
 
