@@ -20,7 +20,8 @@ def main() -> None:
         SHUTDOWN_EVENT.set()
         try:
             print("Beginning system exit...")
-            loop.run_until_complete(system_exit(*SHUTDOWN_CHECKPOINT_EVENTS))
+            result: str = loop.run_until_complete(system_exit(*SHUTDOWN_CHECKPOINT_EVENTS))
+            print(result)
             print("Ended system exit...")
         except Exception:
             pass

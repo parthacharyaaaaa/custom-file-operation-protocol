@@ -32,13 +32,15 @@ from server.typing import PartialisedRequestHandler
 __all__ = ('system_exit',
            'serve')
 
-async def system_exit(*shutdown_events: asyncio.Event) -> None:
+async def system_exit(*shutdown_events: asyncio.Event) -> str:
     SHUTDOWN_EVENT.set()
     try:
-        await asyncio.wait_for(asyncio.gather(shutdown_event.wait() for shutdown_event in shutdown_events),
+        await asyncio.wait_for(asyncio.gather(shutdown_event.wait for shutdown_event in shutdown_events),
                                CLEANUP_WAITING_PERIOD)
+        return "All shutdown tasks completed"
     except asyncio.TimeoutError:
-        pass
+        remaining_task_repr: tuple[str, ...] = tuple(repr(event) for event in shutdown_events if event.is_set())
+        return f"Shutdown tasks timed out: {', '.join(remaining_task_repr)}"
 
 async def serve() -> None:
     # Initialize all global singletons
