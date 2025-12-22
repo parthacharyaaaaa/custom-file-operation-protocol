@@ -109,15 +109,16 @@ def create_storage_cache(connection_master: ConnectionPoolManager,
 
 def create_logger(config: ServerConfig,
                   connection_master: ConnectionPoolManager,
+                  shutdown_polling_interval: float,
                   shutdown_event: EventProxy,
                   cleanup_event: asyncio.Event) -> Logger:
-    logger: Final[Logger] = Logger(waiting_period=config.log_waiting_period,
-                                           connection_master=connection_master,
-                                           batch_size=config.log_batch_size,
-                                           flush_interval=config.log_interval,
-                                           shutdown_event=shutdown_event,
-                                           cleanup_event=cleanup_event)
-    return logger
+    return Logger(waiting_period=config.log_waiting_period,
+                   connection_master=connection_master,
+                   batch_size=config.log_batch_size,
+                   flush_interval=config.log_interval,
+                   shutdown_polling_interval=shutdown_polling_interval,
+                   shutdown_event=shutdown_event,
+                   cleanup_event=cleanup_event)
 
 def partialise_request_subhandlers(singleton_registry: ServerSingletonsRegistry,
                                    top_handler_mapping: dict[CategoryFlag, RequestHandler],

@@ -34,6 +34,7 @@ class Logger:
                  connection_master: ConnectionPoolManager,
                  batch_size: int,
                  flush_interval: float,
+                 shutdown_polling_interval: float,
                  shutdown_event: EventProxy,
                  cleanup_event: asyncio.Event,
                  max_retries: int = 3):
@@ -46,6 +47,7 @@ class Logger:
         self._max_retries: int = max_retries
         self._flush_interval: float = flush_interval
         self._waiting_period: float = waiting_period
+        self._shutdown_polling_interval = shutdown_polling_interval
 
         # Database interactions
         self.connection_master: Final[ConnectionPoolManager] = connection_master

@@ -54,7 +54,7 @@ async def serve() -> None:
                                                                                     shutdown_event=shutdown_event_proxy,
                                                                                     cleanup_event=CONNECTION_POOL_CLEANUP_EVENT)
     
-    logger: Final[Logger] = create_logger(server_config, connection_master, shutdown_event_proxy, LOG_CLEANUP_EVENT)
+    logger: Final[Logger] = create_logger(server_config, connection_master, SHUTDOWN_POLLING_INTERVAL, shutdown_event_proxy, LOG_CLEANUP_EVENT)
     
     user_master: Final[UserManager] = create_user_master(connection_master=connection_master,
                                                          config=server_config,
