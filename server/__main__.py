@@ -4,7 +4,7 @@ import asyncio
 import sys
 from typing import Final
 
-from server.process.events import SHUTDOWN_EVENT
+from server.process.events import SHUTDOWN_EVENT, SHUTDOWN_CHECKPOINT_EVENTS
 from server.process.control import serve, system_exit
 
 def main() -> None:
@@ -20,7 +20,7 @@ def main() -> None:
         SHUTDOWN_EVENT.set()
         try:
             print("Beginning system exit...")
-            loop.run_until_complete(system_exit())
+            loop.run_until_complete(system_exit(*SHUTDOWN_CHECKPOINT_EVENTS))
             print("Ended system exit...")
         except Exception:
             pass
