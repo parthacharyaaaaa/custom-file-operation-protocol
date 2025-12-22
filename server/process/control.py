@@ -35,7 +35,7 @@ __all__ = ('system_exit',
 async def system_exit(*shutdown_events: asyncio.Event) -> str:
     SHUTDOWN_EVENT.set()
     try:
-        await asyncio.wait_for(asyncio.gather(shutdown_event.wait for shutdown_event in shutdown_events),
+        await asyncio.wait_for(asyncio.gather(*(shutdown_event.wait() for shutdown_event in shutdown_events)),
                                CLEANUP_WAITING_PERIOD)
         return "All shutdown tasks completed"
     except asyncio.TimeoutError:
