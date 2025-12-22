@@ -17,13 +17,12 @@ from server.bootup import (create_server_config, create_connection_master,
 
 from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
-from server.datastructures import EventProxy
 from server.dependencies import ServerSingletonsRegistry
 from server.dispatch import (TOP_LEVEL_REQUEST_MAPPING, auth_subhandler_mapping,
                              file_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping)
 
 from server.logging import ActivityLog
-from server.process.events import SHUTDOWN_EVENT, CACHE_CLEANUP_EVENT, LOG_CLEANUP_EVENT, CLEANUP_WAITING_PERIOD
+from server.process.events import SHUTDOWN_EVENT, CACHE_CLEANUP_EVENT, LOG_CLEANUP_EVENT, CLEANUP_WAITING_PERIOD, EventProxy
 from server.tls import credentials
 from server.typing import PartialisedRequestHandler
 
