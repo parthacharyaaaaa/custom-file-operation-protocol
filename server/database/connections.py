@@ -272,4 +272,4 @@ class ConnectionPoolManager:
             while not connection_pool.empty():
                 leased_connection: LeasedConnection = connection_pool.get_nowait()
                 await leased_connection._pgconn.close()
-        self._cleanup_event.set(caller=id(self))
+        self._cleanup_event.set(caller=self)
