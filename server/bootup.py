@@ -58,11 +58,13 @@ def create_server_config(dirname: Optional[str] = None) -> ServerConfig:
     return server_config
 
 async def create_connection_master(conninfo: str, config: ServerConfig,
+                                   shutdown_poll_interval: int,
                                    shutdown_event: EventProxy,
                                    cleanup_event: asyncio.Event) -> ConnectionPoolManager:
     connection_master = ConnectionPoolManager(config.connection_lease_duration, *config.max_connections,
                                               connection_timeout=config.connection_timeout,
                                               connection_refresh_timer=config.connection_refresh_interval,
+                                              shutdown_polling_interval=shutdown_poll_interval,
                                               shutdown_event=shutdown_event,
                                               cleanup_event=cleanup_event)
     

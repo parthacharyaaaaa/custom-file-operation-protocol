@@ -50,6 +50,7 @@ async def serve() -> None:
                                                                                                             port=os.environ['PG_PORT'],
                                                                                                             dbname=os.environ['PG_DBNAME']),
                                                                                     config=server_config,
+                                                                                    shutdown_poll_interval=SHUTDOWN_POLLING_INTERVAL,
                                                                                     shutdown_event=shutdown_event_proxy,
                                                                                     cleanup_event=CONNECTION_POOL_CLEANUP_EVENT)
     

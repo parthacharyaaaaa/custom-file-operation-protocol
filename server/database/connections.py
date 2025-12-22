@@ -188,12 +188,13 @@ class LeasedConnection:
 class ConnectionPoolManager:
     '''Manager for maintaining different connection pools to the Postgres server'''
     __slots__ = ('connection_timeout', 'lease_duration', 'refresh_timer',
-                 '_shutdown_event', '_cleanup_event',
+                 '_shutdown_event', '_cleanup_event', '_shutdown_polling_interval',
                  '_hp_connection_pool', '_mp_connection_pool', '_lp_connection_pool',
                  '__weakref__')
     
     def __init__(self, lease_duration: float,
                  high_priority_conns: int, mid_priority_conns: int, low_priority_conns: int,
+                 shutdown_polling_interval: int,
                  shutdown_event: EventProxy,
                  cleanup_event: asyncio.Event,
                  connection_timeout: float = 10, connection_refresh_timer: float = 600) -> None:
@@ -207,6 +208,7 @@ class ConnectionPoolManager:
         self.connection_timeout: float = connection_timeout
         self.refresh_timer: float = connection_refresh_timer
         self.lease_duration: float = lease_duration
+        self._shutdown_polling_interval = shutdown_polling_interval
         self._shutdown_event: Final[EventProxy] = shutdown_event
         self._cleanup_event: Final[ExclusiveEventProxy] = ExclusiveEventProxy(cleanup_event, weakref.ref(self))
 
@@ -223,7 +225,7 @@ class ConnectionPoolManager:
         for _ in range(self._lp_connection_pool.maxsize):
             await self._lp_connection_pool.put(await LeasedConnection.connect(conninfo, self, self.lease_duration, ConnectionPriority.LOW, autocommit=True))
 
-        asyncio.create_task(self.connection_maintainer())
+        asyncio.create_task(self.connection_cleaner())
 
     async def request_connection(self, level: ConnectionPriority, max_lease_duration: Optional[float] = None) -> ConnectionProxy:
         '''Request a connection from one of the priority pools. If none available, waits.
@@ -261,9 +263,9 @@ class ConnectionPoolManager:
         else:
             await self._lp_connection_pool.put(proxy._conn)
 
-    async def connection_maintainer(self) -> None:
+    async def connection_cleaner(self) -> None:
         while not self._shutdown_event.is_set():
-            await asyncio.sleep(self.lease_duration)
+            await asyncio.sleep(self._shutdown_polling_interval)
 
         # Shutdown event triggered
         for connection_pool in (self._hp_connection_pool, self._lp_connection_pool, self._mp_connection_pool):
