@@ -1,18 +1,27 @@
 import asyncio
 import os
-from typing import Final
+import weakref
+from typing import Any, Final
 
 __all__ = ('SHUTDOWN_EVENT',
            'LOG_CLEANUP_EVENT',
            'CACHE_CLEANUP_EVENT',
-           'CLEANUP_WAITING_PERIOD')
+           'CONNECTION_POOL_CLEANUP_EVENT',
+           'AUTH_STATE_CLEANUP_EVENT',
+           'CLEANUP_WAITING_PERIOD',
+           'EventProxy',
+           'ExclusiveEventProxy')
 
-'''Helper data structures for server functionality'''
-import asyncio
-import weakref
-from typing import Any, Final
+# Global event to signal server shutdonw
+SHUTDOWN_EVENT: Final[asyncio.Event] = asyncio.Event()
 
-__all__ = ('EventProxy', 'ExclusiveEventProxy')
+# Flags for specific background tasks
+LOG_CLEANUP_EVENT: Final[asyncio.Event] = asyncio.Event()
+CACHE_CLEANUP_EVENT: Final[asyncio.Event] = asyncio.Event()
+AUTH_STATE_CLEANUP_EVENT: Final[asyncio.Event] = asyncio.Event()
+CONNECTION_POOL_CLEANUP_EVENT: Final[asyncio.Event] = asyncio.Event()
+
+CLEANUP_WAITING_PERIOD: Final[int] = int(os.environ["CLEANUP_WAITING_PERIOD"])
 
 class EventProxy:
     '''Read-only proxy to expose an asyncio.Event'''
@@ -46,13 +55,3 @@ class ExclusiveEventProxy(EventProxy):
         if (identity:=id(caller)) != self._holder:
             raise ValueError(f"Holder at <f{identity}> does not have permission to set event")
         self._event.clear()
-    
-
-# Global event to signal server shutdonw
-SHUTDOWN_EVENT: Final[asyncio.Event] = asyncio.Event()
-
-# Flags for specific background tasks
-LOG_CLEANUP_EVENT: Final[asyncio.Event] = asyncio.Event()
-CACHE_CLEANUP_EVENT: Final[asyncio.Event] = asyncio.Event()
-
-CLEANUP_WAITING_PERIOD: Final[int] = int(os.environ["CLEANUP_WAITING_PERIOD"])
