@@ -22,6 +22,7 @@ AUTH_STATE_CLEANUP_EVENT: Final[asyncio.Event] = asyncio.Event()
 CONNECTION_POOL_CLEANUP_EVENT: Final[asyncio.Event] = asyncio.Event()
 
 CLEANUP_WAITING_PERIOD: Final[int] = int(os.environ["CLEANUP_WAITING_PERIOD"])
+SHUTDOWN_POLLING_INTERVAL: Final[int] = int(os.environ.get('SHUTDOWN_POLL_INTERVAL', CLEANUP_WAITING_PERIOD // 3))
 
 class EventProxy:
     '''Read-only proxy to expose an asyncio.Event'''

@@ -19,10 +19,10 @@ from server.authz.user_manager import UserManager
 from server.callback import callback
 from server.config.server_config import ServerConfig
 from server.database.connections import ConnectionPoolManager
-from server.datastructures import EventProxy
 from server.dependencies import ServerSingletonsRegistry
 from server.dispatch import auth_subhandler_mapping, file_subhandler_mapping, info_subhandler_mapping, permission_subhandler_mapping
 from server.file_ops.storage import StorageCache
+from server.process.events import EventProxy
 from server.tls import credentials
 from server.typing import RequestHandler, PartialisedRequestHandler
 
@@ -72,11 +72,15 @@ async def create_connection_master(conninfo: str, config: ServerConfig,
 def create_user_master(connection_master: ConnectionPoolManager,
                        config: ServerConfig,
                        log_queue: asyncio.Queue[db_models.ActivityLog],
-                       shutdown_event: EventProxy) -> UserManager:
+                       shutdown_poll_interval: float,
+                       shutdown_event: EventProxy,
+                       cleanup_event: asyncio.Event) -> UserManager:
     return UserManager(connection_master=connection_master,
                        log_queue=log_queue,
                        session_lifespan=config.session_lifespan,
-                       shutdown_event=shutdown_event)
+                       shutdown_poll_time=shutdown_poll_interval,
+                       shutdown_event=shutdown_event,
+                       cleanup_event=cleanup_event)
 
 def create_file_lock(config: ServerConfig) -> TTLCache[str, bytes]:
     return TTLCache(maxsize=inf, ttl=config.file_lock_ttl)

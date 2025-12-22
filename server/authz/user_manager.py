@@ -8,6 +8,7 @@ from secrets import token_hex
 from hmac import compare_digest
 from hashlib import pbkdf2_hmac
 from typing import Optional, Final, TypeAlias, Union, TYPE_CHECKING
+import weakref
 
 from aiofiles.threadpool.binary import AsyncBufferedReader, AsyncBufferedIOBase
 
@@ -21,8 +22,8 @@ import psycopg.errors as pg_errors
 
 from server.database.connections import ConnectionPriority, ConnectionProxy, ConnectionPoolManager
 from server.database.models import ActivityLog, LogAuthor, Severity, LogType
-from server.datastructures import EventProxy
 from server.errors import UserAuthenticationError, DatabaseFailure, Banned, InvalidAuthData, OperationContested
+from server.process.events import EventProxy, ExclusiveEventProxy
 
 __all__ = ('UserManager',)
 
@@ -41,23 +42,28 @@ class UserManager(metaclass=SingletonMetaclass):
 
     __slots__ = ('connection_master',
                  'session', 'session_lifespan', 'session_refresh_nbf', 
-                 'log_queue', 'previous_digests_mapping', 'shutdown_event',
+                 'log_queue', 'previous_digests_mapping', '_session_expiry_task',
+                 '_shutdown_event', '_cleanup_event', '_shutdown_poll_time',
                  '__weakref__')
 
     def __init__(self,
                  connection_master: ConnectionPoolManager,
                  log_queue: asyncio.Queue[ActivityLog],
                  session_lifespan: float,
-                 shutdown_event: EventProxy):
+                 shutdown_poll_time: float,
+                 shutdown_event: EventProxy,
+                 cleanup_event: asyncio.Event):
         self.connection_master: Final[ConnectionPoolManager] = connection_master
         self.session: Final[dict[str, SessionMetadata]] = {}
         self.log_queue: Final[asyncio.Queue[ActivityLog]] = log_queue
         self.session_lifespan: float = session_lifespan
         self.session_refresh_nbf: float = session_lifespan // 2
         self.previous_digests_mapping: Final[TTLCache[str, list[bytes]]] = TTLCache(math.inf, self.session_lifespan)
-        self.shutdown_event = shutdown_event
+        self._shutdown_event: Final[EventProxy] = shutdown_event
+        self._cleanup_event: Final[ExclusiveEventProxy] = ExclusiveEventProxy(cleanup_event, weakref.ref(id(self)))
+        self._shutdown_poll_time: float = shutdown_poll_time
 
-        asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
+        self._session_expiry_task: Final[asyncio.Task] = asyncio.create_task(self.expire_sessions(), name='Session Trimming Task')
     
     @staticmethod
     def generate_password_hash(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
@@ -389,9 +395,18 @@ class UserManager(metaclass=SingletonMetaclass):
                                      (datetime.now(), username,))
             await proxy.commit()
 
+    async def shutdown_watchdog(self) -> None:
+        while not self._shutdown_event.is_set():
+            await asyncio.sleep(self._shutdown_poll_time)
+
+        # Shutdown event triggered
+        self._session_expiry_task.cancel()
+        self.session.clear()
+        self.previous_digests_mapping.clear()
+        self._cleanup_event.set(self)
+
     async def expire_sessions(self) -> None:
-        sleep_duration: float = self.session_lifespan // 3
-        while not self.shutdown_event.is_set():
+        while True:
             reference_threshold: float = time.time()
             hitlist: list[str] = []
             for username, auth_data in self.session.items():
@@ -400,11 +415,7 @@ class UserManager(metaclass=SingletonMetaclass):
             for user in hitlist:
                 self.session.pop(user, None)
                 self.previous_digests_mapping.pop(user, None)
-            await asyncio.sleep(sleep_duration)
-
-        # Shutdown sequence triggered
-        self.session.clear()
-        self.previous_digests_mapping.clear()
+            await asyncio.sleep(self.session_lifespan // 3)
 
     async def enqueue_activity(self, log: ActivityLog) -> None:
         log.logged_by = UserManager.LOG_ALIAS

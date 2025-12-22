@@ -23,7 +23,9 @@ from server.dispatch import (TOP_LEVEL_REQUEST_MAPPING, auth_subhandler_mapping,
 
 from server.logging import ActivityLog
 from server.process.events import (SHUTDOWN_EVENT, CACHE_CLEANUP_EVENT, LOG_CLEANUP_EVENT,
-                                   CLEANUP_WAITING_PERIOD, CONNECTION_POOL_CLEANUP_EVENT, EventProxy)
+                                   AUTH_STATE_CLEANUP_EVENT, CONNECTION_POOL_CLEANUP_EVENT,
+                                   CLEANUP_WAITING_PERIOD, SHUTDOWN_POLLING_INTERVAL,
+                                   EventProxy)
 from server.tls import credentials
 from server.typing import PartialisedRequestHandler
 
@@ -56,7 +58,9 @@ async def serve() -> None:
     user_master: Final[UserManager] = create_user_master(connection_master=connection_master,
                                                          config=server_config,
                                                          log_queue=log_queue,
-                                                         shutdown_event=shutdown_event_proxy)
+                                                         shutdown_event=shutdown_event_proxy,
+                                                         cleanup_event=AUTH_STATE_CLEANUP_EVENT,
+                                                         shutdown_poll_interval=SHUTDOWN_POLLING_INTERVAL)
     
     file_lock: Final[TTLCache[str, bytes]] = create_file_lock(config=server_config)
    
