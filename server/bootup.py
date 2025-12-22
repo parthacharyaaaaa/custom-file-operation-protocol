@@ -13,7 +13,6 @@ from cachetools import TTLCache
 
 from models.flags import CategoryFlag
 
-import server.database.models as db_models
 from server.authz.user_manager import UserManager
 from server.callback import callback
 from server.config.server_config import ServerConfig
@@ -98,10 +97,15 @@ def create_caches(config: ServerConfig) -> tuple[TTLCache[str, dict[str, AsyncBu
 
 def create_storage_cache(connection_master: ConnectionPoolManager,
                          server_config: ServerConfig,
+                         shutdown_polling_interval: float,
                          shutdown_event: EventProxy,
                          cleanup_event: asyncio.Event) -> StorageCache:
-    return StorageCache(connection_master, server_config.disk_flush_interval, server_config.disk_flush_batch_size,
-                        shutdown_event, cleanup_event)
+    return StorageCache(connection_master=connection_master,
+                        disk_flush_interval=server_config.disk_flush_interval,
+                        flush_batch_size=server_config.disk_flush_batch_size,
+                        shutdown_polling_interval=shutdown_polling_interval,
+                        shutdown_event=shutdown_event,
+                        cleanup_event=cleanup_event)
 
 def create_logger(config: ServerConfig,
                   connection_master: ConnectionPoolManager,

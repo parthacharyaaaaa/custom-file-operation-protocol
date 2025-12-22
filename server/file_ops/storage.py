@@ -2,15 +2,17 @@
 import asyncio
 from collections import OrderedDict
 from typing import Optional, Final
+import weakref
 
 from server.database.connections import ConnectionPoolManager, ConnectionPriority, ConnectionProxy
-from server.datastructures import EventProxy
 from server.errors import UserNotFound, FileNotFound
 
 from models.singletons import SingletonMetaclass
 
 from psycopg.rows import dict_row, DictRow
 from psycopg import sql
+
+from server.process.events import EventProxy, ExclusiveEventProxy
 
 __all__ = ('StorageData',
            'StorageCache')
@@ -37,7 +39,9 @@ class StorageData:
         return self.filecount, self.storage_used
 
 class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
-    __slots__ = ('connection_master', 'disk_flush_interval', 'flush_batch_size', 'shutdown_event', 'cleanup_event')
+    __slots__ = ('connection_master',
+                 '_disk_flush_interval', '_flush_batch_size',
+                 '_shutdown_polling_interval', '_shutdown_event', '_cleanup_event')
     
     storage_fetch_query: Final[sql.Composed] = (sql.SQL('''SELECT file_count AS {}, storage_used AS {} 
                                                         FROM users
@@ -60,16 +64,46 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
                  connection_master: ConnectionPoolManager,
                  disk_flush_interval: float,
                  flush_batch_size: int,
+                 shutdown_polling_interval: float,
                  shutdown_event: EventProxy,
                  cleanup_event: asyncio.Event):
-        self.connection_master = connection_master
-        self.disk_flush_interval = disk_flush_interval
-        self.flush_batch_size = flush_batch_size
-        self.shutdown_event = shutdown_event
-        self.cleanup_event = cleanup_event
+        self.connection_master: Final[ConnectionPoolManager] = connection_master
+        self._disk_flush_interval: float = disk_flush_interval
+        self._flush_batch_size: int = flush_batch_size
+        self._shutdown_polling_interval: float = shutdown_polling_interval
+        self._shutdown_event: Final[EventProxy] = shutdown_event
+        self._cleanup_event: Final[ExclusiveEventProxy] = ExclusiveEventProxy(cleanup_event, weakref.ref(self))
         super().__init__()
 
-        asyncio.create_task(self.background_storage_sync())
+        storage_syncing_task: asyncio.Task[None] = asyncio.create_task(self.background_storage_sync())
+        asyncio.create_task(self.shutdown_handler(storage_syncing_task))
+
+    @property
+    def disk_flush_interval(self) -> float:
+        return self._disk_flush_interval
+    @disk_flush_interval.setter
+    def disk_flush_interval(self, value: float) -> None:
+        if (value <= 0) or not isinstance(value, (float, int)):
+            raise ValueError("Disk flush interval time must be a positive fraction")
+        self._disk_flush_interval = value
+    
+    @property
+    def shutdown_polling_interval(self) -> float:
+        return self._shutdown_polling_interval
+    @shutdown_polling_interval.setter
+    def shutdown_polling_interval(self, value: float) -> None:
+        if (value <= 0) or not isinstance(value, (float, int)):
+            raise ValueError("Shutdown polling interval time must be a positive fraction")
+        self._shutdown_polling_interval = value
+    
+    @property
+    def flush_batch_size(self) -> float:
+        return self._flush_batch_size
+    @flush_batch_size.setter
+    def flush_batch_size(self, value: int) -> None:
+        if (value <= 0) or not isinstance(value, int):
+            raise ValueError("Batch size time must be a positive integer")
+        self._flush_batch_size = value
 
     async def get_storage_data(self,
                                username: str,
@@ -183,9 +217,18 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
                                           for file, size in user_storage_data.file_data.items()))
             await proxy.commit()
     
+    async def shutdown_handler(self, storage_syncing_task: asyncio.Task) -> None:
+        while not self._shutdown_event.is_set(): await asyncio.sleep(self._shutdown_polling_interval)
+
+        storage_syncing_task.cancel()
+        if self:
+            await self._flush_buffer(self.copy())
+            self.clear()
+        self._cleanup_event.set(self)
+    
     async def background_storage_sync(self) -> None:
         current_buffer: dict[str, StorageData] = {}
-        while not self.shutdown_event.is_set():
+        while True:
             while self and len(current_buffer) <= self.flush_batch_size:
                 storage_item, storage_data =  self.popitem(last=False)
                 current_buffer[storage_item] = storage_data
@@ -193,9 +236,3 @@ class StorageCache(OrderedDict, metaclass=SingletonMetaclass):
             await self._flush_buffer(current_buffer)
             current_buffer.clear()
             await asyncio.sleep(self.disk_flush_interval)
-        
-        # Shutdown event triggered, pass entire remaining items as buffer to be written to disk
-        if self:
-            await self._flush_buffer(self.copy())
-            self.clear()
-        self.cleanup_event.set()
