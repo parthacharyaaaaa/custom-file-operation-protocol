@@ -1,7 +1,7 @@
 import asyncio
 import os
 from types import MappingProxyType
-from typing import Final, Optional
+from typing import Final
 
 from cachetools import TTLCache
 
@@ -30,10 +30,10 @@ from server.typing import PartialisedRequestHandler
 __all__ = ('system_exit',
            'serve')
 
-async def system_exit() -> None:
+async def system_exit(*shutdown_events: asyncio.Event) -> None:
     SHUTDOWN_EVENT.set()
     try:
-        await asyncio.wait_for(asyncio.gather(LOG_CLEANUP_EVENT.wait(), CACHE_CLEANUP_EVENT.wait()),
+        await asyncio.wait_for(asyncio.gather(shutdown_event.wait() for shutdown_event in shutdown_events),
                                CLEANUP_WAITING_PERIOD)
     except asyncio.TimeoutError:
         pass
