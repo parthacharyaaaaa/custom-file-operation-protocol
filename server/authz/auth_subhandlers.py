@@ -9,10 +9,10 @@ from models.session_metadata import SessionMetadata
 from server.authz import user_manager
 from server.config import server_config
 from server.errors import InternalServerError, InvalidAuthSemantic, InvalidAuthData
-from server.dependencies import GlobalAmendCacheType, GlobalLogQueueType, GlobalReadCacheType
+from server.dependencies import GlobalAmendCacheType, GlobalReadCacheType
 from server.database import models as db_models
 from server.file_ops.base_operations import delete_directory
-from server.logging import enqueue_log
+from server.logging import Logger
 
 __all__ = ('handle_registration', 'handle_login', 'handle_deletion',
            'handle_password_change', 'handle_session_refresh', 'handle_session_termination')
@@ -49,7 +49,7 @@ async def handle_deletion(header_component: BaseHeaderComponent,
                           user_manager: user_manager.UserManager,
                           reader_cache: GlobalReadCacheType,
                           amendment_cache: GlobalAmendCacheType,
-                          log_queue: GlobalLogQueueType) -> tuple[ResponseHeader, ResponseBody]:
+                          logger: Logger) -> tuple[ResponseHeader, ResponseBody]:
     if not auth_component.identity:
         raise InvalidAuthData(f'Missing identity for account deletion')
     if not auth_component.password:
@@ -63,12 +63,12 @@ async def handle_deletion(header_component: BaseHeaderComponent,
         files_deleted = await asyncio.wait_for(asyncio.to_thread(delete_directory, root=config.files_directory, dirname=auth_component.identity),
                                             timeout=config.file_transfer_timeout)
     except asyncio.TimeoutError:
-            asyncio.create_task(enqueue_log(waiting_period=config.log_waiting_period, queue=log_queue,
-                                            log=db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
-                                                                      log_category=db_models.LogType.INTERNAL,
-                                                                      log_details=f'Directory deletion timeout: {auth_component.identity}',
-                                                                      reported_severity=db_models.Severity.NON_CRITICAL_FAILURE,
-                                                                      user_concerned=auth_component.identity)))
+            log: db_models.ActivityLog = db_models.ActivityLog(logged_by=db_models.LogAuthor.FILE_HANDLER,
+                                                               log_category=db_models.LogType.INTERNAL,
+                                                               log_details=f'Directory deletion timeout: {auth_component.identity}',
+                                                               reported_severity=db_models.Severity.NON_CRITICAL_FAILURE,
+                                                               user_concerned=auth_component.identity)
+            asyncio.create_task(logger.enqueue_log(log))
             raise InternalServerError(f'Directory deletion timeout: {auth_component.identity}')
     
     header: ResponseHeader = ResponseHeader.from_server(version=header_component.version, code=SuccessFlags.SUCCESSFUL_USER_DELETION, ended_connection=header_component.finish, config=config)
