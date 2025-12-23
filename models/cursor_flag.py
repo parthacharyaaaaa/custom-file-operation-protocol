@@ -1,5 +1,8 @@
 from enum import IntFlag
 
+__all__ = ('CursorFlag',
+           'CURSOR_BITS_CHECK')
+
 class CursorFlag(IntFlag):
     CURSOR_KEEPALIVE                    = 0b0001
     POST_OPERATION_CURSOR_KEEPALIVE     = 0b0010
