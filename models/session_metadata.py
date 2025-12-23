@@ -2,6 +2,8 @@ import time
 from typing import Any, Optional, Sequence
 from types import FunctionType
 
+__all__ = ('SessionMetadata',)
+
 class SessionMetadata:
     __slots__ = '_token', '_refresh_digest', '_last_refresh', '_iteration', '_lifespan', '_valid_until'
     # Cryptograhic metadata
