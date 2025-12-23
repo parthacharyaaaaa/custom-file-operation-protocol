@@ -1,7 +1,7 @@
 '''Module containing IntFlags for request header model (category and subcategory bits)'''
 from enum import IntFlag
 
-__all__ = ('CategoryFlag', 'AuthFlags', 'PermissionFlags', 'FileFlags')
+__all__ = ('CategoryFlag', 'AuthFlags', 'InfoFlags', 'PermissionFlags', 'FileFlags')
 
 class CategoryFlag(IntFlag):
     '''Supported categories for operations'''
