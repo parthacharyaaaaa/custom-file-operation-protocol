@@ -49,6 +49,17 @@ class ClientWindow(async_cmd.AsyncCmd):
         self.prompt = f'{host}:{port}>'
         super().__init__(completekey, stdin, stdout)
     
+    async def onecmd(self, line) -> bool:
+        try:
+            await super().onecmd(line)
+        except ConnectionError as e:
+            await cmd_utils.display(f"Error in connection to remote host")
+            return True
+        except asyncio.IncompleteReadError as e:
+            await cmd_utils.display(f"An error occured in reading data from the remote host, please try connecting again")
+            return True
+        return False
+
     async def postcmd(self, stop, line) -> bool:    # type: ignore
         if self.end_connection:
             await auth_operations.end_remote_session(reader=self.reader, writer=self.writer,

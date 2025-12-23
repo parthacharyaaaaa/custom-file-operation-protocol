@@ -110,7 +110,5 @@ class AsyncCmd(cmd.Cmd):
             except pydantic.ValidationError as v:
                 error_string: str = '\n'.join(f'{err_details["loc"][0]} (input={err_details["input"]}): {err_details["msg"]}' for err_details in v.errors())
                 await cmd_utils.display(error_string)
-            except Exception as e:
-                await cmd_utils.display(format_exc())
 
             return False
